@@ -1,0 +1,72 @@
+@page "/Account/Manage"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using MentorPath.Data
+@inject UserManager<AppUser> UserManager
+@inject SignInManager<AppUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Profil — MentorPath</PageTitle>
+
+<StatusMessage />
+<div class="row">
+    <div class="col-xl-6">
+        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <div class="mb-3">
+                <label class="form-label">E-mail</label>
+                <input type="text" value="@email" class="form-control" disabled />
+            </div>
+            <div class="mb-3">
+                <label for="Input.DisplayName" class="form-label">Imię i nazwisko</label>
+                <InputText @bind-Value="Input.DisplayName" id="Input.DisplayName" class="form-control" />
+                <ValidationMessage For="() => Input.DisplayName" class="text-danger small" />
+            </div>
+            <button type="submit" class="btn btn-primary">Zapisz</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private AppUser? user;
+    private string? email;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+        email = user.Email;
+        if (string.IsNullOrEmpty(Input.DisplayName)) Input.DisplayName = user.DisplayName;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+        user.DisplayName = Input.DisplayName.Trim();
+        await UserManager.UpdateAsync(user);
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("Profil został zapisany.", HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Podaj imię i nazwisko.")]
+        [StringLength(200)]
+        public string DisplayName { get; set; } = "";
+    }
+}

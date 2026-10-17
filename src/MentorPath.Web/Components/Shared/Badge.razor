@@ -1,0 +1,21 @@
+<span class="badge rounded-pill text-bg-@Labels.Tone(Value) status-badge">@Text</span>
+
+@code {
+    [Parameter, EditorRequired] public object Value { get; set; } = default!;
+    [Parameter] public string? Label { get; set; }
+
+    private string Text => Label ?? Value switch
+    {
+        ExerciseType v => Labels.Of(v),
+        ExerciseStatus v => Labels.Of(v),
+        SubmissionStatus v => Labels.Of(v),
+        MentorshipStatus v => Labels.Of(v),
+        RoadmapStatus v => Labels.Of(v),
+        Difficulty v => Labels.Of(v),
+        ReviewVerdict v => Labels.Of(v),
+        MentorPath.Application.Invitations.Contracts.InvitationState v => Labels.Of(v),
+        MentorPath.Application.Progress.Contracts.AssignmentProgressStatus v => Labels.Of(v),
+        MentorPath.Application.Progress.Contracts.TopicProgressStatus v => Labels.Of(v),
+        _ => Value.ToString() ?? "",
+    };
+}

@@ -1,0 +1,21 @@
+@if (Error is not null && (Error.Kind != ErrorKind.NotFound || ShowNotFound))
+{
+    <div class="alert alert-@(Error.Kind == ErrorKind.Validation ? "warning" : "danger")" role="alert">
+        <div>@Error.Message</div>
+        @if (Error.FieldErrors is { Count: > 0 } && ShowFieldList)
+        {
+            <ul class="mb-0 mt-1 small">
+                @foreach (var msg in Error.FieldErrors.SelectMany(f => f.Value))
+                {
+                    <li>@msg</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public AppError? Error { get; set; }
+    [Parameter] public bool ShowNotFound { get; set; } = true;
+    [Parameter] public bool ShowFieldList { get; set; } = true;
+}

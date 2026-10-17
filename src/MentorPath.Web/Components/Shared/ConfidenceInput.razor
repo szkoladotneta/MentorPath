@@ -1,0 +1,27 @@
+<div class="confidence-input" role="radiogroup" aria-label="@Label">
+    <div class="form-label">@Label</div>
+    <div class="btn-group" role="group">
+        @for (var i = 1; i <= 5; i++)
+        {
+            var level = i;
+            <input type="radio" class="btn-check" name="@name" id="@($"{name}-{level}")" checked="@(Value == level)" @onchange="() => Set(level)" disabled="@Disabled" />
+            <label class="btn btn-outline-primary btn-sm" for="@($"{name}-{level}")">@level</label>
+        }
+    </div>
+    <div class="form-text">1 — bardzo niepewnie, 5 — bardzo pewnie. To samoocena, nie ocena kompetencji.</div>
+</div>
+
+@code {
+    private readonly string name = $"confidence-{Guid.NewGuid():N}";
+
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Jak pewnie się czujesz?";
+    [Parameter] public bool Disabled { get; set; }
+
+    private Task Set(int level)
+    {
+        Value = level;
+        return ValueChanged.InvokeAsync(level);
+    }
+}

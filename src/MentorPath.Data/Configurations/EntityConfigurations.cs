@@ -1,0 +1,220 @@
+using MentorPath.Data.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MentorPath.Data.Configurations;
+
+internal sealed class WorkspaceConfiguration : IEntityTypeConfiguration<Workspace>
+{
+    public void Configure(EntityTypeBuilder<Workspace> e)
+    {
+        e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        e.HasIndex(x => x.OwnerUserId).IsUnique();
+        e.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class MentorshipConfiguration : IEntityTypeConfiguration<Mentorship>
+{
+    public void Configure(EntityTypeBuilder<Mentorship> e)
+    {
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.WorkspaceId, x.MenteeUserId }).IsUnique();
+        e.HasIndex(x => x.MenteeUserId);
+        e.HasOne(x => x.Workspace).WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Mentee).WithMany().HasForeignKey(x => x.MenteeUserId).OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_Mentorships_WeeklyHours", "\"WeeklyHours\" IS NULL OR (\"WeeklyHours\" BETWEEN 1 AND 80)"));
+    }
+}
+
+internal sealed class InvitationConfiguration : IEntityTypeConfiguration<Invitation>
+{
+    public void Configure(EntityTypeBuilder<Invitation> e)
+    {
+        e.Property(x => x.NormalizedEmail).HasMaxLength(320).IsRequired();
+        e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        e.HasIndex(x => x.TokenHash).IsUnique();
+        e.HasIndex(x => new { x.WorkspaceId, x.NormalizedEmail });
+        e.HasOne(x => x.Workspace).WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.InvitedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class TopicConfiguration : IEntityTypeConfiguration<Topic>
+{
+    public void Configure(EntityTypeBuilder<Topic> e)
+    {
+        e.Property(x => x.Slug).HasMaxLength(150).IsRequired();
+        e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+        e.Property(x => x.Category).HasMaxLength(80).IsRequired();
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.WorkspaceId, x.Slug }).IsUnique();
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class ExerciseConfiguration : IEntityTypeConfiguration<Exercise>
+{
+    public void Configure(EntityTypeBuilder<Exercise> e)
+    {
+        e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.WorkspaceId, x.TopicId, x.Status });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Topic).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.TopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasMany(x => x.QuizOptions).WithOne().HasForeignKey(o => o.ExerciseId).OnDelete(DeleteBehavior.Cascade);
+        e.ToTable(t => t.HasCheckConstraint("CK_Exercises_EstimatedMinutes", "\"EstimatedMinutes\" IS NULL OR (\"EstimatedMinutes\" BETWEEN 1 AND 600)"));
+    }
+}
+
+internal sealed class QuizOptionConfiguration : IEntityTypeConfiguration<QuizOption>
+{
+    public void Configure(EntityTypeBuilder<QuizOption> e)
+    {
+        e.HasIndex(x => x.ExerciseId).IsUnique().HasFilter("\"IsCorrect\"").HasDatabaseName("IX_QuizOptions_ExerciseId_SingleCorrect");
+        e.HasIndex(x => new { x.ExerciseId, x.Position });
+    }
+}
+
+internal sealed class RoadmapConfiguration : IEntityTypeConfiguration<Roadmap>
+{
+    public void Configure(EntityTypeBuilder<Roadmap> e)
+    {
+        e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => x.MentorshipId).IsUnique();
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Mentorship).WithOne(m => m.Roadmap)
+            .HasForeignKey<Roadmap>(x => new { x.WorkspaceId, x.MentorshipId })
+            .HasPrincipalKey<Mentorship>(m => new { m.WorkspaceId, m.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasMany(x => x.Items).WithOne(i => i.Roadmap)
+            .HasForeignKey(i => new { i.WorkspaceId, i.RoadmapId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class RoadmapItemConfiguration : IEntityTypeConfiguration<RoadmapItem>
+{
+    public void Configure(EntityTypeBuilder<RoadmapItem> e)
+    {
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.RoadmapId, x.TopicId }).IsUnique();
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Topic).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.TopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasMany(x => x.Assignments).WithOne(a => a.RoadmapItem)
+            .HasForeignKey(a => new { a.WorkspaceId, a.RoadmapItemId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignment>
+{
+    public void Configure(EntityTypeBuilder<Assignment> e)
+    {
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.RoadmapItemId, x.ExerciseId }).IsUnique();
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Exercise).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.ExerciseId })
+            .HasPrincipalKey(ex => new { ex.WorkspaceId, ex.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasMany(x => x.Submissions).WithOne(s => s.Assignment)
+            .HasForeignKey(s => new { s.WorkspaceId, s.AssignmentId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class SubmissionConfiguration : IEntityTypeConfiguration<Submission>
+{
+    public void Configure(EntityTypeBuilder<Submission> e)
+    {
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.Property(x => x.DecisionAnswerJson).HasColumnType("jsonb");
+        e.Property(x => x.ExternalUrl).HasMaxLength(2000);
+        e.HasIndex(x => new { x.AssignmentId, x.AttemptNumber }).IsUnique();
+        e.HasIndex(x => new { x.MenteeUserId, x.ClientRequestId }).IsUnique();
+        e.HasIndex(x => x.AssignmentId).IsUnique().HasFilter("\"Status\" = 'PendingReview'").HasDatabaseName("IX_Submissions_AssignmentId_SinglePending");
+        e.HasIndex(x => new { x.WorkspaceId, x.Status, x.SubmittedAtUtc });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Mentee).WithMany().HasForeignKey(x => x.MenteeUserId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.SelectedQuizOption).WithMany().HasForeignKey(x => x.SelectedQuizOptionId).OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_Submissions_ConfidenceBefore", "\"ConfidenceBefore\" BETWEEN 1 AND 5");
+            t.HasCheckConstraint("CK_Submissions_AttemptNumber", "\"AttemptNumber\" > 0");
+        });
+    }
+}
+
+internal sealed class SubmissionAttachmentConfiguration : IEntityTypeConfiguration<SubmissionAttachment>
+{
+    public void Configure(EntityTypeBuilder<SubmissionAttachment> e)
+    {
+        e.Property(x => x.ObjectKey).HasMaxLength(500).IsRequired();
+        e.Property(x => x.OriginalFileName).HasMaxLength(255).IsRequired();
+        e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        e.HasIndex(x => x.SubmissionId).IsUnique();
+        e.HasIndex(x => x.ObjectKey).IsUnique();
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Submission).WithOne(s => s.Attachment)
+            .HasForeignKey<SubmissionAttachment>(x => new { x.WorkspaceId, x.SubmissionId })
+            .HasPrincipalKey<Submission>(s => new { s.WorkspaceId, s.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class MentorFeedbackConfiguration : IEntityTypeConfiguration<MentorFeedback>
+{
+    public void Configure(EntityTypeBuilder<MentorFeedback> e)
+    {
+        e.ToTable("MentorFeedback");
+        e.HasIndex(x => x.SubmissionId).IsUnique();
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.MentorUserId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Submission).WithOne(s => s.Feedback)
+            .HasForeignKey<MentorFeedback>(x => new { x.WorkspaceId, x.SubmissionId })
+            .HasPrincipalKey<Submission>(s => new { s.WorkspaceId, s.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class SubmissionReflectionConfiguration : IEntityTypeConfiguration<SubmissionReflection>
+{
+    public void Configure(EntityTypeBuilder<SubmissionReflection> e)
+    {
+        e.HasIndex(x => x.SubmissionId).IsUnique();
+        e.HasOne(x => x.Submission).WithOne(s => s.Reflection)
+            .HasForeignKey<SubmissionReflection>(x => x.SubmissionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_SubmissionReflections_ConfidenceAfter", "\"ConfidenceAfter\" BETWEEN 1 AND 5"));
+    }
+}
+
+internal sealed class AiGenerationRequestConfiguration : IEntityTypeConfiguration<AiGenerationRequest>
+{
+    public void Configure(EntityTypeBuilder<AiGenerationRequest> e)
+    {
+        e.Property(x => x.Provider).HasMaxLength(100).IsRequired();
+        e.Property(x => x.Model).HasMaxLength(100).IsRequired();
+        e.Property(x => x.PromptTemplateVersion).HasMaxLength(30).IsRequired();
+        e.Property(x => x.ErrorCode).HasMaxLength(100);
+        e.HasIndex(x => new { x.WorkspaceId, x.CreatedAtUtc });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Exercise>().WithMany().HasForeignKey(x => x.ExerciseId).OnDelete(DeleteBehavior.SetNull);
+    }
+}

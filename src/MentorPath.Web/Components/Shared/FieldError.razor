@@ -1,0 +1,12 @@
+@if (Error?.FieldErrors is not null && Error.FieldErrors.TryGetValue(Field, out var messages))
+{
+    @foreach (var m in messages)
+    {
+        <div class="text-danger small">@m</div>
+    }
+}
+
+@code {
+    [Parameter] public AppError? Error { get; set; }
+    [Parameter, EditorRequired] public string Field { get; set; } = "";
+}

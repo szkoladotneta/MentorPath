@@ -1,0 +1,12 @@
+@using MentorPath.Application.Common.Markdown
+@inject IMarkdownRenderer Renderer
+
+@if (!string.IsNullOrWhiteSpace(Value))
+{
+    <div class="markdown @Class">@((MarkupString)Renderer.RenderToSafeHtml(Value))</div>
+}
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

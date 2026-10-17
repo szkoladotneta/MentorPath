@@ -1,0 +1,22 @@
+@page "/"
+@inject NavigationManager Nav
+
+<PageTitle>MentorPath</PageTitle>
+
+<div class="auth-card">
+    <h1 class="h3">MentorPath</h1>
+    <p class="text-secondary">Platforma mentoringu architektury backendowej: scenariusz → decyzja → uzasadnienie → feedback → refleksja → postęp.</p>
+    <a class="btn btn-primary" href="Account/Login">Zaloguj się</a>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        if (user.IsInRole(AppRoles.Mentor)) Nav.NavigateTo("mentor");
+        else if (user.IsInRole(AppRoles.Mentee)) Nav.NavigateTo("app");
+    }
+}

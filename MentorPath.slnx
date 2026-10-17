@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MentorPath.Application/MentorPath.Application.csproj" />
+    <Project Path="src/MentorPath.Data/MentorPath.Data.csproj" />
+    <Project Path="src/MentorPath.Web/MentorPath.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MentorPath.IntegrationTests/MentorPath.IntegrationTests.csproj" />
+    <Project Path="tests/MentorPath.UnitTests/MentorPath.UnitTests.csproj" />
+  </Folder>
+</Solution>

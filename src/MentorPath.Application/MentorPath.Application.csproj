@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="HtmlSanitizer" />
+    <PackageReference Include="AWSSDK.S3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MentorPath.Data\MentorPath.Data.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MentorPath.UnitTests" />
+    <InternalsVisibleTo Include="MentorPath.IntegrationTests" />
+  </ItemGroup>
+</Project>

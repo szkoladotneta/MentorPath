@@ -1,0 +1,12 @@
+<div class="empty-state">
+    <h2 class="h6 mb-1">@Title</h2>
+    @if (ChildContent is not null)
+    {
+        <div class="text-secondary small">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Brak danych";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

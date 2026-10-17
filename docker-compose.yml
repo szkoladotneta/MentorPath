@@ -1,0 +1,36 @@
+# Local development infrastructure. Credentials below are local-only defaults, never used in production.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: mentorpath
+      POSTGRES_USER: mentorpath
+      POSTGRES_PASSWORD: mentorpath
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mentorpath -d mentorpath"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  s3:
+    # S3-compatible private object storage for local development (SeaweedFS S3 gateway).
+    image: chrislusf/seaweedfs:latest
+    command: "server -s3 -dir=/data -s3.port=8333"
+    ports:
+      - "8333:8333"
+    volumes:
+      - s3data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pgdata:
+  s3data:

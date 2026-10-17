@@ -1,0 +1,48 @@
+@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<aside class="app-sidebar">
+    <div class="app-brand">
+        <a href="">MentorPath</a>
+        <label for="nav-toggle" class="nav-toggle-label" aria-label="Menu">☰</label>
+    </div>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" />
+    <nav class="app-nav">
+        <AuthorizeView Roles="@AppRoles.Mentor">
+            <div class="nav-section">Mentor</div>
+            <NavLink class="nav-link" href="mentor" Match="NavLinkMatch.All">Dashboard</NavLink>
+            <NavLink class="nav-link" href="mentor/mentees">Mentees</NavLink>
+            <NavLink class="nav-link" href="mentor/catalog/topics">Katalog</NavLink>
+            <NavLink class="nav-link" href="mentor/exercises/new">Nowe ćwiczenie</NavLink>
+            <NavLink class="nav-link" href="mentor/reviews">Review</NavLink>
+        </AuthorizeView>
+        <AuthorizeView Roles="@AppRoles.Mentee">
+            <div class="nav-section">Mentee</div>
+            <NavLink class="nav-link" href="app" Match="NavLinkMatch.All">Dashboard</NavLink>
+            <NavLink class="nav-link" href="app/mentorships">Moje mentoringi</NavLink>
+            <NavLink class="nav-link" href="app/profile">Profil mentoringu</NavLink>
+        </AuthorizeView>
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-section">Konto</div>
+                <NavLink class="nav-link" href="Account/Manage">@context.User.Identity?.Name</NavLink>
+                <form action="Account/Logout" method="post">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="ReturnUrl" value="" />
+                    <button type="submit" class="nav-link btn btn-link text-start w-100">Wyloguj</button>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <NavLink class="nav-link" href="Account/Login">Zaloguj</NavLink>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</aside>
+
+@code {
+    protected override void OnInitialized() => NavigationManager.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+
+    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
+}

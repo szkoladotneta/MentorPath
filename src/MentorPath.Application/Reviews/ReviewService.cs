@@ -1,0 +1,163 @@
+using MentorPath.Application.Catalog;
+using MentorPath.Application.Common;
+using MentorPath.Application.Common.Access;
+using MentorPath.Application.Reviews.Contracts;
+using MentorPath.Application.Submissions;
+using MentorPath.Data;
+using MentorPath.Data.Entities;
+using MentorPath.Data.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace MentorPath.Application.Reviews;
+
+internal sealed class ReviewService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    IWorkspaceAccessService access,
+    TimeProvider clock) : IReviewService
+{
+    private const string Module = "review";
+
+    public async Task<Result<IReadOnlyList<PendingReviewItem>>> GetPendingAsync(Guid actorUserId, CancellationToken ct)
+    {
+        var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
+        if (ws is null) return Errors.NotFound(Module);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await QueryPendingAsync(db, ws.Value, ct);
+    }
+
+    internal static async Task<List<PendingReviewItem>> QueryPendingAsync(AppDbContext db, Guid workspaceId, CancellationToken ct) =>
+        await db.Submissions.AsNoTracking()
+            .Where(s => s.WorkspaceId == workspaceId && s.Status == SubmissionStatus.PendingReview)
+            .OrderBy(s => s.SubmittedAtUtc)
+            .Select(s => new PendingReviewItem(s.Id, s.Assignment!.RoadmapItem!.Roadmap!.MentorshipId, s.Mentee!.DisplayName,
+                s.Assignment.Exercise!.Title, s.Assignment.Exercise.Type, s.AttemptNumber, s.SubmittedAtUtc, s.Assignment.DueAtUtc))
+            .ToListAsync(ct);
+
+    public async Task<Result<ReviewDetailDto>> GetReviewDetailAsync(Guid actorUserId, Guid submissionId, CancellationToken ct)
+    {
+        var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
+        if (ws is null) return Errors.NotFound(Module);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var s = await db.Submissions.AsNoTracking()
+            .Where(x => x.Id == submissionId && x.WorkspaceId == ws)
+            .Select(x => new
+            {
+                x.Id, x.Status, x.AssignmentId, x.MenteeUserId,
+                MenteeName = x.Mentee!.DisplayName,
+                x.Assignment!.ExerciseId,
+                x.Assignment!.IsActive,
+                ItemActive = x.Assignment!.RoadmapItem!.IsActive,
+                Roadmap = x.Assignment!.RoadmapItem!.Roadmap!,
+                MentorshipStatus = x.Assignment!.RoadmapItem!.Roadmap!.Mentorship!.Status,
+            })
+            .FirstOrDefaultAsync(ct);
+        if (s is null) return Errors.NotFound(Module);
+
+        var exercise = await db.Exercises.AsNoTracking().Include(e => e.QuizOptions).Include(e => e.Topic)
+            .FirstAsync(e => e.Id == s.ExerciseId && e.WorkspaceId == ws, ct);
+        var acc = new AssignmentAccess(s.AssignmentId, ws.Value, s.Roadmap.MentorshipId, s.MenteeUserId, s.ExerciseId,
+            AccessRole.WorkspaceOwner, s.MentorshipStatus, s.Roadmap.Status, s.IsActive, s.ItemActive);
+        var history = await SubmissionService.LoadHistoryAsync(db, acc, ct);
+        return new ReviewDetailDto(s.Id, s.Roadmap.MentorshipId, s.MenteeName, s.Status, ExerciseAuthoringService.ToMentorDto(exercise), history);
+    }
+
+    public async Task<Result<Guid>> SubmitFeedbackAsync(Guid actorUserId, SubmitFeedbackRequest request, CancellationToken ct)
+    {
+        var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
+        if (ws is null) return Errors.NotFound(Module);
+
+        var errors = new FieldErrors();
+        errors.Required(nameof(request.StrengthsMarkdown), request.StrengthsMarkdown, InputLimits.Markdown, "Mocne strony");
+        errors.Required(nameof(request.ImprovementsMarkdown), request.ImprovementsMarkdown, InputLimits.Markdown, "Do poprawy");
+        errors.Required(nameof(request.ChallengeQuestionMarkdown), request.ChallengeQuestionMarkdown, InputLimits.Markdown, "Pytanie pogłębiające");
+        if (!Enum.IsDefined(request.Verdict)) errors.Add(nameof(request.Verdict), "Wybierz werdykt.");
+        if (errors.HasErrors) return errors.ToError("review.invalid");
+
+        var newStatus = request.Verdict == ReviewVerdict.Accepted ? SubmissionStatus.Accepted : SubmissionStatus.NeedsRevision;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var rows = await db.Submissions
+            .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws && s.Status == SubmissionStatus.PendingReview)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, newStatus), ct);
+        if (rows != 1)
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            var exists = await db.Submissions.AnyAsync(s => s.Id == request.SubmissionId && s.WorkspaceId == ws, ct);
+            return exists
+                ? Errors.Conflict("review.not_pending", "Ta próba została już oceniona lub nie wymaga oceny.")
+                : Errors.NotFound(Module);
+        }
+
+        var feedback = new MentorFeedback
+        {
+            Id = Guid.CreateVersion7(),
+            WorkspaceId = ws.Value,
+            SubmissionId = request.SubmissionId,
+            MentorUserId = actorUserId,
+            Verdict = request.Verdict,
+            StrengthsMarkdown = request.StrengthsMarkdown.Trim(),
+            ImprovementsMarkdown = request.ImprovementsMarkdown.Trim(),
+            ChallengeQuestionMarkdown = request.ChallengeQuestionMarkdown.Trim(),
+            CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
+        };
+        db.MentorFeedback.Add(feedback);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            return Errors.Conflict("review.already_reviewed", "Ta próba ma już feedback.");
+        }
+        return feedback.Id;
+    }
+}
+
+internal sealed class ReflectionService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    IWorkspaceAccessService access,
+    TimeProvider clock) : IReflectionService
+{
+    private const string Module = "reflection";
+
+    public async Task<Result> SaveReflectionAsync(Guid actorUserId, SaveReflectionRequest request, CancellationToken ct)
+    {
+        var errors = new FieldErrors();
+        errors.Confidence(nameof(request.ConfidenceAfter), request.ConfidenceAfter);
+        errors.Required(nameof(request.TakeawayMarkdown), request.TakeawayMarkdown, InputLimits.Markdown, "Najważniejszy wniosek");
+        if (errors.HasErrors) return errors.ToError("reflection.invalid");
+
+        if (!await access.CanAccessSubmissionAsync(actorUserId, request.SubmissionId, ct)) return Errors.NotFound(Module);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var submission = await db.Submissions.AsNoTracking()
+            .Where(s => s.Id == request.SubmissionId && s.MenteeUserId == actorUserId)
+            .Select(s => new { s.Id, s.Status, HasReflection = s.Reflection != null })
+            .FirstOrDefaultAsync(ct);
+        if (submission is null) return Errors.NotFound(Module);
+        if (!SubmissionService.CanReflectOn(submission.Status))
+            return Errors.Conflict("reflection.not_reviewed", "Refleksję można dodać dopiero po ocenie próby.");
+        if (submission.HasReflection) return AlreadyExists();
+
+        db.SubmissionReflections.Add(new SubmissionReflection
+        {
+            Id = Guid.CreateVersion7(),
+            SubmissionId = submission.Id,
+            ConfidenceAfter = (short)request.ConfidenceAfter,
+            TakeawayMarkdown = request.TakeawayMarkdown.Trim(),
+            CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
+        });
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            return AlreadyExists();
+        }
+        return Result.Success();
+    }
+
+    private static AppError AlreadyExists() => Errors.Conflict("reflection.already_exists", "Refleksja dla tej próby już istnieje.");
+}

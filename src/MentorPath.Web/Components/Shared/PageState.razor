@@ -1,0 +1,23 @@
+@if (Loading)
+{
+    <div class="d-flex align-items-center gap-2 text-secondary py-4" role="status">
+        <div class="spinner-border spinner-border-sm"></div><span>Ładowanie…</span>
+    </div>
+}
+else if (NotFound)
+{
+    <div class="empty-state">
+        <h2 class="h5">Nie znaleziono</h2>
+        <p class="text-secondary mb-0">Zasób nie istnieje albo nie masz do niego dostępu.</p>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool NotFound { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

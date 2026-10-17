@@ -1,0 +1,20 @@
+@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Błąd — MentorPath</PageTitle>
+
+<h1 class="h3 text-danger">Wystąpił błąd</h1>
+<p>Nie udało się przetworzyć żądania. Spróbuj ponownie za chwilę.</p>
+@if (!string.IsNullOrEmpty(RequestId))
+{
+    <p class="small text-secondary">Identyfikator żądania: <code>@RequestId</code></p>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() => RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

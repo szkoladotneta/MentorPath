@@ -1,0 +1,87 @@
+@page "/Account/Login"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using MentorPath.Data
+@inject SignInManager<AppUser> SignInManager
+@inject ILogger<Login> Logger
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Logowanie — MentorPath</PageTitle>
+
+<div class="auth-card">
+    <h1 class="h3 mb-3">Zaloguj się</h1>
+    <StatusMessage Message="@errorMessage" />
+    <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label for="Input.Email" class="form-label">E-mail</label>
+            <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" />
+            <ValidationMessage For="() => Input.Email" class="text-danger small" />
+        </div>
+        <div class="mb-3">
+            <label for="Input.Password" class="form-label">Hasło</label>
+            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" />
+            <ValidationMessage For="() => Input.Password" class="text-danger small" />
+        </div>
+        <div class="form-check mb-3">
+            <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input" id="Input.RememberMe" />
+            <label class="form-check-label" for="Input.RememberMe">Zapamiętaj mnie</label>
+        </div>
+        <button type="submit" class="w-100 btn btn-primary">Zaloguj</button>
+        <p class="mt-3 mb-0 small"><a href="Account/ForgotPassword">Nie pamiętasz hasła?</a></p>
+    </EditForm>
+</div>
+
+@code {
+    private string? errorMessage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        }
+    }
+
+    public async Task LoginUser()
+    {
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            RedirectManager.RedirectTo(string.IsNullOrEmpty(ReturnUrl) ? "" : ReturnUrl);
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("User account locked out.");
+            RedirectManager.RedirectTo("Account/Lockout");
+        }
+        else
+        {
+            errorMessage = "Błąd: nieprawidłowy e-mail lub hasło.";
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Podaj e-mail.")]
+        [EmailAddress(ErrorMessage = "Niepoprawny e-mail.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Podaj hasło.")]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+
+        public bool RememberMe { get; set; }
+    }
+}
