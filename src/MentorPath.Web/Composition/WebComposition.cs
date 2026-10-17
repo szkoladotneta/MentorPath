@@ -192,7 +192,8 @@ public static class WebComposition
         app.UseAntiforgery();
 
         app.MapStaticAssets();
-        app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+        // Our middleware sets a stricter frame-ancestors 'none' CSP, so Blazor's default 'self' header is disabled.
+        app.MapRazorComponents<App>().AddInteractiveServerRenderMode(o => o.ContentSecurityFrameAncestorsPolicy = null);
         app.MapAdditionalIdentityEndpoints();
         app.MapAttachmentEndpoints();
         app.MapPracticalSubmissionEndpoints();
