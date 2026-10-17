@@ -18,7 +18,7 @@ Użytkownik delegował akceptację M0 i realizację MVP na Tech Leada. Brak narz
 | M3 Integration | B16 | ✅ | `Release/ReleaseScenarioTests` (12 kroków + izolacja Mentora B), `Http/*`, `tests/e2e/ui-smoke.js` (17 kroków w przeglądarce) |
 | M4 Release | B17 | ✅ | `Dockerfile`, profil `app` w compose (zweryfikowany), CI, `docs/DEPLOYMENT.md`, `docs/SECURITY_REVIEW.md` |
 
-Wyniki: 64 testy jednostkowe + 75 integracyjnych (PostgreSQL/Testcontainers, HTTP) — wszystkie zielone; smoke przeglądarkowy OK.
+Wyniki: 64 testy jednostkowe + 76 integracyjnych (PostgreSQL/Testcontainers, HTTP) — wszystkie zielone; smoke przeglądarkowy OK.
 
 Otwarte przed użyciem produkcyjnym (nie blokują MVP technicznie): wybór dostawcy AI (D-19), dostawca SMTP, kwestie RODO i procedura eksportu/usuwania danych (`SECURITY_REVIEW.md` S2, S8), zdalne repozytorium GitHub (D-30).
 

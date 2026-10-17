@@ -12,12 +12,13 @@ using Microsoft.Extensions.Options;
 namespace MentorPath.Application.Invitations;
 
 /// <summary>
-/// Uses the request-scoped AppDbContext (shared with UserManager) so account creation,
-/// invitation consumption and mentorship creation commit in one transaction.
-/// Called only from static SSR pages (HTTP request scope), never from a long-lived circuit.
+/// Mentor operations (create/list/preview) use short-lived contexts from the factory, so they are safe in a Blazor circuit.
+/// Acceptance uses the request-scoped AppDbContext shared with UserManager, so account creation, invitation consumption
+/// and mentorship creation commit in one transaction; it is called only from the static SSR invitation page.
 /// </summary>
 internal sealed class InvitationService(
     AppDbContext db,
+    IDbContextFactory<AppDbContext> dbFactory,
     UserManager<AppUser> userManager,
     RoleManager<IdentityRole<Guid>> roleManager,
     IWorkspaceAccessService access,
@@ -40,6 +41,7 @@ internal sealed class InvitationService(
 
         var normalized = userManager.NormalizeEmail(request.Email.Trim());
         var now = clock.GetUtcNow().UtcDateTime;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var mentor = await db.Users.AsNoTracking().FirstAsync(u => u.Id == actorUserId, ct);
         if (mentor.NormalizedEmail == normalized)
@@ -77,6 +79,7 @@ internal sealed class InvitationService(
         var workspaceId = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
         if (workspaceId is null) return Errors.NotFound(Module);
         var now = clock.GetUtcNow().UtcDateTime;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var rows = await db.Invitations.AsNoTracking()
             .Where(i => i.WorkspaceId == workspaceId)
             .OrderByDescending(i => i.CreatedAtUtc)
@@ -92,6 +95,7 @@ internal sealed class InvitationService(
     {
         var invitation = await FindValidAsync(token, ct);
         if (invitation is null) return InvalidToken();
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var ws = await db.Workspaces.AsNoTracking().Where(w => w.Id == invitation.WorkspaceId)
             .Select(w => new { w.Name, Mentor = w.Owner!.DisplayName }).FirstAsync(ct);
         var exists = await db.Users.AsNoTracking().AnyAsync(u => u.NormalizedEmail == invitation.NormalizedEmail, ct);

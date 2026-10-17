@@ -161,5 +161,23 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         (await menteeClient.GetAsync("/mentor")).StatusCode.ShouldBe(HttpStatusCode.Redirect);
     }
 
+    [Fact]
+    public async Task Mentee_with_multiple_mentorships_is_asked_to_choose_after_login()
+    {
+        var mentorA = await Data.MentorAsync();
+        var mentorB = await Data.MentorAsync();
+        var single = await Data.MenteeAsync(mentorA);
+        var multi = await Data.MenteeAsync(mentorA);
+        await Data.MenteeAsync(mentorB, multi.Email, multi.UserId);
+
+        using var multiClient = _factory.Client();
+        await WebAppFactory.LoginAsync(multiClient, multi.Email, TestDataBuilder.Password);
+        (await multiClient.GetAsync("/")).Headers.Location!.ToString().ShouldEndWith("/app/mentorships");
+
+        using var singleClient = _factory.Client();
+        await WebAppFactory.LoginAsync(singleClient, single.Email, TestDataBuilder.Password);
+        (await singleClient.GetAsync("/")).Headers.Location!.ToString().ShouldEndWith("/app");
+    }
+
     public override async Task DisposeAsyncCore() => await _factory.DisposeAsync();
 }

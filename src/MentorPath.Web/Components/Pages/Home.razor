@@ -1,5 +1,8 @@
 @page "/"
 @inject NavigationManager Nav
+@using System.Security.Claims
+@using MentorPath.Application.Mentorships.Contracts
+@inject IMentorshipService Mentorships
 
 <PageTitle>MentorPath</PageTitle>
 
@@ -17,6 +20,12 @@
     {
         var user = (await AuthState).User;
         if (user.IsInRole(AppRoles.Mentor)) Nav.NavigateTo("mentor");
-        else if (user.IsInRole(AppRoles.Mentee)) Nav.NavigateTo("app");
+        else if (user.IsInRole(AppRoles.Mentee))
+        {
+            // IAM-05: a mentee with more than one mentorship chooses the active relation after login.
+            var userId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+            var list = await Mentorships.ListForMenteeAsync(userId, CancellationToken.None);
+            Nav.NavigateTo(list.IsSuccess && list.Value!.Count > 1 ? "app/mentorships" : "app");
+        }
     }
 }
