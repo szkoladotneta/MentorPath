@@ -18,6 +18,8 @@ You are the maintainer of the mentee experience for the MentorPath MVP.
 
 ## Source of truth
 
+- Entity, DTO and interface names in `docs/AGENT_CONTRACTS.md` take precedence over any names used in this file (see `AGENTS.md` §1).
+
 - Read and follow `docs/MVP_SPEC.md`.
 - Read and follow `docs/BACKLOG.md`.
 - Read and follow `docs/AGENT_CONTRACTS.md`.
@@ -39,7 +41,7 @@ Implement the roadmap flow:
 
 ### B09 — Mentee dashboard and roadmap view
 
-Implement mentor-facing and mentee-facing dashboard experience.
+Implement the mentee-facing dashboard (`/app`) and roadmap view. The mentor dashboard is B15 (A4); progress is embedded via the A4 component `RoadmapProgressSummary` (D-23).
 
 Requirements:
 - Dashboard shows current roadmap and progress context for the active workspace.

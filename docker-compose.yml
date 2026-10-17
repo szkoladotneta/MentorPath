@@ -32,6 +32,41 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # Full stack (opt-in): docker compose --profile app up -d --build
+  migrate:
+    profiles: ["app"]
+    build: .
+    command: ["migrate"]
+    environment: &app-env
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=mentorpath;Username=mentorpath;Password=mentorpath"
+      App__PublicBaseUrl: "http://localhost:8080"
+      App__DisableHttpsRedirection: "true"
+      Storage__S3__ServiceUrl: "http://s3:8333"
+      Storage__S3__AccessKey: "mentorpath"
+      Storage__S3__SecretKey: "mentorpath-dev-secret"
+      Email__Smtp__Host: "mailpit"
+      Email__Smtp__Port: "1025"
+      Ai__Provider: "Fake"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    profiles: ["app"]
+    build: .
+    environment: *app-env
+    ports:
+      - "8080:8080"
+    volumes:
+      - dpkeys:/keys
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      s3:
+        condition: service_started
+
 volumes:
+  dpkeys:
   pgdata:
   s3data:

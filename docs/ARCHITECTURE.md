@@ -26,7 +26,7 @@ MentorPath/
 ├─ Directory.Build.props            # Nullable, TreatWarningsAsErrors, LangVersion
 ├─ Directory.Packages.props         # Central Package Management (właściciel: A1)
 ├─ .editorconfig
-├─ docker-compose.yml               # postgres, minio, mailpit (A1); usługa app (A5, B17)
+├─ docker-compose.yml               # postgres, s3 (SeaweedFS), mailpit (A1); profil `app`: migrate + app (A5, B17)
 ├─ Dockerfile                       # A5 (B17)
 ├─ .github/workflows/ci.yml         # A1 tworzy (B01), A5 rozwija (B16/B17)
 ├─ docs/
@@ -56,7 +56,7 @@ MentorPath/
 │  └─ MentorPath.Web/
 │     ├─ Program.cs                 # A1
 │     ├─ Composition/               # A1: auth, cookies, rate limiting, health, headers, AddMentorPathModules()
-│     ├─ Cli/                       # A1: migrate, create-mentor, seed-dev; A5: seed-demo (osobny plik)
+│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs)
 │     ├─ Endpoints/                 # A1: Account (jeśli potrzebne); A3: AttachmentEndpoints.cs, PracticalSubmissionEndpoints.cs
 │     └─ Components/
 │        ├─ App.razor, Routes.razor, _Imports.razor     # A1
@@ -76,15 +76,18 @@ MentorPath/
 │        ├─ Pages/Mentee/Assignments/ # A3 (/app/assignments/{id}, /history) — formularz refleksji = komponent A4
 │        ├─ Pages/Mentee/Progress/  # A4 (/app/progress/{mentorshipId})
 │        └─ Modules/
-│           ├─ Progress/RoadmapProgressSummary.razor   # A4 (stub tworzy A1 w M1)
-│           └─ Reviews/ReflectionForm.razor            # A4 (stub tworzy A1 w M1)
+│           ├─ Progress/RoadmapProgressSummary.razor   # A4
+│           ├─ Reviews/ReflectionForm.razor            # A4
+│           └─ Submissions/SubmissionHistoryView.razor # A3 (używany też w review A4)
 └─ tests/
    ├─ MentorPath.UnitTests/         # foldery per moduł, właściciel = właściciel modułu
    └─ MentorPath.IntegrationTests/
       ├─ Infrastructure/            # A1: PostgresFixture, TestDataBuilder (partial), AppFactory (WebApplicationFactory)
       ├─ <Module>/                  # właściciel modułu
       ├─ Isolation/                 # A5
-      └─ Release/                   # A5 — scenariusz release
+      ├─ Release/                   # A5 — scenariusz release
+      └─ Http/                      # A5 — WebApplicationFactory: login, antiforgery, upload/download, nagłówki
+   └─ e2e/                          # A5 — Playwright smoke całego przepływu (D-33)
 ```
 
 Uzasadnienie 3 projektów `src`:
@@ -115,7 +118,7 @@ flowchart TB
   end
   DATA["MentorPath.Data (A1)<br/>AppDbContext · Entities · Migrations"]
   PG[(PostgreSQL)]
-  S3[(S3 / MinIO)]
+  S3[(S3-compatible)]
   LLM[[AI provider]]
 
   UI --> WS & CAT & AI & RDM & SUB & REV & PRG
@@ -208,11 +211,11 @@ Tylko zmienne środowiskowe / user-secrets. `appsettings.json` bez sekretów.
 |---|---|
 | `ConnectionStrings__Default` | PostgreSQL |
 | `App__PublicBaseUrl` | baza linków zaproszeń / resetu hasła |
-| `Storage__S3__ServiceUrl`, `__BucketName`, `__AccessKey`, `__SecretKey`, `__ForcePathStyle` | S3 / MinIO |
+| `Storage__S3__ServiceUrl`, `__BucketName`, `__AccessKey`, `__SecretKey`, `__ForcePathStyle` | S3-compatible (lokalnie SeaweedFS) |
 | `Ai__Provider` (`Fake`/`OpenAiCompatible`), `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey`, `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | AI |
 | `Email__Smtp__Host`, `__Port`, `__User`, `__Password`, `__From` | e-mail transakcyjny (reset hasła, D-11) |
 
-Lokalnie: `docker compose up -d` (postgres, minio, mailpit) + `dotnet run --project src/MentorPath.Web`.
+Lokalnie: `docker compose up -d` (postgres, SeaweedFS S3, mailpit) + `dotnet run --project src/MentorPath.Web` (D-31).
 
 ---
 
@@ -221,8 +224,7 @@ Lokalnie: `docker compose up -d` (postgres, minio, mailpit) + `dotnet run --proj
 `dotnet MentorPath.Web.dll <verb>` — ten sam DI i konfiguracja, jeden obraz Docker:
 - `migrate` — stosuje migracje (deploy: krok przed startem aplikacji). W Development migracje także przy starcie.
 - `create-mentor --email --name --workspace` — tworzy użytkownika (rola Mentor) + Workspace, wypisuje jednorazowy link ustawienia hasła (D-11).
-- `seed-dev` — tylko `Development`: 2 mentorów, 1 mentee w obu workspace'ach, temat + opublikowane ćwiczenie każdego typu (A1, M1).
-- `seed-demo` — dane demonstracyjne release (A5, B16).
+- `seed-demo` — tylko `Development` (lub `--force`): 2 mentorów, 2 mentees (jedna w obu workspace'ach), katalog, roadmapy (D-34).
 
 ---
 
@@ -250,10 +252,10 @@ Lokalnie: `docker compose up -d` (postgres, minio, mailpit) + `dotnet run --proj
 
 Zasady:
 - Jeden kontener PostgreSQL na assembly (collection fixture), migracje raz. **Każdy test tworzy własne workspace'y** przez `TestDataBuilder` → brak czyszczenia, testy równoległe, brak wycieku fixture'ów.
-- `TestDataBuilder` (A1) wstawia encje bezpośrednio — A3/A4 mogą seedować opublikowane ćwiczenia i submissions bez czekania na kod A2/A3. Rozszerzenia w plikach partial per agent (`TestDataBuilder.Roadmaps.cs` itd.).
-- `IFileStorage` w testach = `InMemoryFileStorage`; jeden test adaptera S3 na MinIO (Testcontainers, A1).
+- `TestDataBuilder` (A1) tworzy dane przez serwisy aplikacji (D-32); rozszerzenia w plikach partial per agent.
+- `IFileStorage` w testach = `InMemoryFileStorage`; adapter S3 zweryfikowany ręcznie na SeaweedFS (upload/download przez UI i HTTP).
 - `TimeProvider` → `FakeTimeProvider` dla wygasania zaproszeń.
-- E2E przeglądarkowe (Playwright) — poza MVP; zastępuje je test Release + manualny smoke checklist (D-21).
+- E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — uruchamiane przed wydaniem, poza CI (D-33).
 
 ---
 

@@ -18,6 +18,8 @@ You are the content lifecycle owner for the MentorPath MVP.
 
 ## Source of truth
 
+- Entity, DTO and interface names in `docs/AGENT_CONTRACTS.md` take precedence over any names used in this file (see `AGENTS.md` §1).
+
 - Read and follow `docs/MVP_SPEC.md`.
 - Read and follow `docs/BACKLOG.md`.
 - Read and follow the contract baseline in `docs/AGENT_CONTRACTS.md`.

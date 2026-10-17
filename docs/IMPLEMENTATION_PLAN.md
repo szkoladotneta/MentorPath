@@ -6,6 +6,24 @@ Zasada: najpierw krótka, sekwencyjna ścieżka A1 (M1), która zamraża schemat
 
 ---
 
+## 0. Status realizacji (2026-10-18)
+
+Użytkownik delegował akceptację M0 i realizację MVP na Tech Leada. Brak narzędzi do uruchamiania osobnych sesji agentów — zadania B01–B17 zrealizowano sekwencyjnie w jednej sesji, z zachowaniem granic modułów i własności plików z `AGENTS.md`.
+
+| Milestone | Zadania | Status | Dowód |
+|---|---|---|---|
+| M0 Contract freeze | — | ✅ | Dokumenty ADOPTED, decyzje D-08…D-35 |
+| M1 Foundation | B01–B03 | ✅ | `InitialSchema`, `IWorkspaceAccessService`, kontrakty wszystkich modułów, `Access/*`, `Database/*` |
+| M2 Feature complete | B04–B15 | ✅ | Testy modułów: `Invitations`, `Catalog`, `AiAuthoring`, `Roadmaps`, `Submissions`, `Reviews`, `Progress` |
+| M3 Integration | B16 | ✅ | `Release/ReleaseScenarioTests` (12 kroków + izolacja Mentora B), `Http/*`, `tests/e2e/ui-smoke.js` (17 kroków w przeglądarce) |
+| M4 Release | B17 | ✅ | `Dockerfile`, profil `app` w compose (zweryfikowany), CI, `docs/DEPLOYMENT.md`, `docs/SECURITY_REVIEW.md` |
+
+Wyniki: 64 testy jednostkowe + 75 integracyjnych (PostgreSQL/Testcontainers, HTTP) — wszystkie zielone; smoke przeglądarkowy OK.
+
+Otwarte przed użyciem produkcyjnym (nie blokują MVP technicznie): wybór dostawcy AI (D-19), dostawca SMTP, kwestie RODO i procedura eksportu/usuwania danych (`SECURITY_REVIEW.md` S2, S8), zdalne repozytorium GitHub (D-30).
+
+---
+
 ## 1. Milestones
 
 ```mermaid
@@ -40,7 +58,7 @@ Jedna gałąź na zadanie, merge sekwencyjny: `a1/b01-foundation` → `a1/b02-id
 - `git init` (`main`), `.gitignore`, `global.json` (SDK 10.0.4xx), `Directory.Build.props` (Nullable, warnings as errors), `Directory.Packages.props` (wszystkie pakiety z D-29).
 - `MentorPath.slnx` + 3 projekty `src` + 2 projekty `tests` (ARCHITECTURE §2).
 - `MentorPath.Web` z szablonu Blazor Web App (Interactive Server, Individual auth) przepiętego na Npgsql.
-- `docker-compose.yml`: postgres 17, minio (+ bucket init), mailpit.
+- `docker-compose.yml`: postgres 17, SeaweedFS S3 (D-31), mailpit.
 - Health `/health/live`, `/health/ready`; JSON console logging.
 - `.github/workflows/ci.yml`: restore, build, unit + integration tests (Docker dostępny na `ubuntu-latest`).
 - README: uruchomienie lokalne.
@@ -57,21 +75,21 @@ Jedna gałąź na zadanie, merge sekwencyjny: `a1/b01-foundation` → `a1/b02-id
 - Web: layout (sidebar desktop / mobile nav), nawigacja wszystkich tras z spec §7, `Shared/` (Markdown, StatusBadge, ConfidenceInput, Loading/Empty/ErrorState, ResultErrors, CurrentUser), stuby `RoadmapProgressSummary.razor`, `ReflectionForm.razor`, rate limiting, nagłówki bezpieczeństwa.
 - Testy: `PostgresFixture`, `TestDataBuilder` (rdzeń: mentor+workspace, mentee+mentorship, topic, exercise dowolnego statusu i typu, roadmap/item/assignment, submission dowolnego statusu, feedback), `AppFactory`.
 - Testy izolacji `IWorkspaceAccessService` (pełna macierz z AGENT_CONTRACTS §2.1, w tym Paused/Closed).
-- CLI `seed-dev`.
+- CLI `seed-demo`.
 
 ---
 
 ## 3. Foundation Gate (warunek startu A2/A3/A4)
 
-- [ ] `dotnet build` i `dotnet test` zielone lokalnie i w CI, bez sekretów w repo.
-- [ ] `InitialSchema` stosuje się na pustej bazie; brak pending model changes.
-- [ ] Wszystkie encje, ograniczenia, partial unique i złożone FK z AGENT_CONTRACTS §3.2 istnieją (test integracyjny sprawdza min. partial unique PendingReview i jedną poprawną opcję quizu).
-- [ ] Pliki `Contracts/` wszystkich modułów kompilują się i są 1:1 z AGENT_CONTRACTS §5.
-- [ ] `IWorkspaceAccessService` zaimplementowany; testy: Mentor B ↛ zasoby A, Mentee B ↛ zasoby Mentee A, Closed/Paused, nieopublikowana roadmapa.
-- [ ] `TestDataBuilder` pozwala zbudować pełny łańcuch Workspace → Submission → Feedback w jednym teście.
-- [ ] `create-mentor` tworzy dwóch mentorów z odrębnymi workspace'ami; `seed-dev` działa.
-- [ ] Layout + nawigacja + `Shared/` gotowe; stuby komponentów A4 istnieją.
-- [ ] Tech Lead (A0) potwierdził zgodność z kontraktami.
+- [x] `dotnet build` i `dotnet test` zielone lokalnie i w CI, bez sekretów w repo.
+- [x] `InitialSchema` stosuje się na pustej bazie; brak pending model changes.
+- [x] Wszystkie encje, ograniczenia, partial unique i złożone FK z AGENT_CONTRACTS §3.2 istnieją (test integracyjny sprawdza min. partial unique PendingReview i jedną poprawną opcję quizu).
+- [x] Pliki `Contracts/` wszystkich modułów kompilują się i są 1:1 z AGENT_CONTRACTS §5.
+- [x] `IWorkspaceAccessService` zaimplementowany; testy: Mentor B ↛ zasoby A, Mentee B ↛ zasoby Mentee A, Closed/Paused, nieopublikowana roadmapa.
+- [x] `TestDataBuilder` pozwala zbudować pełny łańcuch Workspace → Submission → Feedback w jednym teście.
+- [x] `create-mentor` tworzy dwóch mentorów z odrębnymi workspace'ami; `seed-demo` działa.
+- [x] Layout + nawigacja + `Shared/` gotowe; stuby komponentów A4 istnieją.
+- [x] Tech Lead (A0) potwierdził zgodność z kontraktami.
 
 ---
 
@@ -81,7 +99,7 @@ Jedna gałąź na zadanie, merge sekwencyjny: `a1/b01-foundation` → `a1/b02-id
 |---|---|---|---|
 | A1 | B04 | — | Zaproszenia, onboarding, `/app/mentorships`, `/app/profile`, `/mentor/mentees*`, zmiana statusu mentorship |
 | A2 | B05 → B06 → B07 | — | B07 z `Fake` providerem; prawdziwy adapter za flagą konfiguracji |
-| A3 | B08 → B09 → B10 → B11 → B12 | Seed opublikowanych ćwiczeń przez `TestDataBuilder`/`seed-dev` | Ścieżka krytyczna. B10 i B11 niezależne od siebie po B09 |
+| A3 | B08 → B09 → B10 → B11 → B12 | Seed opublikowanych ćwiczeń przez `TestDataBuilder`/`seed-demo` | Ścieżka krytyczna. B10 i B11 niezależne od siebie po B09 |
 | A4 | B14a → B13 → B14 → B15 | Seed submissions przez `TestDataBuilder` | B14a = `ProgressCalculator` + `RoadmapProgressSummary` + `GetRoadmapProgressAsync` (wcześnie, bo osadza je A3 w B09) |
 | A5 | CI hardening, Dockerfile, test architektury (brak DbContext w Components), szkielet `Isolation/` i `Release/` | B01 | B16 w pełni po B12/B15 |
 
@@ -98,7 +116,7 @@ Opcja odciążenia ścieżki krytycznej (wymaga zgody A0): jeżeli A3 opóźni s
 - **Zależności:** M0.
 - **DoD B04:** token jednorazowy (hash SHA-256), wygasa po 7 dniach, nowe i istniejące konto, odmowa przy innym e-mailu, akceptacja tworzy Mentorship + rolę Mentee, onboarding MEN-01, prywatne notatki MEN-02 niewidoczne dla mentee, wybór mentoringu IAM-05.
 - **Testy obowiązkowe:** z `.github/agents/mentorpath-senior-dotnet-backend.agent.md` + współbieżna akceptacja tego samego tokenu → 1 sukces; Mentor B ↛ zaproszenia/mentees A; notatki nieobecne w DTO mentee.
-- **Przekazanie:** Foundation Gate (§3); po B04 — e2e zaproszenia w `seed-dev`.
+- **Przekazanie:** Foundation Gate (§3); po B04 — e2e zaproszenia w `seed-demo`.
 
 ### A2 — Topics, Exercises, AI Authoring (B05–B07)
 - **Pliki:** `Application/Catalog/**`, `Application/AiAuthoring/**`, `Web/Components/Pages/Mentor/{Catalog,Exercises}/**`, `tests/**/{Catalog,AiAuthoring}/**`, `TestDataBuilder.Catalog.cs`.

@@ -1,0 +1,12 @@
+{
+  "name": "mentorpath-ui-smoke",
+  "private": true,
+  "description": "Browser smoke test of the full MVP flow (requires a running app with `seed-demo` data).",
+  "scripts": {
+    "install-browser": "playwright install chromium-headless-shell",
+    "smoke": "node ui-smoke.js"
+  },
+  "dependencies": {
+    "playwright": "^1.64.1"
+  }
+}

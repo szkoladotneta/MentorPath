@@ -210,6 +210,35 @@ Status: Adopted — A1 wykonuje `git init`; zdalne repo GitHub po stronie użytk
 
 Folder nie jest repozytorium git, a model pracy wymaga gałęzi/worktree i GitHub Actions. A1 wykonuje `git init` (gałąź `main`) w B01. Utworzenie zdalnego repozytorium GitHub i włączenie Actions — po stronie użytkownika.
 
+## D-31 — Lokalny storage S3: SeaweedFS zamiast MinIO
+Status: Adopted (2026-10-17, implementacja)
+
+Obraz `minio/minio` nie jest już dostępny publicznie (Docker Hub/quay odmawiają pobrania). Lokalnie używamy SeaweedFS z bramką S3 (`chrislusf/seaweedfs`, tożsamości w `infra/seaweedfs/s3.json`). Kod korzysta wyłącznie z `IFileStorage` + AWSSDK.S3, więc produkcyjnie działa z dowolnym dostawcą S3-compatible.
+
+## D-32 — `TestDataBuilder` buduje dane przez serwisy aplikacji
+Status: Adopted (2026-10-17, implementacja)
+
+Zamiast bezpośrednich insertów (ARCHITECTURE §11) builder używa prawdziwych serwisów (zaproszenia, katalog, roadmapy, submissions). Dane testowe zawsze spełniają reguły domenowe; testy ograniczeń bazy wstawiają encje bezpośrednio przez `TestApp.Db`.
+
+## D-33 — Smoke test przeglądarkowy (Playwright) jako opcjonalne narzędzie
+Status: Adopted (2026-10-17) — rozszerza D-21
+
+Release gate w CI to test `Release/ReleaseScenarioTests` + testy HTTP. Dodatkowo `tests/e2e/ui-smoke.js` przechodzi cały przepływ w prawdziwej przeglądarce (zaproszenie → AI → roadmapa → quiz → ADR → review → refleksja → upload → postęp → izolacja Mentora B). Uruchamiany ręcznie przed wydaniem; nie blokuje CI.
+
+## D-34 — Jedna komenda danych demo: `seed-demo`
+Status: Adopted (2026-10-17) — zastępuje `seed-dev` z ARCHITECTURE §9
+
+Dane demo (2 mentorów, 2 mentees, mentee w dwóch workspace'ach, katalog, roadmapy, próba quizu) tworzone przez serwisy aplikacji. Działa tylko w `Development` lub z `--force`.
+
+## D-35 — Szczegóły UI i współbieżności doprecyzowane w implementacji
+Status: Adopted (2026-10-17)
+
+- Klucze encji (Guid v7) nadaje aplikacja; EF ma `ValueGenerated.Never` dla encji domenowych.
+- Status code pages (`/not-found`) nie są stosowane dla `/api/*` i `/health/*` (API zwraca 401/403/404 bez HTML).
+- Domyślny nagłówek CSP Blazora (`frame-ancestors 'self'`) wyłączony — obowiązuje ostrzejszy nagłówek aplikacji (`'none'`).
+- Formularz zadania praktycznego wysyła multipart przez `fetch` do endpointu z nagłówkiem antiforgery; quiz i ADR idą przez obwód Blazor.
+- `AppUser.UserName = Email`; reset hasła i ustawienie hasła mentora używają tego samego mechanizmu tokenów Identity.
+
 ---
 
 ## Change Requests

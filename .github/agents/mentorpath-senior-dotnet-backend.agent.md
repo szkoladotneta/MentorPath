@@ -18,6 +18,8 @@ You are the backend foundation owner for MentorPath MVP.
 
 ## Source of truth
 
+- Entity, DTO and interface names in `docs/AGENT_CONTRACTS.md` take precedence over any names used in this file (see `AGENTS.md` §1).
+
 - Read and follow `docs/MVP_SPEC.md`.
 - Read and follow `docs/BACKLOG.md`.
 - Read and follow the frozen contract baseline in `docs/AGENT_CONTRACTS.md`.
@@ -50,7 +52,7 @@ Implement the core persistence model and bootstrap flow:
 - `AppDbContext` as the single central EF Core context.
 - PostgreSQL provider configuration.
 - Identity setup with ASP.NET Core Identity, cookies, lockout, reset password and secure cookie configuration.
-- Core entities: `User`, `Workspace`, `MentorProfile`, `MenteeProfile`, `WorkspaceRelation`, `InvitationToken`, and shared base entities.
+- Core entities exactly as in `docs/AGENT_CONTRACTS.md` §3: `AppUser`, `Workspace`, `Mentorship`, `Invitation` and all other MVP entities (schema-first, D-09).
 - Mentor bootstrap command/tool to create a mentor account and workspace.
 - Database migrations and seeding logic required for the MVP bootstrapping path.
 
@@ -78,7 +80,7 @@ Mandatory behavior:
 ### B04 — Invitations and onboarding
 
 Implement the invitation lifecycle:
-- `InvitationToken` with hashed token storage only.
+- `Invitation` with hashed token storage only.
 - Single-use token logic.
 - Expiration and validation rules.
 - Invite acceptance flow for new and existing accounts.

@@ -35,7 +35,7 @@ Brak odpowiedzi w dokumentach → nie zgaduj: dopisz propozycję do `DECISIONS.m
 | `Application/{Catalog,AiAuthoring}/**`, `Pages/Mentor/{Catalog,Exercises}/**` | **A2** |
 | `Application/{Roadmaps,Submissions}/**`, `Pages/Mentor/Roadmaps/**`, `Pages/Mentee/{Home,Roadmap,Assignments}/**`, `Web/Endpoints/{Attachment,PracticalSubmission}Endpoints.cs` | **A3** |
 | `Application/{Reviews,Progress}/**`, `Pages/Mentor/{Reviews,Dashboard}/**`, `Pages/Mentee/Progress/**`, `Components/Modules/**` | **A4** |
-| `tests/**/{Isolation,Release,Architecture}/**`, `Dockerfile`, `.github/workflows/**` (po B01), `Web/Cli/DemoSeed.cs`, `docs/{DEPLOYMENT,SECURITY_REVIEW,SMOKE_CHECKLIST}.md` | **A5** |
+| `tests/**/{Isolation,Release,Http}/**`, `tests/e2e/**`, `Dockerfile`, `.github/workflows/**` (po B01), `Web/Cli/DemoSeed.cs`, `docs/{DEPLOYMENT,SECURITY_REVIEW}.md` | **A5** |
 | `AGENTS.md`, `docs/{ARCHITECTURE,AGENT_CONTRACTS,IMPLEMENTATION_PLAN}.md` | **A0** |
 | `docs/DECISIONS.md` | wszyscy dopisują (append-only); status zmienia A0 |
 
@@ -75,12 +75,12 @@ Schemat/migracja/pakiet → po akceptacji implementuje A1 na gałęzi `a1/cr-<nn
 ## 7. Komendy
 
 ```bash
-docker compose up -d                               # postgres, minio, mailpit
+docker compose up -d                               # postgres, s3 (SeaweedFS), mailpit
 dotnet build
 dotnet test tests/MentorPath.UnitTests
 dotnet test tests/MentorPath.IntegrationTests      # wymaga Dockera (Testcontainers)
 dotnet run --project src/MentorPath.Web -- migrate
 dotnet run --project src/MentorPath.Web -- create-mentor --email a@x.pl --name "Mentor A" --workspace "Workspace A"
-dotnet run --project src/MentorPath.Web -- seed-dev
+dotnet run --project src/MentorPath.Web -- seed-demo
 dotnet run --project src/MentorPath.Web
 ```

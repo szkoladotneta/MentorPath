@@ -97,7 +97,7 @@ public interface IFileStorage
     Task<Stream> OpenReadAsync(string objectKey, CancellationToken ct);   // FileNotFoundException gdy brak
     Task DeleteAsync(string objectKey, CancellationToken ct);              // idempotentne
 }
-// Implementacje: S3FileStorage (prod/dev, MinIO), InMemoryFileStorage (testy).
+// Implementacje: S3FileStorage (prod/dev, dowolny S3-compatible; lokalnie SeaweedFS), InMemoryFileStorage (testy).
 
 public interface IMarkdownRenderer
 {
