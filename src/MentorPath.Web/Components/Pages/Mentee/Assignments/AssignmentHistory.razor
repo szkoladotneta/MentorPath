@@ -1,0 +1,42 @@
+@page "/app/assignments/{AssignmentId:guid}/history"
+@attribute [Authorize(Roles = AppRoles.Mentee)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Submissions.Contracts
+@using MentorPath.Web.Components.Modules.Submissions
+@inject ISubmissionService Submissions
+
+<PageTitle>Historia prób — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (history is not null)
+    {
+        <div class="page-header">
+            <div>
+                <a href="@($"app/assignments/{AssignmentId}")" class="small">← Zadanie</a>
+                <h1>Historia prób: @history.ExerciseTitle</h1>
+                <div class="subtitle">Przesłane próby i feedback są niezmienne.</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <SubmissionHistoryView History="history" AllowReflection="true" OnChanged="LoadAsync" />
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid AssignmentId { get; set; }
+
+    private SubmissionHistoryDto? history;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Submissions.GetHistoryAsync(await GetUserIdAsync(), AssignmentId, Ct);
+        if (Handle(result)) history = result.Value;
+        Loading = false;
+    }
+}

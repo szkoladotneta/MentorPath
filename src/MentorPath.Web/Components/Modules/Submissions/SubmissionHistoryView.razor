@@ -1,0 +1,73 @@
+@using MentorPath.Application.Submissions.Contracts
+@using MentorPath.Web.Components.Modules.Reviews
+
+@if (History.Attempts.Count == 0)
+{
+    <EmptyState Title="Brak prób">Jeszcze nic nie zostało przesłane.</EmptyState>
+}
+@foreach (var a in History.Attempts)
+{
+    <div class="attempt @(a == History.Attempts[0] ? "latest" : "")">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <strong>Próba #@a.AttemptNumber</strong>
+            <Badge Value="a.Status" />
+            <span class="small text-secondary">@Labels.Date(a.SubmittedAtUtc) · pewność przed: @a.ConfidenceBefore/5</span>
+        </div>
+        @if (a.SelectedOptionText is not null)
+        {
+            <div class="mb-2"><span class="section-title">Wybrana odpowiedź</span><div>@a.SelectedOptionText</div></div>
+        }
+        @if (a.DecisionAnswer is { } d)
+        {
+            <dl class="kv">
+                <dt>Decyzja</dt><dd><Markdown Value="@d.Decision" /></dd>
+                <dt>Uzasadnienie</dt><dd><Markdown Value="@d.Rationale" /></dd>
+                <dt>Alternatywy</dt><dd><Markdown Value="@d.Alternatives" /></dd>
+                <dt>Kompromisy</dt><dd><Markdown Value="@d.TradeOffs" /></dd>
+                <dt>Ryzyka</dt><dd><Markdown Value="@d.Risks" /></dd>
+                <dt>Warunki ponownej oceny</dt><dd><Markdown Value="@d.ReconsiderationConditions" /></dd>
+            </dl>
+        }
+        @if (a.AnswerMarkdown is not null)
+        {
+            <div class="mb-2"><span class="section-title">Uzasadnienie</span><Markdown Value="@a.AnswerMarkdown" /></div>
+        }
+        @if (a.ExternalUrl is not null)
+        {
+            <div class="mb-2"><span class="section-title">Link</span>
+                <div><a href="@a.ExternalUrl" target="_blank" rel="noopener noreferrer nofollow" class="mono-break">@a.ExternalUrl</a></div>
+            </div>
+        }
+        @if (a.Attachment is { } file)
+        {
+            <div class="mb-2"><span class="section-title">Załącznik</span>
+                <div><a href="@($"api/attachments/{file.AttachmentId}")" target="_blank" rel="noopener">@file.FileName</a> <span class="small text-secondary">(@Labels.Size(file.SizeBytes))</span></div>
+            </div>
+        }
+        @if (a.Feedback is { } f)
+        {
+            <div class="card bg-light border-0 mb-2">
+                <div class="card-body">
+                    <div class="d-flex gap-2 align-items-center mb-2"><strong>Feedback mentora</strong><Badge Value="f.Verdict" /><span class="small text-secondary">@Labels.Date(f.CreatedAtUtc)</span></div>
+                    <div class="section-title">Mocne strony</div><Markdown Value="@f.StrengthsMarkdown" />
+                    <div class="section-title mt-2">Do poprawy</div><Markdown Value="@f.ImprovementsMarkdown" />
+                    <div class="section-title mt-2">Pytanie pogłębiające</div><Markdown Value="@f.ChallengeQuestionMarkdown" />
+                </div>
+            </div>
+        }
+        @if (a.Reflection is { } r)
+        {
+            <div class="small"><span class="section-title">Refleksja</span> pewność po: @r.ConfidenceAfter/5 <Markdown Value="@r.TakeawayMarkdown" /></div>
+        }
+        else if (a.CanAddReflection && AllowReflection)
+        {
+            <ReflectionForm SubmissionId="a.SubmissionId" OnSaved="OnChanged" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public SubmissionHistoryDto History { get; set; } = default!;
+    [Parameter] public bool AllowReflection { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+}

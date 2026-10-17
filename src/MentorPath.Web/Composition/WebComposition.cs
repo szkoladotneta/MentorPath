@@ -185,7 +185,8 @@ public static class WebComposition
             await next();
         });
 
-        app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api") && !ctx.Request.Path.StartsWithSegments("/health"),
+            branch => branch.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
         if (!app.Configuration.GetValue<bool>("App:DisableHttpsRedirection")) app.UseHttpsRedirection();
         app.UseRateLimiter();
         app.UseAntiforgery();

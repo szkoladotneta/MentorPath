@@ -1,0 +1,138 @@
+@page "/invite/{Token}"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using MentorPath.Application.Invitations.Contracts
+@using MentorPath.Data
+@inject IInvitationService Invitations
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager Nav
+
+<PageTitle>Zaproszenie — MentorPath</PageTitle>
+
+<div class="auth-card" style="max-width:520px">
+    @if (preview is null)
+    {
+        <h1 class="h4 text-danger">Zaproszenie nieważne</h1>
+        <p>@(error?.Message ?? "Zaproszenie jest nieprawidłowe, wygasło lub zostało już wykorzystane.")</p>
+        <p class="small text-secondary mb-0">Poproś mentora o nowy link.</p>
+    }
+    else
+    {
+        <h1 class="h4">Zaproszenie do mentoringu</h1>
+        <p><strong>@preview.MentorDisplayName</strong> zaprasza Cię do przestrzeni <strong>@preview.WorkspaceName</strong>.</p>
+        <p class="small text-secondary">Zaproszenie dla: <span class="mono-break">@preview.MaskedEmail</span></p>
+        <ErrorAlert Error="error" />
+
+        @if (isAuthenticated)
+        {
+            <EditForm Model="AcceptInput" FormName="accept-invitation" OnSubmit="AcceptAsync" method="post">
+                <input type="hidden" name="AcceptInput.Confirm" value="true" />
+                <button class="btn btn-primary w-100" type="submit">Dołącz jako zalogowany użytkownik</button>
+            </EditForm>
+            <p class="small text-secondary mt-2 mb-0">Zaproszenie można przyjąć tylko kontem z adresem, na który zostało wysłane.</p>
+        }
+        else if (preview.AccountExists)
+        {
+            <p>Masz już konto MentorPath. Zaloguj się, aby przyjąć zaproszenie.</p>
+            <a class="btn btn-primary w-100" href="@($"Account/Login?ReturnUrl={Uri.EscapeDataString($"/invite/{Token}")}")">Zaloguj się</a>
+        }
+        else
+        {
+            <h2 class="h6 mt-3">Utwórz konto</h2>
+            <EditForm Model="Register" FormName="register-invitation" OnValidSubmit="RegisterAsync" method="post">
+                <DataAnnotationsValidator />
+                <div class="mb-3">
+                    <label class="form-label" for="Register.DisplayName">Imię i nazwisko</label>
+                    <InputText id="Register.DisplayName" class="form-control" @bind-Value="Register.DisplayName" autocomplete="name" />
+                    <ValidationMessage For="() => Register.DisplayName" class="text-danger small" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="Register.Password">Hasło (min. 10 znaków, mała litera i cyfra)</label>
+                    <InputText id="Register.Password" type="password" class="form-control" @bind-Value="Register.Password" autocomplete="new-password" />
+                    <ValidationMessage For="() => Register.Password" class="text-danger small" />
+                    <FieldError Error="error" Field="Password" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="Register.ConfirmPassword">Powtórz hasło</label>
+                    <InputText id="Register.ConfirmPassword" type="password" class="form-control" @bind-Value="Register.ConfirmPassword" autocomplete="new-password" />
+                    <ValidationMessage For="() => Register.ConfirmPassword" class="text-danger small" />
+                </div>
+                <button class="btn btn-primary w-100" type="submit">Utwórz konto i dołącz</button>
+            </EditForm>
+        }
+    }
+</div>
+
+@code {
+    private InvitationPreview? preview;
+    private AppError? error;
+    private bool isAuthenticated;
+
+    [Parameter] public string Token { get; set; } = "";
+
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "register-invitation")]
+    private RegisterModel Register { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "accept-invitation")]
+    private AcceptModel AcceptInput { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Register ??= new();
+        AcceptInput ??= new();
+        isAuthenticated = HttpContext.User.Identity?.IsAuthenticated == true;
+        var result = await Invitations.PreviewAsync(Token, HttpContext.RequestAborted);
+        if (result.IsSuccess) preview = result.Value;
+        else error = result.Error;
+    }
+
+    private async Task RegisterAsync()
+    {
+        var result = await Invitations.AcceptWithNewAccountAsync(new AcceptWithNewAccountRequest(Token, Register.DisplayName, Register.Password), HttpContext.RequestAborted);
+        if (!result.IsSuccess)
+        {
+            error = result.Error;
+            return;
+        }
+        var user = await UserManager.FindByIdAsync(result.Value!.UserId.ToString());
+        await SignInManager.SignInAsync(user!, isPersistent: false);
+        Nav.NavigateTo($"app/profile?mentorshipId={result.Value.MentorshipId}");
+    }
+
+    private async Task AcceptAsync()
+    {
+        var userId = Guid.Parse(HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var result = await Invitations.AcceptAsExistingUserAsync(userId, Token, HttpContext.RequestAborted);
+        if (!result.IsSuccess)
+        {
+            error = result.Error;
+            return;
+        }
+        var user = await UserManager.FindByIdAsync(userId.ToString());
+        await SignInManager.RefreshSignInAsync(user!);
+        Nav.NavigateTo($"app/profile?mentorshipId={result.Value!.MentorshipId}");
+    }
+
+    private sealed class AcceptModel
+    {
+        public bool Confirm { get; set; }
+    }
+
+    private sealed class RegisterModel
+    {
+        [Required(ErrorMessage = "Podaj imię i nazwisko.")]
+        [StringLength(200)]
+        public string DisplayName { get; set; } = "";
+
+        [Required(ErrorMessage = "Podaj hasło.")]
+        [StringLength(100, MinimumLength = 10, ErrorMessage = "Hasło musi mieć od {2} do {1} znaków.")]
+        public string Password { get; set; } = "";
+
+        [Compare(nameof(Password), ErrorMessage = "Hasła nie są identyczne.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

@@ -1,0 +1,56 @@
+@inherits AppComponentBase
+@using MentorPath.Application.Progress.Contracts
+@inject IProgressService ProgressService
+
+@if (Loading)
+{
+    <div class="small text-secondary">Ładowanie postępu…</div>
+}
+else if (progress is null || !progress.HasPublishedRoadmap && progress.Topics.Count == 0)
+{
+    <div class="small text-secondary">Brak opublikowanej roadmapy.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between small mb-1">
+        <span>Ukończone tematy: <strong>@progress.CompletedTopics / @progress.CountedTopics</strong></span>
+        <span>@progress.PercentComplete%</span>
+    </div>
+    <div class="progress" role="progressbar" aria-valuenow="@progress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar" style="width:@(progress.PercentComplete)%"></div>
+    </div>
+    @if (progress.CountedTopics == 0)
+    {
+        <div class="small text-secondary mt-1">Brak wymaganych zadań na roadmapie.</div>
+    }
+    @if (!progress.HasPublishedRoadmap)
+    {
+        <div class="small text-warning mt-1">Roadmapa nie jest jeszcze opublikowana.</div>
+    }
+    @if (ShowTopics)
+    {
+        <ul class="list-unstyled mt-3 mb-0">
+            @foreach (var t in progress.Topics)
+            {
+                <li class="d-flex justify-content-between align-items-center py-1 small">
+                    <span>@t.TopicTitle <span class="text-secondary">(@t.CompletedRequired/@t.TotalRequired wymaganych)</span></span>
+                    <Badge Value="t.Status" />
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid MentorshipId { get; set; }
+    [Parameter] public bool ShowTopics { get; set; }
+
+    private RoadmapProgressDto? progress;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await ProgressService.GetRoadmapProgressAsync(await GetUserIdAsync(), MentorshipId, Ct);
+        progress = result.IsSuccess ? result.Value : null;
+        Loading = false;
+    }
+}

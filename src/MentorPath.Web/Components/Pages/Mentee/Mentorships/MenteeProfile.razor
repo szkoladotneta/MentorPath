@@ -1,0 +1,125 @@
+@page "/app/profile"
+@attribute [Authorize(Roles = AppRoles.Mentee)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Mentorships.Contracts
+@inject IMentorshipService Mentorships
+
+<PageTitle>Profil mentoringu — MentorPath</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Profil mentoringu</h1>
+        <div class="subtitle">Twoje cele pomagają mentorowi dopasować ścieżkę. Każdy mentoring ma osobny profil.</div>
+    </div>
+</div>
+
+<PageState Loading="Loading" NotFound="false">
+    @if (items.Count == 0)
+    {
+        <EmptyState Title="Nie masz aktywnych mentoringów" />
+    }
+    else
+    {
+        @if (items.Count > 1)
+        {
+            <div class="mb-3" style="max-width:420px">
+                <label class="form-label">Mentoring</label>
+                <select class="form-select" value="@selected" @onchange="OnSelectAsync">
+                    @foreach (var m in items)
+                    {
+                        <option value="@m.MentorshipId">@m.WorkspaceName (@m.MentorDisplayName)</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="card" style="max-width:720px">
+            <div class="card-body">
+                <ErrorAlert Error="Error" ShowFieldList="false" />
+                @if (saved) { <div class="alert alert-success">Zapisano profil.</div> }
+                <div class="mb-3">
+                    <label class="form-label">Cel mentoringu</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="form.Goal" />
+                    <FieldError Error="Error" Field="Goal" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Poziom doświadczenia</label>
+                    <InputSelect class="form-select" @bind-Value="form.CurrentLevel">
+                        @foreach (var l in Enum.GetValues<ExperienceLevel>())
+                        {
+                            <option value="@l">@Labels.Of(l)</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Największe wyzwania</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="form.Challenges" />
+                    <FieldError Error="Error" Field="Challenges" />
+                </div>
+                <div class="mb-3" style="max-width:200px">
+                    <label class="form-label">Dostępne godziny tygodniowo</label>
+                    <InputNumber class="form-control" @bind-Value="form.WeeklyHours" min="1" max="80" />
+                    <FieldError Error="Error" Field="WeeklyHours" />
+                </div>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
+                <a class="btn btn-link" href="@($"app/roadmap/{selected}")">Przejdź do roadmapy</a>
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [SupplyParameterFromQuery] public Guid? MentorshipId { get; set; }
+
+    private List<MenteeMentorshipListItem> items = [];
+    private Guid selected;
+    private readonly FormModel form = new();
+    private bool busy;
+    private bool saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Mentorships.ListForMenteeAsync(await GetUserIdAsync(), Ct);
+        if (result.IsSuccess) items = result.Value!.ToList();
+        selected = items.Any(i => i.MentorshipId == MentorshipId) ? MentorshipId!.Value : items.FirstOrDefault()?.MentorshipId ?? Guid.Empty;
+        if (selected != Guid.Empty) await LoadAsync();
+        Loading = false;
+    }
+
+    private async Task OnSelectAsync(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            selected = id;
+            saved = false;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Mentorships.GetOnboardingAsync(await GetUserIdAsync(), selected, Ct);
+        if (!result.IsSuccess) return;
+        var o = result.Value!;
+        form.Goal = o.Goal ?? "";
+        form.Challenges = o.Challenges ?? "";
+        form.CurrentLevel = o.CurrentLevel ?? ExperienceLevel.Mid;
+        form.WeeklyHours = o.WeeklyHours ?? 5;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        saved = Handle(await Mentorships.SaveOnboardingAsync(await GetUserIdAsync(), selected,
+            new SaveOnboardingRequest(form.Goal, form.CurrentLevel, form.Challenges, form.WeeklyHours), Ct));
+        busy = false;
+    }
+
+    private sealed class FormModel
+    {
+        public string Goal { get; set; } = "";
+        public ExperienceLevel CurrentLevel { get; set; } = ExperienceLevel.Mid;
+        public string Challenges { get; set; } = "";
+        public int WeeklyHours { get; set; } = 5;
+    }
+}

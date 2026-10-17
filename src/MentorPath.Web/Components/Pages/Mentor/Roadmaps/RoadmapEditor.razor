@@ -1,0 +1,300 @@
+@page "/mentor/mentees/{MentorshipId:guid}/roadmap"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Catalog.Contracts
+@using MentorPath.Application.Mentorships.Contracts
+@using MentorPath.Application.Roadmaps.Contracts
+@inject IRoadmapService Roadmaps
+@inject ITopicService Topics
+@inject IExerciseAuthoringService Exercises
+@inject IMentorshipService Mentorships
+
+<PageTitle>Roadmapa — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    <div class="page-header">
+        <div>
+            <a href="@($"mentor/mentees/{MentorshipId}")" class="small">← @menteeName</a>
+            <h1>Roadmapa @(roadmap is not null ? $"— {roadmap.Title}" : "")</h1>
+            @if (roadmap is not null)
+            {
+                <div class="subtitle"><Badge Value="roadmap.Status" /> @if (roadmap.PublishedAtUtc is not null) { <span>opublikowana @Labels.Date(roadmap.PublishedAtUtc)</span> }</div>
+            }
+        </div>
+        @if (roadmap is not null && roadmap.Status == RoadmapStatus.Draft)
+        {
+            <button class="btn btn-primary" @onclick="PublishAsync" disabled="@busy">Opublikuj roadmapę</button>
+        }
+    </div>
+    <ErrorAlert Error="Error" />
+    @if (message is not null) { <div class="alert alert-success">@message</div> }
+
+    @if (roadmap is null)
+    {
+        <div class="card" style="max-width:720px">
+            <div class="card-header">Utwórz roadmapę</div>
+            <div class="card-body">
+                <label class="form-label">Tytuł</label>
+                <input class="form-control mb-3" @bind="newTitle" />
+                <label class="form-label">Cel roadmapy (Markdown)</label>
+                <textarea class="form-control mb-3" rows="3" @bind="newObjective"></textarea>
+                <button class="btn btn-primary" @onclick="CreateAsync" disabled="@busy">Utwórz</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="section-title">Cel</div>
+                <Markdown Value="@roadmap.ObjectiveMarkdown" />
+            </div>
+        </div>
+
+        @foreach (var item in roadmap.Items)
+        {
+            <div class="card mb-3 @(item.IsActive ? "" : "opacity-75")">
+                <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div>
+                        <span class="text-secondary me-1">@(item.Position + 1).</span> @item.TopicTitle
+                        @if (!item.IsActive) { <span class="badge text-bg-secondary ms-1">wycofany</span> }
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" title="W górę" @onclick="() => MoveTopicAsync(item, -1)" disabled="@(item.Position == 0)">↑</button>
+                        <button class="btn btn-outline-secondary" title="W dół" @onclick="() => MoveTopicAsync(item, 1)" disabled="@(item.Position == roadmap.Items.Count - 1)">↓</button>
+                        <button class="btn btn-outline-secondary" @onclick="() => ToggleTopicAsync(item)">@(item.IsActive ? "Wycofaj" : "Przywróć")</button>
+                        @if (!item.HasSubmissions)
+                        {
+                            <button class="btn btn-outline-danger" @onclick="() => RemoveTopicAsync(item)">Usuń</button>
+                        }
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))
+                    {
+                        <div class="small mb-2"><span class="section-title">Notatka dla mentee</span><Markdown Value="@item.MentorNoteMarkdown" /></div>
+                    }
+                    @if (item.Assignments.Count == 0)
+                    {
+                        <div class="small text-secondary mb-2">Brak przypisanych ćwiczeń.</div>
+                    }
+                    @foreach (var a in item.Assignments)
+                    {
+                        <div class="list-row px-0 @(a.IsActive ? "" : "opacity-75")">
+                            <div>
+                                <span class="fw-semibold">@a.ExerciseTitle</span>
+                                <div class="small text-secondary">@Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") · termin: @Labels.Day(a.DueAtUtc) · prób: @a.SubmissionCount @(a.IsActive ? "" : " · wycofane")</div>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" @onclick="() => MoveAssignmentAsync(item, a, -1)" disabled="@(a.Position == 0)">↑</button>
+                                <button class="btn btn-outline-secondary" @onclick="() => MoveAssignmentAsync(item, a, 1)" disabled="@(a.Position == item.Assignments.Count - 1)">↓</button>
+                                <button class="btn btn-outline-secondary" @onclick="() => ToggleRequiredAsync(a)">@(a.IsRequired ? "Ustaw opcjonalne" : "Ustaw wymagane")</button>
+                                <button class="btn btn-outline-secondary" @onclick="() => ToggleAssignmentAsync(a)">@(a.IsActive ? "Wycofaj" : "Przywróć")</button>
+                                @if (a.SubmissionCount == 0)
+                                {
+                                    <button class="btn btn-outline-danger" @onclick="() => RemoveAssignmentAsync(a)">Usuń</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @{ var available = publishedByTopic.GetValueOrDefault(item.TopicId, []).Where(e => item.Assignments.All(a => a.ExerciseId != e.ExerciseId)).ToList(); }
+                    @if (available.Count > 0)
+                    {
+                        <div class="d-flex flex-wrap gap-2 align-items-end mt-3">
+                            <div>
+                                <label class="form-label small mb-0">Przypisz opublikowane ćwiczenie</label>
+                                <select class="form-select form-select-sm" @bind="assignExercise[item.RoadmapItemId]">
+                                    <option value="@Guid.Empty">— wybierz —</option>
+                                    @foreach (var e in available)
+                                    {
+                                        <option value="@e.ExerciseId">@e.Title (@Labels.Of(e.Type))</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="@($"req-{item.RoadmapItemId}")" @bind="assignRequired[item.RoadmapItemId]" />
+                                <label class="form-check-label small" for="@($"req-{item.RoadmapItemId}")">wymagane</label>
+                            </div>
+                            <div>
+                                <label class="form-label small mb-0">Termin (opcjonalnie)</label>
+                                <input type="date" class="form-control form-control-sm" @bind="assignDue[item.RoadmapItemId]" />
+                            </div>
+                            <button class="btn btn-sm btn-primary" @onclick="() => AssignAsync(item)" disabled="@busy">Przypisz</button>
+                        </div>
+                    }
+                    else if (!publishedByTopic.ContainsKey(item.TopicId))
+                    {
+                        <div class="small text-secondary mt-2">Ten temat nie ma opublikowanych ćwiczeń. <a href="@($"mentor/exercises/new?topicId={item.TopicId}")">Utwórz ćwiczenie</a></div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header">Dodaj temat</div>
+            <div class="card-body">
+                @{ var topicsToAdd = topics.Where(t => roadmap.Items.All(i => i.TopicId != t.TopicId)).ToList(); }
+                @if (topicsToAdd.Count == 0)
+                {
+                    <div class="small text-secondary">Wszystkie tematy z katalogu są już na roadmapie. <a href="mentor/catalog/topics">Katalog</a></div>
+                }
+                else
+                {
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small">Temat</label>
+                            <select class="form-select" @bind="addTopicId">
+                                <option value="@Guid.Empty">— wybierz —</option>
+                                @foreach (var t in topicsToAdd)
+                                {
+                                    <option value="@t.TopicId">@t.Title</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Notatka dla mentee (opcjonalnie)</label>
+                            <input class="form-control" @bind="addNote" />
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary w-100" @onclick="AddTopicAsync" disabled="@(busy || addTopicId == Guid.Empty)">Dodaj</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid MentorshipId { get; set; }
+
+    private MentorRoadmapDto? roadmap;
+    private string menteeName = "Mentee";
+    private List<TopicListItem> topics = [];
+    private Dictionary<Guid, List<ExerciseListItem>> publishedByTopic = [];
+    private readonly Dictionary<Guid, Guid> assignExercise = [];
+    private readonly Dictionary<Guid, bool> assignRequired = [];
+    private readonly Dictionary<Guid, DateTime?> assignDue = [];
+    private string newTitle = "Ścieżka rozwoju";
+    private string newObjective = "";
+    private Guid addTopicId;
+    private string? addNote;
+    private bool busy;
+    private string? message;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = await GetUserIdAsync();
+        var mentee = await Mentorships.GetForMentorAsync(user, MentorshipId, Ct);
+        if (!Handle(mentee))
+        {
+            Loading = false;
+            return;
+        }
+        menteeName = mentee.Value!.MenteeDisplayName;
+        var t = await Topics.ListAsync(user, false, Ct);
+        if (t.IsSuccess) topics = t.Value!.ToList();
+        var ex = await Exercises.ListAsync(user, new ExerciseListFilter(null, ExerciseStatus.Published, null), Ct);
+        if (ex.IsSuccess) publishedByTopic = ex.Value!.GroupBy(e => e.TopicId).ToDictionary(g => g.Key, g => g.ToList());
+        await LoadAsync();
+        Loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Roadmaps.GetForMentorAsync(await GetUserIdAsync(), MentorshipId, Ct);
+        if (!result.IsSuccess)
+        {
+            Handle(result);
+            return;
+        }
+        roadmap = result.Value;
+        if (roadmap is null) return;
+        foreach (var item in roadmap.Items)
+        {
+            assignExercise.TryAdd(item.RoadmapItemId, Guid.Empty);
+            assignRequired.TryAdd(item.RoadmapItemId, true);
+            assignDue.TryAdd(item.RoadmapItemId, null);
+        }
+    }
+
+    private async Task Run(Func<Guid, Task<Result>> action, string? success = null)
+    {
+        busy = true;
+        message = null;
+        if (Handle(await action(await GetUserIdAsync())))
+        {
+            message = success;
+            await LoadAsync();
+        }
+        busy = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        busy = true;
+        var result = await Roadmaps.CreateAsync(await GetUserIdAsync(), new CreateRoadmapRequest(MentorshipId, newTitle, newObjective), Ct);
+        if (Handle(result)) await LoadAsync();
+        busy = false;
+    }
+
+    private Task PublishAsync() => Run(u => Roadmaps.PublishAsync(u, roadmap!.RoadmapId, Ct), "Roadmapa opublikowana — mentee już ją widzi.");
+
+    private async Task AddTopicAsync()
+    {
+        busy = true;
+        var result = await Roadmaps.AddTopicAsync(await GetUserIdAsync(), new AddRoadmapTopicRequest(roadmap!.RoadmapId, addTopicId, addNote), Ct);
+        if (Handle(result))
+        {
+            addTopicId = Guid.Empty;
+            addNote = null;
+            await LoadAsync();
+        }
+        busy = false;
+    }
+
+    private Task MoveTopicAsync(MentorRoadmapItemDto item, int delta)
+    {
+        var ids = roadmap!.Items.Select(i => i.RoadmapItemId).ToList();
+        var index = ids.IndexOf(item.RoadmapItemId);
+        (ids[index], ids[index + delta]) = (ids[index + delta], ids[index]);
+        return Run(u => Roadmaps.ReorderTopicsAsync(u, roadmap.RoadmapId, ids, Ct));
+    }
+
+    private Task ToggleTopicAsync(MentorRoadmapItemDto item) => Run(u => Roadmaps.SetTopicActiveAsync(u, item.RoadmapItemId, !item.IsActive, Ct));
+
+    private Task RemoveTopicAsync(MentorRoadmapItemDto item) => Run(u => Roadmaps.RemoveTopicAsync(u, item.RoadmapItemId, Ct));
+
+    private async Task AssignAsync(MentorRoadmapItemDto item)
+    {
+        var exerciseId = assignExercise.GetValueOrDefault(item.RoadmapItemId);
+        if (exerciseId == Guid.Empty) return;
+        var due = assignDue.GetValueOrDefault(item.RoadmapItemId);
+        DateTime? dueUtc = due is null ? null : DateTime.SpecifyKind(due.Value.Date.AddHours(23).AddMinutes(59), DateTimeKind.Local).ToUniversalTime();
+        busy = true;
+        var result = await Roadmaps.AssignExerciseAsync(await GetUserIdAsync(),
+            new AssignExerciseRequest(item.RoadmapItemId, exerciseId, assignRequired.GetValueOrDefault(item.RoadmapItemId, true), dueUtc), Ct);
+        if (Handle(result))
+        {
+            assignExercise[item.RoadmapItemId] = Guid.Empty;
+            assignDue[item.RoadmapItemId] = null;
+            await LoadAsync();
+        }
+        busy = false;
+    }
+
+    private Task MoveAssignmentAsync(MentorRoadmapItemDto item, MentorAssignmentDto a, int delta)
+    {
+        var ids = item.Assignments.Select(x => x.AssignmentId).ToList();
+        var index = ids.IndexOf(a.AssignmentId);
+        (ids[index], ids[index + delta]) = (ids[index + delta], ids[index]);
+        return Run(u => Roadmaps.ReorderAssignmentsAsync(u, item.RoadmapItemId, ids, Ct));
+    }
+
+    private Task ToggleRequiredAsync(MentorAssignmentDto a) => Run(u => Roadmaps.UpdateAssignmentAsync(u, a.AssignmentId, new UpdateAssignmentRequest(!a.IsRequired, a.DueAtUtc), Ct));
+
+    private Task ToggleAssignmentAsync(MentorAssignmentDto a) => Run(u => Roadmaps.SetAssignmentActiveAsync(u, a.AssignmentId, !a.IsActive, Ct));
+
+    private Task RemoveAssignmentAsync(MentorAssignmentDto a) => Run(u => Roadmaps.RemoveAssignmentAsync(u, a.AssignmentId, Ct));
+}

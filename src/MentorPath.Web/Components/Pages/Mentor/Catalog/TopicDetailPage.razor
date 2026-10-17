@@ -1,0 +1,105 @@
+@page "/mentor/catalog/topics/{TopicId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Catalog.Contracts
+@inject ITopicService Topics
+
+<PageTitle>Temat — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (topic is not null)
+    {
+        <div class="page-header">
+            <div>
+                <a href="mentor/catalog/topics" class="small">← Katalog</a>
+                <h1>@topic.Title @if (topic.IsArchived) { <span class="badge text-bg-secondary align-middle fs-6">Zarchiwizowany</span> }</h1>
+                <div class="subtitle">@topic.Category · @Labels.Of(topic.Difficulty) · <code>@topic.Slug</code></div>
+            </div>
+            <div class="d-flex gap-2">
+                @if (!topic.IsArchived)
+                {
+                    <a class="btn btn-primary" href="@($"mentor/exercises/new?topicId={TopicId}")">Nowe ćwiczenie</a>
+                }
+                <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">@(editing ? "Anuluj" : "Edytuj")</button>
+                <button class="btn btn-outline-secondary" @onclick="ToggleArchiveAsync">@(topic.IsArchived ? "Przywróć" : "Archiwizuj")</button>
+            </div>
+        </div>
+
+        @if (editing && form is not null)
+        {
+            <div class="card mb-4">
+                <div class="card-body">
+                    <TopicForm Model="form" Error="Error" />
+                    <button class="btn btn-primary mt-3" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4 mb-4">
+                <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Opis</div><Markdown Value="@topic.DescriptionMarkdown" /></div></div></div>
+                <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Cele edukacyjne</div><Markdown Value="@topic.LearningObjectivesMarkdown" /></div></div></div>
+            </div>
+        }
+
+        <h2 class="h5">Ćwiczenia</h2>
+        @if (topic.Exercises.Count == 0)
+        {
+            <EmptyState Title="Brak ćwiczeń">Utwórz ćwiczenie ręcznie lub wygeneruj szkic z pomocą AI.</EmptyState>
+        }
+        else
+        {
+            <div class="card">
+                @foreach (var e in topic.Exercises)
+                {
+                    <div class="list-row">
+                        <div>
+                            <a href="@($"mentor/exercises/{e.ExerciseId}/edit")" class="fw-semibold">@e.Title</a>
+                            <div class="small text-secondary">@Labels.Of(e.Type) · @(e.Source == ExerciseSource.AI ? "szkic AI" : "ręczne") · @Labels.Day(e.CreatedAtUtc)</div>
+                        </div>
+                        <Badge Value="e.Status" />
+                    </div>
+                }
+            </div>
+        }
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid TopicId { get; set; }
+
+    private TopicDetail? topic;
+    private TopicFormModel? form;
+    private bool editing;
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Topics.GetAsync(await GetUserIdAsync(), TopicId, Ct);
+        if (Handle(result))
+        {
+            topic = result.Value;
+            form = TopicFormModel.From(topic!);
+        }
+        Loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        if (Handle(await Topics.UpdateAsync(await GetUserIdAsync(), TopicId, form!.ToRequest(), Ct)))
+        {
+            editing = false;
+            await LoadAsync();
+        }
+        busy = false;
+    }
+
+    private async Task ToggleArchiveAsync()
+    {
+        if (Handle(await Topics.SetArchivedAsync(await GetUserIdAsync(), TopicId, !topic!.IsArchived, Ct))) await LoadAsync();
+    }
+}

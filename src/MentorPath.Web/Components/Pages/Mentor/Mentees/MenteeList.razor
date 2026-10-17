@@ -1,0 +1,135 @@
+@page "/mentor/mentees"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Invitations.Contracts
+@using MentorPath.Application.Mentorships.Contracts
+@inject IMentorshipService Mentorships
+@inject IInvitationService Invitations
+@inject IJSRuntime JS
+
+<PageTitle>Mentees — MentorPath</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Mentees</h1>
+        <div class="subtitle">Relacje mentoringowe w Twoim workspace.</div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <PageState Loading="Loading" NotFound="NotFound">
+            @if (mentees.Count == 0)
+            {
+                <EmptyState Title="Nie masz jeszcze mentees">Zaproś pierwszą osobę formularzem obok.</EmptyState>
+            }
+            else
+            {
+                <div class="card">
+                    @foreach (var m in mentees)
+                    {
+                        <div class="list-row">
+                            <div>
+                                <a href="@($"mentor/mentees/{m.MentorshipId}")" class="fw-semibold">@m.MenteeDisplayName</a>
+                                <div class="small text-secondary">@m.MenteeEmail · od @Labels.Day(m.CreatedAtUtc)</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                @if (!m.OnboardingCompleted) { <span class="badge text-bg-light">Bez onboardingu</span> }
+                                <Badge Value="m.Status" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </PageState>
+    </div>
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header">Zaproś mentee</div>
+            <div class="card-body">
+                <EditForm Model="invite" OnValidSubmit="InviteAsync" FormName="invite">
+                    <label class="form-label" for="invite-email">Adres e-mail</label>
+                    <InputText id="invite-email" class="form-control" @bind-Value="invite.Email" placeholder="osoba@firma.pl" />
+                    <FieldError Error="inviteError" Field="Email" />
+                    <button type="submit" class="btn btn-primary mt-3" disabled="@busy">Utwórz zaproszenie</button>
+                </EditForm>
+                <ErrorAlert Error="inviteError" ShowFieldList="false" />
+                @if (created is not null)
+                {
+                    <div class="alert alert-success mt-3 mb-0">
+                        <div class="small mb-1">Link ważny do @Labels.Date(created.ExpiresAtUtc). Skopiuj i przekaż mentee — link jest pokazywany tylko raz.</div>
+                        <input class="form-control form-control-sm mono-break" readonly value="@created.AcceptUrl" />
+                        <button class="btn btn-sm btn-outline-primary mt-2" @onclick="CopyAsync">@(copied ? "Skopiowano" : "Kopiuj link")</button>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">Zaproszenia</div>
+            @if (invitations.Count == 0)
+            {
+                <div class="card-body small text-secondary">Brak zaproszeń.</div>
+            }
+            @foreach (var i in invitations)
+            {
+                <div class="list-row small">
+                    <div>
+                        <div class="mono-break">@i.Email</div>
+                        <div class="text-secondary">utworzone @Labels.Date(i.CreatedAtUtc)</div>
+                    </div>
+                    <Badge Value="i.State" />
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<MentorMenteeListItem> mentees = [];
+    private List<InvitationListItem> invitations = [];
+    private readonly InviteModel invite = new();
+    private CreateInvitationResult? created;
+    private AppError? inviteError;
+    private bool busy;
+    private bool copied;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var user = await GetUserIdAsync();
+        var list = await Mentorships.ListForMentorAsync(user, Ct);
+        if (Handle(list)) mentees = list.Value!.ToList();
+        var inv = await Invitations.ListAsync(user, Ct);
+        if (inv.IsSuccess) invitations = inv.Value!.ToList();
+        Loading = false;
+    }
+
+    private async Task InviteAsync()
+    {
+        busy = true;
+        copied = false;
+        created = null;
+        var result = await Invitations.CreateAsync(await GetUserIdAsync(), new CreateInvitationRequest(invite.Email), Ct);
+        if (result.IsSuccess)
+        {
+            created = result.Value;
+            inviteError = null;
+            invite.Email = "";
+            await LoadAsync();
+        }
+        else inviteError = result.Error;
+        busy = false;
+    }
+
+    private async Task CopyAsync()
+    {
+        if (created is not null) copied = await JS.InvokeAsync<bool>("mentorPath.copyText", created.AcceptUrl);
+    }
+
+    private sealed class InviteModel
+    {
+        public string Email { get; set; } = "";
+    }
+}

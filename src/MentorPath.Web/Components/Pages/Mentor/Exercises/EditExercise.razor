@@ -1,0 +1,141 @@
+@page "/mentor/exercises/{ExerciseId:guid}/edit"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Catalog.Contracts
+@inject IExerciseAuthoringService Exercises
+
+<PageTitle>Ćwiczenie — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (exercise is not null && form is not null)
+    {
+        var isDraft = exercise.Status == ExerciseStatus.Draft;
+        <div class="page-header">
+            <div>
+                <a href="@($"mentor/catalog/topics/{exercise.TopicId}")" class="small">← @exercise.TopicTitle</a>
+                <h1>@exercise.Content.Title</h1>
+                <div class="subtitle d-flex gap-2 align-items-center">
+                    <Badge Value="exercise.Type" />
+                    <Badge Value="exercise.Status" />
+                    @if (exercise.Source == ExerciseSource.AI) { <span class="badge text-bg-info">AI Draft</span> }
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                @if (isDraft)
+                {
+                    <button class="btn btn-outline-primary" @onclick="SaveAsync" disabled="@busy">Zapisz szkic</button>
+                    <button class="btn btn-primary" @onclick="PublishAsync" disabled="@busy">Opublikuj</button>
+                    <button class="btn btn-outline-danger" @onclick="DeleteAsync" disabled="@busy">@(confirmDelete ? "Na pewno odrzucić?" : "Odrzuć szkic")</button>
+                }
+                else
+                {
+                    <button class="btn btn-outline-primary" @onclick="CloneAsync" disabled="@busy">Utwórz kopię jako szkic</button>
+                    @if (exercise.Status == ExerciseStatus.Published)
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="ArchiveAsync" disabled="@busy">Archiwizuj</button>
+                    }
+                }
+            </div>
+        </div>
+        @if (!isDraft)
+        {
+            <div class="alert alert-info">Opublikowanej treści nie można zmieniać — chroni to znaczenie historycznych rozwiązań. Aby wprowadzić zmiany, utwórz kopię jako nowy szkic.</div>
+        }
+        @if (exercise.Source == ExerciseSource.AI && isDraft)
+        {
+            <div class="alert alert-warning small">Treść wygenerowana przez AI może zawierać błędy techniczne. Przejrzyj ją merytorycznie przed publikacją.</div>
+        }
+        @if (message is not null) { <div class="alert alert-success">@message</div> }
+        <ErrorAlert Error="Error" />
+        <div class="card">
+            <div class="card-body">
+                <ExerciseForm Model="form" Type="exercise.Type" Error="Error" ReadOnly="!isDraft" />
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid ExerciseId { get; set; }
+
+    private MentorExerciseDto? exercise;
+    private ExerciseFormModel? form;
+    private bool busy;
+    private bool confirmDelete;
+    private string? message;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Exercises.GetMentorExerciseAsync(await GetUserIdAsync(), ExerciseId, Ct);
+        if (Handle(result))
+        {
+            exercise = result.Value;
+            form = ExerciseFormModel.From(exercise!.Content);
+            if (exercise.Type == ExerciseType.QuizSingleChoice && form.QuizOptions.Count == 0)
+            {
+                form.QuizOptions.Add(new());
+                form.QuizOptions.Add(new());
+            }
+        }
+        Loading = false;
+    }
+
+    private async Task<bool> SaveCoreAsync()
+    {
+        message = null;
+        return Handle(await Exercises.UpdateDraftAsync(await GetUserIdAsync(), ExerciseId, form!.ToContent(), Ct));
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        if (await SaveCoreAsync())
+        {
+            await LoadAsync();
+            message = "Zapisano szkic.";
+        }
+        busy = false;
+    }
+
+    private async Task PublishAsync()
+    {
+        busy = true;
+        if (await SaveCoreAsync() && Handle(await Exercises.PublishAsync(await GetUserIdAsync(), ExerciseId, Ct)))
+        {
+            await LoadAsync();
+            message = "Ćwiczenie opublikowane. Możesz je teraz przypisać na roadmapie.";
+        }
+        busy = false;
+    }
+
+    private async Task CloneAsync()
+    {
+        busy = true;
+        var result = await Exercises.CloneAsDraftAsync(await GetUserIdAsync(), ExerciseId, Ct);
+        busy = false;
+        if (Handle(result)) Nav.NavigateTo($"mentor/exercises/{result.Value}/edit");
+    }
+
+    private async Task ArchiveAsync()
+    {
+        busy = true;
+        if (Handle(await Exercises.ArchiveAsync(await GetUserIdAsync(), ExerciseId, Ct))) await LoadAsync();
+        busy = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!confirmDelete)
+        {
+            confirmDelete = true;
+            return;
+        }
+        busy = true;
+        var topicId = exercise!.TopicId;
+        if (Handle(await Exercises.DeleteDraftAsync(await GetUserIdAsync(), ExerciseId, Ct))) Nav.NavigateTo($"mentor/catalog/topics/{topicId}");
+        busy = false;
+    }
+}

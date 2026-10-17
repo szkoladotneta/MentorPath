@@ -1,0 +1,115 @@
+@page "/mentor/mentees/{MentorshipId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Mentorships.Contracts
+@using MentorPath.Web.Components.Modules.Progress
+@inject IMentorshipService Mentorships
+
+<PageTitle>Mentee — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (detail is not null)
+    {
+        <div class="page-header">
+            <div>
+                <a href="mentor/mentees" class="small">← Mentees</a>
+                <h1>@detail.MenteeDisplayName</h1>
+                <div class="subtitle">@detail.MenteeEmail · <Badge Value="detail.Status" /></div>
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn btn-primary" href="@($"mentor/mentees/{MentorshipId}/roadmap")">Roadmapa</a>
+            </div>
+        </div>
+        <ErrorAlert Error="Error" />
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header">Profil mentoringowy</div>
+                    <div class="card-body">
+                        @if (detail.Goal is null)
+                        {
+                            <p class="text-secondary mb-0">Mentee nie uzupełnił(a) jeszcze onboardingu.</p>
+                        }
+                        else
+                        {
+                            <dl class="kv mb-0">
+                                <dt>Cel mentoringu</dt><dd><Markdown Value="@detail.Goal" /></dd>
+                                <dt>Poziom doświadczenia</dt><dd>@(detail.CurrentLevel is { } l ? Labels.Of(l) : "—")</dd>
+                                <dt>Największe wyzwania</dt><dd><Markdown Value="@detail.Challenges" /></dd>
+                                <dt>Dostępne godziny tygodniowo</dt><dd>@detail.WeeklyHours</dd>
+                            </dl>
+                        }
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">Postęp</div>
+                    <div class="card-body">
+                        <RoadmapProgressSummary MentorshipId="MentorshipId" ShowTopics="true" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header">Prywatne notatki <span class="small text-secondary fw-normal">(niewidoczne dla mentee, nie trafiają do AI)</span></div>
+                    <div class="card-body">
+                        <InputTextArea class="form-control" rows="6" @bind-Value="notes" />
+                        <button class="btn btn-outline-primary btn-sm mt-2" @onclick="SaveNotesAsync" disabled="@busy">Zapisz notatki</button>
+                        @if (notesSaved) { <span class="small text-success ms-2">Zapisano.</span> }
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">Status relacji</div>
+                    <div class="card-body">
+                        <select class="form-select" @bind="status">
+                            @foreach (var s in Enum.GetValues<MentorshipStatus>())
+                            {
+                                <option value="@s">@Labels.Of(s)</option>
+                            }
+                        </select>
+                        <div class="form-text">Wstrzymany: mentee tylko czyta. Zamknięty: mentee traci dostęp, dane zostają zachowane.</div>
+                        <button class="btn btn-outline-primary btn-sm mt-2" @onclick="SaveStatusAsync" disabled="@(busy || status == detail.Status)">Zmień status</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid MentorshipId { get; set; }
+
+    private MentorMenteeDetail? detail;
+    private string? notes;
+    private MentorshipStatus status;
+    private bool busy;
+    private bool notesSaved;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Mentorships.GetForMentorAsync(await GetUserIdAsync(), MentorshipId, Ct);
+        if (Handle(result))
+        {
+            detail = result.Value;
+            notes = detail!.MentorPrivateNotesMarkdown;
+            status = detail.Status;
+        }
+        Loading = false;
+    }
+
+    private async Task SaveNotesAsync()
+    {
+        busy = true;
+        notesSaved = Handle(await Mentorships.UpdatePrivateNotesAsync(await GetUserIdAsync(), MentorshipId, notes, Ct));
+        busy = false;
+    }
+
+    private async Task SaveStatusAsync()
+    {
+        busy = true;
+        if (Handle(await Mentorships.ChangeStatusAsync(await GetUserIdAsync(), MentorshipId, status, Ct))) await LoadAsync();
+        busy = false;
+    }
+}

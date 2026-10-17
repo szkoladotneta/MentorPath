@@ -1,0 +1,94 @@
+@{
+    var isQuiz = Type == ExerciseType.QuizSingleChoice;
+    var isPractical = Type == ExerciseType.PracticalTask;
+}
+<fieldset disabled="@ReadOnly">
+    <div class="mb-3">
+        <label class="form-label">Tytuł</label>
+        <InputText class="form-control" @bind-Value="Model.Title" />
+        <FieldError Error="Error" Field="Title" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">@(isPractical ? "Opis zadania" : isQuiz ? "Scenariusz i pytanie" : "Scenariusz") <span class="text-secondary small">(Markdown, widoczne dla mentee)</span></label>
+        <InputTextArea class="form-control" rows="6" @bind-Value="Model.ScenarioMarkdown" />
+        <FieldError Error="Error" Field="ScenarioMarkdown" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">@(isQuiz ? "Instrukcje (opcjonalnie)" : isPractical ? "Wymagania" : "Ograniczenia i wymagania")</label>
+        <InputTextArea class="form-control" rows="4" @bind-Value="Model.InstructionsMarkdown" />
+        <FieldError Error="Error" Field="InstructionsMarkdown" />
+    </div>
+    @if (!isQuiz)
+    {
+        <div class="mb-3">
+            <label class="form-label">@(isPractical ? "Oczekiwane artefakty" : "Oczekiwane rezultaty")</label>
+            <InputTextArea class="form-control" rows="3" @bind-Value="Model.ExpectedOutcomeMarkdown" />
+            <FieldError Error="Error" Field="ExpectedOutcomeMarkdown" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Kryteria oceny <span class="text-secondary small">(widoczne dla mentee i podczas review)</span></label>
+            <InputTextArea class="form-control" rows="4" @bind-Value="Model.RubricMarkdown" />
+            <FieldError Error="Error" Field="RubricMarkdown" />
+        </div>
+    }
+    <div class="mb-3">
+        <label class="form-label">@(isPractical ? "Pytania dotyczące decyzji implementacyjnych" : "Pytania pogłębiające (opcjonalnie)")</label>
+        <InputTextArea class="form-control" rows="3" @bind-Value="Model.DiscussionQuestionsMarkdown" />
+        <FieldError Error="Error" Field="DiscussionQuestionsMarkdown" />
+    </div>
+    @if (isQuiz)
+    {
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <label class="form-label mb-0">Opcje odpowiedzi (2–6, dokładnie jedna poprawna)</label>
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddOption" disabled="@(Model.QuizOptions.Count >= 6)">Dodaj opcję</button>
+            </div>
+            <FieldError Error="Error" Field="QuizOptions" />
+            @for (var i = 0; i < Model.QuizOptions.Count; i++)
+            {
+                var index = i;
+                var option = Model.QuizOptions[index];
+                <div class="card mt-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="radio" class="form-check-input mt-0" name="correct-option" checked="@option.IsCorrect" @onchange="() => MarkCorrect(index)" title="Poprawna odpowiedź" />
+                            <InputText class="form-control form-control-sm" @bind-Value="option.Text" placeholder="@($"Opcja {index + 1}")" />
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Model.QuizOptions.RemoveAt(index)">✕</button>
+                        </div>
+                        <InputText class="form-control form-control-sm mt-1" @bind-Value="option.ExplanationMarkdown" placeholder="Wyjaśnienie tej opcji (pokazywane po wyborze)" />
+                        <FieldError Error="Error" Field="@($"QuizOptions[{index}].Text")" />
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Wyjaśnienie poprawnej odpowiedzi <span class="text-secondary small">(pokazywane po poprawnej próbie)</span></label>
+            <InputTextArea class="form-control" rows="3" @bind-Value="Model.ExplanationMarkdown" />
+            <FieldError Error="Error" Field="ExplanationMarkdown" />
+        </div>
+    }
+    <div class="mb-3">
+        <label class="form-label">Mentor guide <span class="badge text-bg-warning">prywatne</span></label>
+        <InputTextArea class="form-control" rows="4" @bind-Value="Model.MentorGuideMarkdown" />
+        <div class="form-text">Nigdy nie jest pokazywany mentee.</div>
+    </div>
+    <div class="mb-3" style="max-width:220px">
+        <label class="form-label">Szacowany czas (min)</label>
+        <InputNumber class="form-control" @bind-Value="Model.EstimatedMinutes" />
+        <FieldError Error="Error" Field="EstimatedMinutes" />
+    </div>
+</fieldset>
+
+@code {
+    [Parameter, EditorRequired] public ExerciseFormModel Model { get; set; } = default!;
+    [Parameter] public ExerciseType Type { get; set; }
+    [Parameter] public AppError? Error { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+
+    private void AddOption() => Model.QuizOptions.Add(new ExerciseFormModel.OptionModel());
+
+    private void MarkCorrect(int index)
+    {
+        for (var i = 0; i < Model.QuizOptions.Count; i++) Model.QuizOptions[i].IsCorrect = i == index;
+    }
+}

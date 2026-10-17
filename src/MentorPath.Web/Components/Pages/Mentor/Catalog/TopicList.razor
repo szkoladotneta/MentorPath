@@ -1,0 +1,88 @@
+@page "/mentor/catalog/topics"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Catalog
+@using MentorPath.Application.Catalog.Contracts
+@inject ITopicService Topics
+
+<PageTitle>Katalog — MentorPath</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Katalog tematów</h1>
+        <div class="subtitle">Prywatny katalog Twojego workspace.</div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="show-archived" checked="@includeArchived" @onchange="ToggleArchivedAsync" />
+            <label class="form-check-label small" for="show-archived">Pokaż zarchiwizowane</label>
+        </div>
+        <button class="btn btn-primary" @onclick="() => showForm = !showForm">@(showForm ? "Anuluj" : "Nowy temat")</button>
+    </div>
+</div>
+
+@if (showForm)
+{
+    <div class="card mb-4">
+        <div class="card-header">Nowy temat</div>
+        <div class="card-body">
+            <TopicForm Model="form" Error="Error" />
+            <button class="btn btn-primary mt-3" @onclick="CreateAsync" disabled="@busy">Utwórz temat</button>
+        </div>
+    </div>
+}
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (topics.Count == 0)
+    {
+        <EmptyState Title="Katalog jest pusty">Utwórz pierwszy temat, aby dodawać ćwiczenia.</EmptyState>
+    }
+    else
+    {
+        <div class="card">
+            @foreach (var t in topics)
+            {
+                <div class="list-row">
+                    <div>
+                        <a href="@($"mentor/catalog/topics/{t.TopicId}")" class="fw-semibold">@t.Title</a>
+                        <div class="small text-secondary">@t.Category · @Labels.Of(t.Difficulty) · @t.ExerciseCount ćw.</div>
+                    </div>
+                    @if (t.IsArchived) { <span class="badge text-bg-secondary">Zarchiwizowany</span> }
+                </div>
+            }
+        </div>
+    }
+</PageState>
+
+@code {
+    private List<TopicListItem> topics = [];
+    private bool includeArchived;
+    private bool showForm;
+    private bool busy;
+    private TopicFormModel form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Topics.ListAsync(await GetUserIdAsync(), includeArchived, Ct);
+        if (Handle(result)) topics = result.Value!.ToList();
+        Loading = false;
+    }
+
+    private async Task ToggleArchivedAsync()
+    {
+        includeArchived = !includeArchived;
+        await LoadAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        busy = true;
+        if (string.IsNullOrWhiteSpace(form.Slug)) form.Slug = ExerciseValidator.Slugify(form.Title);
+        var result = await Topics.CreateAsync(await GetUserIdAsync(), form.ToRequest(), Ct);
+        if (Handle(result)) Nav.NavigateTo($"mentor/catalog/topics/{result.Value}");
+        busy = false;
+    }
+}

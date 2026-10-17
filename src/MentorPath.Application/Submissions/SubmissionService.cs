@@ -157,8 +157,17 @@ internal sealed class SubmissionService(
                 SizeBytes = fileBytes.LongLength,
                 CreatedAtUtc = submission.SubmittedAtUtc,
             };
-            using var ms = new MemoryStream(fileBytes, writable: false);
-            await storage.SaveAsync(attachment.ObjectKey, ms, attachment.ContentType, ct);
+            try
+            {
+                using var ms = new MemoryStream(fileBytes, writable: false);
+                await storage.SaveAsync(attachment.ObjectKey, ms, attachment.ContentType, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Attachment upload to object storage failed.");
+                return new AppError(ErrorKind.Unavailable, "submission.storage_unavailable",
+                    "Nie udało się zapisać załącznika. Spróbuj ponownie za chwilę lub prześlij link.");
+            }
         }
 
         Result<SubmissionResultDto> result;
@@ -228,6 +237,11 @@ internal sealed class SubmissionService(
         {
             logger.LogError("Attachment object missing in storage. AttachmentId={AttachmentId}", attachment.Id);
             return Errors.NotFound(Module);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Attachment download from object storage failed. AttachmentId={AttachmentId}", attachment.Id);
+            return new AppError(ErrorKind.Unavailable, "submission.storage_unavailable", "Pobieranie pliku jest chwilowo niedostępne.");
         }
     }
 

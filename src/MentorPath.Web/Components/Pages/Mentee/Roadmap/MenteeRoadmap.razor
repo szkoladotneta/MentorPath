@@ -1,0 +1,79 @@
+@page "/app/roadmap/{MentorshipId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentee)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Roadmaps.Contracts
+@using MentorPath.Web.Components.Modules.Progress
+@inject IRoadmapService Roadmaps
+
+<PageTitle>Roadmapa — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="false">
+    @if (roadmap is null)
+    {
+        <EmptyState Title="Roadmapa nie jest jeszcze dostępna">Mentor nie opublikował roadmapy dla tego mentoringu. <a href="app">Wróć do dashboardu</a></EmptyState>
+    }
+    else
+    {
+        <div class="page-header">
+            <div>
+                <a href="app" class="small">← Dashboard</a>
+                <h1>@roadmap.Title</h1>
+            </div>
+            <a class="btn btn-outline-primary" href="@($"app/progress/{MentorshipId}")">Postęp</a>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-8">
+                @foreach (var item in roadmap.Items)
+                {
+                    <div class="card mb-3">
+                        <div class="card-header"><span class="text-secondary me-1">@(item.Position + 1).</span> @item.TopicTitle</div>
+                        <div class="card-body">
+                            <Markdown Value="@item.TopicDescriptionMarkdown" Class="small text-secondary mb-2" />
+                            @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))
+                            {
+                                <div class="alert alert-light border small py-2"><strong>Notatka mentora:</strong> <Markdown Value="@item.MentorNoteMarkdown" /></div>
+                            }
+                            @foreach (var a in item.Assignments)
+                            {
+                                <div class="list-row px-0">
+                                    <div>
+                                        <a href="@($"app/assignments/{a.AssignmentId}")" class="fw-semibold">@a.ExerciseTitle</a>
+                                        <div class="small text-secondary">@Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") @(a.DueAtUtc is not null ? $"· termin {Labels.Day(a.DueAtUtc)}" : "") @(a.AttemptCount > 0 ? $"· prób: {a.AttemptCount}" : "")</div>
+                                    </div>
+                                    @if (a.LatestStatus is { } s) { <Badge Value="s" /> } else { <span class="badge text-bg-light">Nierozpoczęte</span> }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="col-lg-4">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="section-title">Cel</div>
+                        <Markdown Value="@roadmap.ObjectiveMarkdown" />
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <RoadmapProgressSummary MentorshipId="MentorshipId" ShowTopics="true" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid MentorshipId { get; set; }
+
+    private MenteeRoadmapDto? roadmap;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await Roadmaps.GetForMenteeAsync(await GetUserIdAsync(), MentorshipId, Ct);
+        roadmap = result.IsSuccess ? result.Value : null;
+        Loading = false;
+    }
+}

@@ -1,0 +1,112 @@
+@page "/mentor/reviews/{SubmissionId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Reviews.Contracts
+@using MentorPath.Web.Components.Modules.Submissions
+@inject IReviewService Reviews
+
+<PageTitle>Ocena rozwiązania — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (detail is not null)
+    {
+        var ex = detail.Exercise.Content;
+        <div class="page-header">
+            <div>
+                <a href="mentor/reviews" class="small">← Kolejka review</a>
+                <h1>@ex.Title</h1>
+                <div class="subtitle d-flex gap-2 align-items-center">
+                    <a href="@($"mentor/mentees/{detail.MentorshipId}")">@detail.MenteeDisplayName</a>
+                    <Badge Value="detail.Exercise.Type" /> <Badge Value="detail.Status" />
+                </div>
+            </div>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header">Treść zadania</div>
+                    <div class="card-body">
+                        <Markdown Value="@ex.ScenarioMarkdown" />
+                        @if (ex.InstructionsMarkdown is not null) { <div class="section-title mt-3">Wymagania</div><Markdown Value="@ex.InstructionsMarkdown" /> }
+                        @if (ex.ExpectedOutcomeMarkdown is not null) { <div class="section-title mt-3">Oczekiwany rezultat</div><Markdown Value="@ex.ExpectedOutcomeMarkdown" /> }
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">Rozwiązanie i historia prób</div>
+                    <div class="card-body">
+                        <SubmissionHistoryView History="detail.History" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header">Kryteria oceny</div>
+                    <div class="card-body">
+                        <Markdown Value="@(ex.RubricMarkdown ?? "Brak zdefiniowanych kryteriów.")" />
+                        @if (ex.MentorGuideMarkdown is not null)
+                        {
+                            <div class="section-title mt-3">Mentor guide <span class="badge text-bg-warning">prywatne</span></div>
+                            <Markdown Value="@ex.MentorGuideMarkdown" />
+                        }
+                    </div>
+                </div>
+                @if (detail.Status == SubmissionStatus.PendingReview)
+                {
+                    <div class="card">
+                        <div class="card-header">Feedback</div>
+                        <div class="card-body">
+                            <ErrorAlert Error="Error" ShowFieldList="false" />
+                            <label class="form-label">Mocne strony</label>
+                            <textarea class="form-control mb-1" rows="3" @bind="strengths"></textarea>
+                            <FieldError Error="Error" Field="StrengthsMarkdown" />
+                            <label class="form-label mt-2">Do poprawy</label>
+                            <textarea class="form-control mb-1" rows="3" @bind="improvements"></textarea>
+                            <FieldError Error="Error" Field="ImprovementsMarkdown" />
+                            <label class="form-label mt-2">Pytanie pogłębiające</label>
+                            <textarea class="form-control mb-1" rows="2" @bind="challenge"></textarea>
+                            <FieldError Error="Error" Field="ChallengeQuestionMarkdown" />
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-success" @onclick="() => SubmitAsync(ReviewVerdict.Accepted)" disabled="@busy">Accepted</button>
+                                <button class="btn btn-warning" @onclick="() => SubmitAsync(ReviewVerdict.NeedsRevision)" disabled="@busy">Needs revision</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-success">Ta próba została już oceniona. Feedback jest widoczny w historii.</div>
+                }
+            </div>
+        </div>
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid SubmissionId { get; set; }
+
+    private ReviewDetailDto? detail;
+    private string strengths = "";
+    private string improvements = "";
+    private string challenge = "";
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Reviews.GetReviewDetailAsync(await GetUserIdAsync(), SubmissionId, Ct);
+        if (Handle(result)) detail = result.Value;
+        Loading = false;
+    }
+
+    private async Task SubmitAsync(ReviewVerdict verdict)
+    {
+        busy = true;
+        var result = await Reviews.SubmitFeedbackAsync(await GetUserIdAsync(),
+            new SubmitFeedbackRequest(SubmissionId, strengths, improvements, challenge, verdict), Ct);
+        if (Handle(result)) await LoadAsync();
+        else if (result.Error?.Kind == ErrorKind.Conflict) await LoadAsync();
+        busy = false;
+    }
+}

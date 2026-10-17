@@ -1,0 +1,72 @@
+@page "/app/progress/{MentorshipId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentee)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Progress.Contracts
+@inject IProgressService Progress
+
+<PageTitle>Postęp — MentorPath</PageTitle>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (progress is not null)
+    {
+        <div class="page-header">
+            <div>
+                <a href="@($"app/roadmap/{MentorshipId}")" class="small">← Roadmapa</a>
+                <h1>Postęp</h1>
+                <div class="subtitle">Postęp jest wyliczany z zaliczonych wymaganych zadań. Pewność to Twoja samoocena.</div>
+            </div>
+        </div>
+        @if (!progress.HasPublishedRoadmap)
+        {
+            <EmptyState Title="Brak opublikowanej roadmapy" />
+        }
+        else
+        {
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Ukończone tematy: <strong>@progress.CompletedTopics / @progress.CountedTopics</strong></span>
+                        <strong>@progress.PercentComplete%</strong>
+                    </div>
+                    <div class="progress"><div class="progress-bar" style="width:@(progress.PercentComplete)%"></div></div>
+                </div>
+            </div>
+            @foreach (var t in progress.Topics)
+            {
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>@t.TopicTitle <span class="small text-secondary fw-normal">@(t.CountsTowardsProgress ? $"{t.CompletedRequired}/{t.TotalRequired} wymaganych" : "bez wymaganych zadań")</span></span>
+                        <Badge Value="t.Status" />
+                    </div>
+                    @foreach (var a in t.Assignments)
+                    {
+                        <div class="list-row">
+                            <div>
+                                <a href="@($"app/assignments/{a.AssignmentId}")">@a.ExerciseTitle</a>
+                                <div class="small text-secondary">@(a.IsRequired ? "wymagane" : "opcjonalne")
+                                    @if (a.LatestConfidenceBefore is not null) { <span> · pewność przed: @a.LatestConfidenceBefore/5</span> }
+                                    @if (a.LatestConfidenceAfter is not null) { <span> · po: @a.LatestConfidenceAfter/5</span> }
+                                </div>
+                            </div>
+                            <Badge Value="a.Status" />
+                        </div>
+                    }
+                </div>
+            }
+        }
+    }
+</PageState>
+
+@code {
+    [Parameter] public Guid MentorshipId { get; set; }
+
+    private RoadmapProgressDto? progress;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await Progress.GetRoadmapProgressAsync(await GetUserIdAsync(), MentorshipId, Ct);
+        if (Handle(result)) progress = result.Value;
+        Loading = false;
+    }
+}

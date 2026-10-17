@@ -1,0 +1,51 @@
+@page "/mentor/reviews"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Reviews.Contracts
+@inject IReviewService Reviews
+
+<PageTitle>Kolejka review — MentorPath</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Kolejka review</h1>
+        <div class="subtitle">Rozwiązania czekające na Twoją ocenę (najstarsze najpierw).</div>
+    </div>
+</div>
+
+<PageState Loading="Loading" NotFound="NotFound">
+    @if (items.Count == 0)
+    {
+        <EmptyState Title="Kolejka jest pusta">Nic nie czeka na ocenę.</EmptyState>
+    }
+    else
+    {
+        <div class="card">
+            @foreach (var p in items)
+            {
+                <div class="list-row">
+                    <div>
+                        <a href="@($"mentor/reviews/{p.SubmissionId}")" class="fw-semibold">@p.ExerciseTitle</a>
+                        <div class="small text-secondary">@p.MenteeDisplayName · @Labels.Of(p.Type) · próba #@p.AttemptNumber</div>
+                    </div>
+                    <div class="small text-secondary text-end">
+                        <div>przesłano @Labels.Date(p.SubmittedAtUtc)</div>
+                        @if (p.DueAtUtc is not null) { <div>termin @Labels.Day(p.DueAtUtc)</div> }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</PageState>
+
+@code {
+    private List<PendingReviewItem> items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Reviews.GetPendingAsync(await GetUserIdAsync(), Ct);
+        if (Handle(result)) items = result.Value!.ToList();
+        Loading = false;
+    }
+}
