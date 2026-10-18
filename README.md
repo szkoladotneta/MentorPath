@@ -10,7 +10,8 @@ Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), P
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Struktura solution, zależności, autoryzacja, testy |
 | [docs/AGENT_CONTRACTS.md](docs/AGENT_CONTRACTS.md) | Encje, DTO, interfejsy serwisów, reguły współbieżności |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decyzje produktowe i techniczne |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan, milestones, status realizacji |
+| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan, milestones, status realizacji MVP |
+| [docs/BACKLOG_NEXT.md](docs/BACKLOG_NEXT.md) | Backlog rozwoju po MVP (fazy 0–5) na podstawie researchu |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Konfiguracja, wdrożenie, backup, operacje |
 | [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | Przegląd bezpieczeństwa i ryzyka |
 | [AGENTS.md](AGENTS.md) | Zasady pracy agentów i własność plików |

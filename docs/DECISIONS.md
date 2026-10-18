@@ -239,6 +239,31 @@ Status: Adopted (2026-10-17)
 - Formularz zadania praktycznego wysyła multipart przez `fetch` do endpointu z nagłówkiem antiforgery; quiz i ADR idą przez obwód Blazor.
 - `AppUser.UserName = Email`; reset hasła i ustawienie hasła mentora używają tego samego mechanizmu tokenów Identity.
 
+## D-36 — Pilotaż na MentorPath równolegle z Fazą 1 backlogu v2
+Status: **Proposed — APPROVAL REQUIRED** (blokuje start `docs/BACKLOG_NEXT.md`)
+
+Research rekomenduje walidację „concierge” (np. Moodle) przed budową aplikacji. MVP już istnieje i pokrywa ten proces, więc pilotaż prowadzimy na MentorPath (Faza 0: wdrożenie, pomiar, friction log), a Fazę 1 budujemy w trakcie, korygując priorytety co tydzień.
+
+## D-37 — `Topic` ewoluuje w `Competency`
+Status: **Proposed — APPROVAL REQUIRED** (blokuje N20)
+
+Zamiast drugiego katalogu: tabela tematów zostaje rozszerzona (prerequisites, „why it matters”, „you should be able to”, zasoby), w UI nazwa „Kompetencja”. Zachowuje ID, powiązania roadmap i ćwiczeń. Nazwy kompetencji niezależne od wersji .NET; wersja technologii jest atrybutem ćwiczenia. Alternatywa (osobna encja Competency obok Topic) odrzucona — dwa podobne pojęcia mylą mentora i komplikują roadmapę.
+
+## D-38 — Domyślna rubryka procesu decyzyjnego
+Status: **Proposed — APPROVAL REQUIRED** (blokuje N10)
+
+6 kryteriów (Rozpoznanie ograniczeń, Alternatywy, Trade-offs, Ewolucja rozwiązania, Operacyjność, Komunikacja), skala 1–5 z opisami poziomów, edytowalne per workspace; ćwiczenie wybiera kryteria. `RubricMarkdown` zostaje jako kryteria specyficzne dla zadania. Przenosi z P1 do Fazy 1 „rozbudowane punktowe rubryki ocen”. Ocena wspiera, ale nie zastępuje jakościowego feedbacku (REV-04).
+
+## D-39 — Status kompetencji nadaje mentor
+Status: **Proposed — APPROVAL REQUIRED** (blokuje N12)
+
+Stany: Not assessed, Learning, Practicing, Demonstrated, Needs revisit. System tylko sugeruje (np. wszystkie wymagane Accepted → sugestia Demonstrated). Postęp roadmapy = Demonstrated / aktywne kompetencje (obok dotychczasowego wyliczenia ukończenia zadań). Confidence pozostaje w skali 1–5 (research sugeruje 0–100; zostajemy przy 1–5 dla spójności z danymi i porównania z rubryką 1–5).
+
+## D-40 — AI w review wymaga zmiany AI-05 i zgody mentee
+Status: **Proposed — decyzja przed Fazą 5**
+
+N50 wysyła treść rozwiązania mentee do dostawcy AI, co obecnie zabrania AI-05. Warunki: zmiana specyfikacji, umowa powierzenia z dostawcą, jawna zgoda mentee per mentoring, sugestie AI tylko dla mentora i zawsze edytowalne.
+
 ---
 
 ## Change Requests

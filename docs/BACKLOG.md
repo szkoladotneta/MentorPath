@@ -132,4 +132,6 @@ Nie uznawać MVP za ukończone, dopóki nie przejdzie cały scenariusz:
 11. Postęp roadmapy się aktualizuje.
 12. Mentor B nie może odczytać żadnego zasobu z tego procesu.
 
+> Rozwój po MVP (w tym pozycje P1) jest zaplanowany w `docs/BACKLOG_NEXT.md`.
+
 **Koniec BACKLOG.md**
