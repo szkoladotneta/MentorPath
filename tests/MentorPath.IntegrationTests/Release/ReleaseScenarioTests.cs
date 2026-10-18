@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.IntegrationTests.Release;
 
-/// <summary>The MVP release gate from docs/BACKLOG.md, executed end-to-end through the application services.</summary>
+/// <summary>The MVP release gate from docs/DOMAIN_RULES.md §9, executed end-to-end through the application services.</summary>
 public sealed class ReleaseScenarioTests(PostgresFixture db) : IntegrationTestBase(db)
 {
     [Fact]

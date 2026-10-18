@@ -1,8 +1,8 @@
 # MentorPath — Backlog rozwoju po MVP (v2)
 
-Status: **ADOPTED (2026-10-18)** — decyzje D-36…D-40 zaakceptowane. Zmiany zakresu faz i schematu przez Change Request.
-Źródła: `docs/deep-research-report.md` (research z 17.10.2026), stan MVP z `docs/IMPLEMENTATION_PLAN.md` §0, P1 z `docs/BACKLOG.md`.
-Zasady pracy, własność plików i Change Requesty: bez zmian (`AGENTS.md`). Każda zmiana schematu = CR → A1.
+Status: **ADOPTED (2026-10-18)** — decyzje D-36…D-40 zaakceptowane. Zmiany zakresu faz: decyzja w `DECISIONS.md` (D-41).
+Źródła (historyczne): `docs/archive/deep-research-report.md` (research z 17.10.2026), `docs/archive/IMPLEMENTATION_PLAN.md` §0, `docs/archive/BACKLOG-v1.md` (P1).
+Sposób pracy: `AGENTS.md` i `docs/WORKFLOW.md` (D-41). Każda pozycja N-xx staje się issue z szablonu `backlog-item`; zmiana schematu = osobny PR z etykietą `schema-change`. Kolumna „Agent” poniżej jest historyczna. **Status prac śledzimy na tablicy** [MentorPath Backlog](https://github.com/users/szkoladotneta/projects/6) (issue #1–#42 odpowiadają pozycjom N01–T06); ten plik jest planem produktowym.
 
 ---
 
@@ -91,7 +91,7 @@ flowchart LR
 
 ## 5. Backlog
 
-Priorytet w fazie: **M** = Must (warunek wyjścia), **S** = Should, **C** = Could. Szacunki w godzinach pracy agenta (konwencja z `BACKLOG.md`). „Schemat” = wymaga CR do A1.
+Priorytet w fazie: **M** = Must (warunek wyjścia), **S** = Should, **C** = Could. Szacunki w godzinach pracy agenta (konwencja z `archive/BACKLOG-v1.md`). „Schemat” = wymaga osobnego PR `schema-change`.
 
 ### Faza 0 — Pilot i pomiar
 

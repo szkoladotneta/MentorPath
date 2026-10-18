@@ -5,7 +5,7 @@ using MentorPath.Data.Enums;
 
 namespace MentorPath.Application.Catalog;
 
-/// <summary>Domain rules for exercise content (AGENT_CONTRACTS §5.2, D-13).</summary>
+/// <summary>Domain rules for exercise content (D-13).</summary>
 public static partial class ExerciseValidator
 {
     public static FieldErrors ValidateDraft(ExerciseType type, ExerciseContent c)

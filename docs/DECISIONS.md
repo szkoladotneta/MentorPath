@@ -2,7 +2,7 @@
 
 Statusy: **Adopted** (obowiązuje) · **Proposed — APPROVAL REQUIRED** (blokuje start pracy, której dotyczy) · **Proposed** (domyślnie przyjęte, jeśli brak sprzeciwu przy akceptacji M0) · **Superseded**.
 
-Każda decyzja: kontekst → decyzja → wpływ. Change Requesty (CR-xx) dopisujemy na końcu (format w `AGENTS.md` §5).
+Każda decyzja: kontekst → decyzja → wpływ. Nowe decyzje dopisujemy na końcu (append-only). Od D-41 nie ma Change Requestów ani agentów A0–A5 — zmiany schematu idą osobnym PR z etykietą `schema-change`. Wzmianki o A1–A5 i CR w starszych wpisach są historyczne.
 
 ---
 
@@ -41,7 +41,7 @@ Status: Adopted
 Decision: Final acceptance requires automated tests and end-to-end validation proving workspace isolation in real workflow execution.
 
 ## D-07 — Central ownership of `AppDbContext`, migrations and DI remains locked to A1
-Status: Adopted — **doprecyzowane przez D-09** (rejestracja modułów w plikach modułów)
+Status: Superseded by D-41 (wcześniej: doprecyzowane przez D-09) — blokadę własności zastępuje CODEOWNERS + etykieta `schema-change`
 
 Decision: No other agent may directly edit these shared files; changes must flow through contract review and A1 approval.
 
@@ -264,8 +264,25 @@ Status: Adopted (2026-10-18, zaakceptowane przez użytkownika)
 
 N50 wysyła treść rozwiązania mentee do dostawcy AI, co obecnie zabrania AI-05. Warunki: zmiana specyfikacji, umowa powierzenia z dostawcą, jawna zgoda mentee per mentoring, sugestie AI tylko dla mentora i zawsze edytowalne.
 
+## D-41 — Proces pracy z agentami: planner + człowiek, bramki mechaniczne
+Status: Adopted (2026-10-19, zaakceptowane przez użytkownika)
+
+Kontekst: model A0–A5 (Tech Lead + 5 agentów zadaniowych) nie był egzekwowany technicznie (całość powstała sekwencyjnie w jednej sesji, CR nigdy nie użyto), reguły były zduplikowane w 8 plikach, a agenci B01–B17 opisywali pracę już zrobioną.
+
+Decyzja:
+- Agent „Tech Lead” zastąpiony przez agenta `mentorpath-planner` (issue z kryteriami akceptacji i macierzą izolacji) oraz człowieka (review, merge). Pozostają `mentorpath-security-reviewer` (niezależny przegląd, read-only) i `mentorpath-qa-tester` (tylko `tests/**`). Implementacja: Copilot cloud agent lub CLI/VS Code ze skillem `implement-backlog-item`.
+- Instrukcje po angielsku, bez duplikacji: `AGENTS.md` (komendy, mapa, workflow, DoD), `.github/copilot-instructions.md` (niezmienniki), `.github/instructions/*.instructions.md` (reguły per ścieżka), `.github/skills/*` (procedury).
+- Reguły egzekwuje kod, nie proza: `ConventionTests` (actorUserId, pokrycie `NotFound`, brak global filters, `TimeProvider`, `MarkupString`, własność zapisu), `ArchitectureTests`, CI (`has-pending-model-changes`, skan podatnych pakietów; CodeQL/secret scanning niedostępne dla prywatnego repo bez GHAS).
+- Własność plików zastąpiona przez CODEOWNERS (Data, `Contracts/`, build, `.github`, testy izolacji). Zmiana schematu/Contracts = osobny PR z etykietą `schema-change`, merge przed PR funkcjonalnym. D-07 i mechanizm CR zastąpione.
+- `docs/AGENT_CONTRACTS.md` (duplikat kodu) zastąpiony przez `docs/DOMAIN_RULES.md` (tylko reguły); dokumenty historyczne w `docs/archive/`.
+- Ruleset na `main`: PR wymagany, check `build-test` wymagany, review CODEOWNERS.
+- Tablica GitHub Project „MentorPath Backlog” (projekt użytkownika nr 6) jest miejscem śledzenia statusu: każda pozycja N-xx/T-xx to issue (#1–#42) z polami Phase, Priority, Schema change, Estimate; `Status`: Backlog → Planned → In progress → In review → Done. Karty przesuwa `scripts/board.sh` (best effort). `BACKLOG_NEXT.md` pozostaje planem produktowym.
+- Każdy agent i skill kończy odpowiedź sekcją `## Next step` (jedna konkretna akcja człowieka z gotowym promptem).
+
+Wpływ: pozycje N-xx realizowane jako issue → PR; reguły zmieniamy w jednym miejscu.
+
 ---
 
 ## Change Requests
 
-_(brak)_
+Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
