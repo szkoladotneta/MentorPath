@@ -1,3 +1,5 @@
+> **ARCHIWUM (2026-10-19, D-41).** Dokument historyczny — nie jest źródłem wymagań ani reguł. Aktualne: `docs/MVP_SPEC.md`, `docs/DECISIONS.md`, `docs/DOMAIN_RULES.md`, `docs/BACKLOG_NEXT.md`.
+
 # MentorPath — Implementation Backlog v1.1
 
 ## P0 — Wymagane do pierwszego wydania

@@ -1,3 +1,5 @@
+> **ARCHIWUM (2026-10-19, D-41).** Dokument historyczny — nie jest źródłem wymagań ani reguł. Aktualne: `docs/MVP_SPEC.md`, `docs/DECISIONS.md`, `docs/DOMAIN_RULES.md`, `docs/BACKLOG_NEXT.md`.
+
 # Interaktywna platforma mentoringowa dla architektury backendu .NET — analiza rynku, MVP i plan rozwoju
 
 *Stan badania: 17 października 2026 r.*

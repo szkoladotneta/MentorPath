@@ -1,86 +1,68 @@
-# AGENTS.md — zasady pracy agentów MentorPath
+# MentorPath — instructions for AI agents
 
-Obowiązuje każdego agenta (A1–A5) i Tech Leada (A0). Krótko: **trzymaj się swoich plików, nie zgaduj kontraktów, udowadniaj izolację testem.**
+MentorPath is a mentoring platform for backend architecture (.NET): Scenario → Decision → Rationale → Feedback → Reflection → Progress. It is a multi-tenant modular monolith (.NET 10, Blazor Web App Interactive Server, PostgreSQL + EF Core, ASP.NET Core Identity, S3 storage). The product source of truth is `docs/MVP_SPEC.md`.
 
-## 1. Źródła i ich kolejność
+Universal invariants live in `.github/copilot-instructions.md`; path-specific rules live in `.github/instructions/`. Do not duplicate them here.
 
-1. `docs/MVP_SPEC.md` — zakres produktu (źródło prawdy).
-2. `docs/DECISIONS.md` — decyzje (Adopted/zatwierdzone Proposed) doprecyzowujące spec.
-3. `docs/AGENT_CONTRACTS.md` — encje, DTO, interfejsy, reguły współbieżności.
-4. `docs/ARCHITECTURE.md` — struktura, zależności, zasady techniczne.
-5. `docs/IMPLEMENTATION_PLAN.md` — kolejność, bramki, zakres plików.
-6. `.github/agents/*.agent.md` — rola agenta. **Jeśli nazwy encji/interfejsów w pliku agenta różnią się od AGENT_CONTRACTS (np. `Attempt`, `WorkspaceRelation`, `InvitationToken`, `MentorProfile`, `Rejected`), obowiązuje AGENT_CONTRACTS.**
-
-Brak odpowiedzi w dokumentach → nie zgaduj: dopisz propozycję do `DECISIONS.md` (status Proposed) i zgłoś A0.
-
-## 2. Twarde zasady
-
-- Zakres = P0 z `BACKLOG.md`. Żadnych funkcji P1.
-- Każda publiczna metoda serwisu przyjmuje `actorUserId` i sprawdza dostęp przez `IWorkspaceAccessService` **przed** odczytem/zapisem. Rola Identity to nie uprawnienie. ID w URL to nie uprawnienie.
-- `WorkspaceId` nigdy nie pochodzi z requestu/UI (D-08). Brak dostępu = `NotFound`.
-- Komponenty Razor nie używają `AppDbContext`/`IDbContextFactory`; tylko serwisy i DTO.
-- Serwisy: `IDbContextFactory<AppDbContext>`, kontekst per metoda, `AsNoTracking` dla odczytów.
-- Zapis tylko do tabel własnego modułu (AGENT_CONTRACTS §4).
-- DTO dla mentee nigdy nie zawierają danych prywatnych mentora ani poprawnych odpowiedzi.
-- Markdown renderuj wyłącznie komponentem `<Markdown>`.
-- Daty UTC, czas z `TimeProvider`. Kod po angielsku, UI po polsku.
-- Brak MediatR, AutoMapper, generic repository, global query filters, nowych projektów. Nowy pakiet NuGet = CR.
-- Brak sekretów w repo; brak e-maili, tokenów, treści rozwiązań i promptów w logach.
-
-## 3. Własność plików
-
-| Obszar | Właściciel |
-|---|---|
-| `src/MentorPath.Data/**` (AppDbContext, encje, migracje), `Directory.*.props`, `*.csproj`, `global.json`, `Program.cs`, `Web/Composition/**`, `Web/Cli/**` (oprócz `DemoSeed.cs`), `Components/{App,Routes,_Imports}.razor`, `Components/Layout/**`, `Components/Shared/**`, `Components/Account/**`, `Application/Common/**`, moduły `Workspaces`, `Mentorships`, `Invitations` i ich strony, `tests/**/Infrastructure/**` | **A1** |
-| `Application/{Catalog,AiAuthoring}/**`, `Pages/Mentor/{Catalog,Exercises}/**` | **A2** |
-| `Application/{Roadmaps,Submissions}/**`, `Pages/Mentor/Roadmaps/**`, `Pages/Mentee/{Home,Roadmap,Assignments}/**`, `Web/Endpoints/{Attachment,PracticalSubmission}Endpoints.cs` | **A3** |
-| `Application/{Reviews,Progress}/**`, `Pages/Mentor/{Reviews,Dashboard}/**`, `Pages/Mentee/Progress/**`, `Components/Modules/**` | **A4** |
-| `tests/**/{Isolation,Release,Http}/**`, `tests/e2e/**`, `Dockerfile`, `.github/workflows/**` (po B01), `Web/Cli/DemoSeed.cs`, `docs/{DEPLOYMENT,SECURITY_REVIEW}.md` | **A5** |
-| `AGENTS.md`, `docs/{ARCHITECTURE,AGENT_CONTRACTS,IMPLEMENTATION_PLAN}.md` | **A0** |
-| `docs/DECISIONS.md` | wszyscy dopisują (append-only); status zmienia A0 |
-
-Testy modułu: `tests/MentorPath.{UnitTests,IntegrationTests}/<Module>/**` + `TestDataBuilder.<Module>.cs` — właściciel modułu.
-Pliki `Contracts/` modułu: właściciel modułu, ale **każda** zmiana wymaga CR.
-Potrzebujesz zmiany w cudzym pliku → CR lub zgłoszenie do właściciela. Nigdy nie edytuj sam.
-
-## 4. Git i workflow
-
-- Gałąź per zadanie: `a<N>/b<NN>-<slug>` (np. `a3/b10-quiz`), najlepiej w osobnym worktree: `git worktree add ../MentorPath-a3 -b a3/b10-quiz`.
-- Małe PR do `main`, rebase przed merge, CI zielone, review A0.
-- Commity: `B10: <opis>`; zmiany kontraktów/schematu: `CR-<nn>: <opis>`.
-- Nie mergujemy niezbudowanego/nieprzetestowanego kodu. Wygenerowany kod nie jest poprawny, dopóki build i testy nie przejdą.
-
-## 5. Change Request (kontrakt, schemat, pakiet, cudzy plik)
-
-Dopisz do `docs/DECISIONS.md` → sekcja *Change Requests*:
-```
-## CR-<nn> — <tytuł>
-Zgłasza: A<n> · Dotyczy: <pliki/kontrakty> · Wpływ na: A<x>, A<y>
-Problem: ...
-Propozycja: ...
-Status: Requested | Approved (A0) | Done (<commit>)
-```
-Schemat/migracja/pakiet → po akceptacji implementuje A1 na gałęzi `a1/cr-<nn>-<slug>`, merge pierwszy, pozostali rebase.
-
-## 6. Definition of Done (każde zadanie)
-
-- Spełnia kryteria z `BACKLOG.md` i `IMPLEMENTATION_PLAN.md` §5.
-- Walidacja serwerowa + stany loading/empty/error w UI.
-- Test izolacji dla każdej metody z ID zasobu (Mentor B / obca mentee → `NotFound`).
-- Testy reguł biznesowych i współbieżności, gdzie dotyczy.
-- `dotnet build` (0 ostrzeżeń) i `dotnet test` zielone.
-- Nowe decyzje zapisane w `DECISIONS.md`.
-- Raport w PR: zrobione, testy, ryzyka, otwarte pytania. Nie ukrywaj problemów.
-
-## 7. Komendy
+## Commands
 
 ```bash
-docker compose up -d                               # postgres, s3 (SeaweedFS), mailpit
-dotnet build
+docker compose up -d                                   # PostgreSQL, S3 (SeaweedFS), Mailpit
+dotnet build MentorPath.slnx                           # must finish with 0 warnings (warnings are errors)
 dotnet test tests/MentorPath.UnitTests
-dotnet test tests/MentorPath.IntegrationTests      # wymaga Dockera (Testcontainers)
-dotnet run --project src/MentorPath.Web -- migrate
-dotnet run --project src/MentorPath.Web -- create-mentor --email a@x.pl --name "Mentor A" --workspace "Workspace A"
-dotnet run --project src/MentorPath.Web -- seed-demo
+dotnet test tests/MentorPath.IntegrationTests          # needs Docker (Testcontainers)
+dotnet test tests/MentorPath.IntegrationTests --filter "FullyQualifiedName~<Module>"   # fast loop while working
+dotnet run --project src/MentorPath.Web -- seed-demo   # migrations + demo data
 dotnet run --project src/MentorPath.Web
 ```
+
+Integration tests use real PostgreSQL via Testcontainers. Never replace the database with mocks or an in-memory provider.
+
+## Repository map
+
+| Path | Contents |
+|---|---|
+| `src/MentorPath.Data` | `AppDbContext`, entities, EF configurations, migrations |
+| `src/MentorPath.Application/<Module>` | Services and `Contracts/` (interfaces, DTOs). Modules: Workspaces, Mentorships, Invitations, Catalog, AiAuthoring, Roadmaps, Submissions, Reviews, Progress, Common |
+| `src/MentorPath.Web` | Blazor pages and components, endpoints, composition root, CLI commands |
+| `tests/MentorPath.UnitTests` | Domain rules, validators, progress calculation |
+| `tests/MentorPath.IntegrationTests` | Per-module tests, `Isolation/` (convention + isolation tests), `Release/` (end-to-end scenario) |
+| `docs/` | See "Source of truth" below |
+
+## Source of truth (in this order)
+
+1. `docs/MVP_SPEC.md` — product scope.
+2. `docs/DECISIONS.md` — decisions D-xx that refine the spec.
+3. `docs/DOMAIN_RULES.md` — access rules, constraints, state machine, concurrency patterns, write ownership.
+4. `docs/ARCHITECTURE.md` — structure and technical rules.
+5. The code. Entities are in `src/MentorPath.Data/Entities`, DTOs and service interfaces in `src/MentorPath.Application/*/Contracts`. The code is authoritative for shapes; the docs are for rules and intent.
+
+If the docs do not answer a question, do not guess: add a `Proposed` entry to `docs/DECISIONS.md` and flag it in the PR. `docs/archive/` is history only; never use it as a requirement.
+
+## Workflow
+
+1. **Plan.** Work starts from a GitHub issue created from the `backlog-item` template (use the `mentorpath-planner` agent). It has acceptance criteria and an isolation matrix. If the issue lacks them, ask before coding.
+2. **Implement** one issue per branch and per pull request. Use the `implement-backlog-item` skill. For a new service method follow `add-service-method`; for schema changes follow `add-migration`.
+3. **Schema and `Contracts/` changes** go in their own PR labelled `schema-change`, merged before the feature PR. CODEOWNERS enforces human review.
+4. **Verify** before opening the PR: build with 0 warnings, the module's tests, `ConventionTests`/`ArchitectureTests`. Generated code is not correct until these pass.
+5. **Open a draft PR** using the template. Report what was done, tests run, risks and open questions. Do not hide problems.
+6. **Review.** CI must pass. A human reviews; for changes touching authorization or data access, also run the `mentorpath-security-reviewer` agent.
+7. **Board.** Work is tracked on the GitHub Project "MentorPath Backlog" (`Backlog → Planned → In progress → In review → Done`). Move cards with `scripts/board.sh <issue> <status>` (best effort; if it cannot, tell the human which card to move).
+
+**Always end your final answer with a `## Next step` section**: exactly one concrete action for the human with the literal prompt or link to use, chosen from the workflow above (answer open questions, merge the schema PR, run the security reviewer, review and merge, or what is blocking you). Never end without it.
+
+## Definition of Done
+
+- Acceptance criteria of the issue are met and each is covered by a test.
+- Every public service method with a resource id has an integration test where a foreign mentor, a foreign mentee and an unknown user get `NotFound`.
+- Server-side validation; loading, empty and error states in the UI.
+- `dotnet build` has 0 warnings; unit and integration tests are green.
+- New decisions are appended to `docs/DECISIONS.md`.
+- No secrets, e-mails, tokens, solution text or prompts in logs or in the repo.
+
+## Boundaries
+
+- Scope is the MVP (P0) plus items explicitly in `docs/BACKLOG_NEXT.md`. Do not add anything else.
+- Never edit an existing migration. Never use `git push --force` or rewrite shared history.
+- A new NuGet package, a new project, or a change to `Directory.*.props`, `global.json` or workflows needs an ADR in `docs/DECISIONS.md` and CODEOWNERS review.
+- Do not commit or push unless the user asked for it.

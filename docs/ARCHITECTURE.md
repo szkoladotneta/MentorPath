@@ -1,8 +1,10 @@
 # MentorPath — Architektura solution
 
-Status: **ADOPTED (M0, 2026-10-17)** — zmiany tylko przez Change Request.
+Status: **żywy dokument** (zweryfikowany z kodem 2026-10-19). Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` (D-41).
 
-Źródło prawdy produktu: `docs/MVP_SPEC.md`. Kontrakty kodu: `docs/AGENT_CONTRACTS.md`. Decyzje: `docs/DECISIONS.md`.
+Źródło prawdy produktu: `docs/MVP_SPEC.md`. Reguły domenowe: `docs/DOMAIN_RULES.md` (kształty encji i DTO są w kodzie). Decyzje: `docs/DECISIONS.md`.
+
+> Znaczniki A1–A5 w tym dokumencie są historyczne (model agentów z M0, zniesiony w D-41). Własność plików egzekwują CODEOWNERS i testy konwencji.
 
 ---
 
@@ -34,7 +36,7 @@ MentorPath/
 │  ├─ MentorPath.Data/              # A1 — WYŁĄCZNIE A1
 │  │  ├─ AppDbContext.cs
 │  │  ├─ AppUser.cs
-│  │  ├─ Entities/                  # wszystkie encje z AGENT_CONTRACTS §3
+│  │  ├─ Entities/                  # wszystkie encje (kształt w kodzie, reguły w DOMAIN_RULES §3)
 │  │  ├─ Enums/
 │  │  ├─ Configurations/            # IEntityTypeConfiguration<T> per encja
 │  │  └─ Migrations/
@@ -138,7 +140,7 @@ flowchart TB
 ```
 
 Reguły:
-- **Zapis** do tabeli tylko przez moduł-właściciela tej tabeli (macierz w `AGENT_CONTRACTS.md` §4).
+- **Zapis** do tabeli tylko przez moduł-właściciela tej tabeli (macierz w `DOMAIN_RULES.md` §5, egzekwowana przez `ConventionTests`).
 - **Odczyt** cudzych tabel bezpośrednio przez `AppDbContext` jest dozwolony (projekcje `Select` do własnych DTO), ale **zawsze po** sprawdzeniu dostępu i z filtrem `WorkspaceId`.
 - Moduły wywołują się nawzajem tylko przez interfejsy z `Contracts/`. Brak cykli: `Catalog` nie zna `Roadmaps`; `Submissions` nie zna `Reviews`; `Progress` nie wywołuje serwisów innych modułów (tylko odczyt danych).
 - `Web` nie referuje `Data` w kodzie komponentów (sprawdza test architektury A5: brak `AppDbContext`/`IDbContextFactory` w `Components/**`).
@@ -152,7 +154,7 @@ Reguły:
 - Odczyty: `AsNoTracking()` + `Select` do DTO. Zapisy: krótka transakcja w obrębie jednej metody.
 - Brak global query filters. Każde zapytanie po danych workspace'u ma jawne `Where(x => x.WorkspaceId == workspaceId)`, gdzie `workspaceId` pochodzi z wyniku sprawdzenia dostępu (nigdy z requestu).
 - Enumy zapisywane jako string (`HasConversion<string>()`), daty `DateTime` w UTC (`timestamptz`), czas z `TimeProvider`.
-- Współbieżność: unikalne indeksy + warunkowe `ExecuteUpdateAsync` (patrz `AGENT_CONTRACTS.md` §7). Bez optymistycznych wersji wierszy w MVP.
+- Współbieżność: unikalne indeksy + warunkowe `ExecuteUpdateAsync` (patrz `DOMAIN_RULES.md` §8). Bez optymistycznych wersji wierszy w MVP.
 
 ---
 
@@ -248,7 +250,7 @@ Lokalnie: `docker compose up -d` (postgres, SeaweedFS S3, mailpit) + `dotnet run
 | Integracyjne | `IntegrationTests` | każdy serwis na prawdziwym PostgreSQL; migracje od zera | Testcontainers.PostgreSql |
 | Izolacja | `IntegrationTests/Isolation` | macierz: każda metoda serwisu z ID zasobu × {Mentor B, obca mentee} → `NotFound` | j.w. |
 | HTTP | `IntegrationTests` | upload/download, antiforgery, cookie auth | `WebApplicationFactory` |
-| Release | `IntegrationTests/Release` | 12 kroków z `BACKLOG.md` jako jeden test na serwisach + endpointach | j.w. |
+| Release | `IntegrationTests/Release` | 12 kroków z `DOMAIN_RULES.md` §9 jako jeden test na serwisach + endpointach | j.w. |
 
 Zasady:
 - Jeden kontener PostgreSQL na assembly (collection fixture), migracje raz. **Każdy test tworzy własne workspace'y** przez `TestDataBuilder` → brak czyszczenia, testy równoległe, brak wycieku fixture'ów.
@@ -261,7 +263,7 @@ Zasady:
 
 ## 12. Strategia migracji
 
-- Jedyny właściciel: **A1**. Jedna migracja inicjalna `InitialSchema` obejmuje **cały** model z `AGENT_CONTRACTS.md` §3 (D-09) — w M1, zanim ruszy równoległa praca.
-- Kolejne zmiany: CR w `DECISIONS.md` → A1 tworzy migrację na osobnej gałęzi `a1/cr-XX-...` → merge do `main` → pozostali robią rebase. Nigdy nie edytujemy zmergowanej migracji.
-- CI: `dotnet ef migrations has-pending-model-changes` musi zwrócić brak zmian; test integracyjny stosuje migracje na pustej bazie.
+- Jedna migracja inicjalna `InitialSchema` obejmuje **cały** model MVP (D-09).
+- Kolejne zmiany: osobny PR z etykietą `schema-change` (migracja + encje + konfiguracja), review CODEOWNERS, merge przed PR funkcjonalnym. Nigdy nie edytujemy zmergowanej migracji (skill `add-migration`).
+- CI (krok „EF model matches migrations”): `dotnet ef migrations has-pending-model-changes` musi zwrócić brak zmian; test integracyjny stosuje migracje na pustej bazie.
 - Produkcja: `migrate` jako osobny krok deploymentu; backup bazy przed migracją (B17).

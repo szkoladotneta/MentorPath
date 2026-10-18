@@ -8,13 +8,14 @@ Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), P
 |---|---|
 | [docs/MVP_SPEC.md](docs/MVP_SPEC.md) | Specyfikacja produktu (źródło prawdy) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Struktura solution, zależności, autoryzacja, testy |
-| [docs/AGENT_CONTRACTS.md](docs/AGENT_CONTRACTS.md) | Encje, DTO, interfejsy serwisów, reguły współbieżności |
+| [docs/DOMAIN_RULES.md](docs/DOMAIN_RULES.md) | Reguły domenowe: autoryzacja, ograniczenia bazy, stany, współbieżność, własność zapisu |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decyzje produktowe i techniczne |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan, milestones, status realizacji MVP |
 | [docs/BACKLOG_NEXT.md](docs/BACKLOG_NEXT.md) | Backlog rozwoju po MVP (fazy 0–5) na podstawie researchu |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | Jak pracować z agentami Copilota: od pozycji backlogu do merge |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Konfiguracja, wdrożenie, backup, operacje |
 | [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | Przegląd bezpieczeństwa i ryzyka |
-| [AGENTS.md](AGENTS.md) | Zasady pracy agentów i własność plików |
+| [AGENTS.md](AGENTS.md) | Instrukcje dla agentów AI: komendy, mapa repo, workflow, DoD |
+| [docs/archive/](docs/archive) | Dokumenty historyczne (plan MVP, backlog v1, research) — nie są wymaganiami |
 
 ## Szybki start (lokalnie)
 
@@ -70,7 +71,7 @@ BASE_URL=http://localhost:5237 npm run smoke
 ## Struktura
 
 ```
-src/MentorPath.Data          AppDbContext, encje, migracje (właściciel: A1)
+src/MentorPath.Data          AppDbContext, encje, migracje
 src/MentorPath.Application   moduły: Workspaces, Mentorships, Invitations, Catalog, AiAuthoring,
                              Roadmaps, Submissions, Reviews, Progress + Common (autoryzacja, storage, markdown)
 src/MentorPath.Web           Blazor UI, endpointy upload/download, CLI

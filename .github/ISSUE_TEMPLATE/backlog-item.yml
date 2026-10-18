@@ -1,0 +1,48 @@
+name: Backlog item
+description: A unit of work that one agent or developer can finish in a single pull request.
+labels: [backlog]
+body:
+  - type: input
+    id: backlog-id
+    attributes:
+      label: Backlog id
+      description: Item from docs/BACKLOG_NEXT.md, for example N12.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One sentence. What user-visible or system behavior changes?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist. Each item must be verifiable by a test.
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: isolation
+    attributes:
+      label: Isolation matrix
+      description: Every new or changed service method that takes a resource id, and who must get NotFound. Write "none" only if no tenant data is touched.
+      placeholder: "| Method | Allowed actor | Must get NotFound |"
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files likely to change
+      description: Mention if a schema or Contracts change is needed (separate schema-change PR first).
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+  - type: textarea
+    id: questions
+    attributes:
+      label: Open questions
+      description: Anything ambiguous in the docs. The implementer must ask before guessing.

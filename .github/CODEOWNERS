@@ -1,0 +1,13 @@
+# Human review is required for changes that affect schema, contracts, build and CI.
+# Replace the owner with a team handle when more maintainers join.
+/src/MentorPath.Data/                @szkoladotneta
+**/Contracts/                        @szkoladotneta
+/Directory.Build.props               @szkoladotneta
+/Directory.Packages.props            @szkoladotneta
+/global.json                         @szkoladotneta
+*.csproj                             @szkoladotneta
+/.github/                            @szkoladotneta
+/AGENTS.md                           @szkoladotneta
+/tests/MentorPath.IntegrationTests/Isolation/ @szkoladotneta
+/docs/MVP_SPEC.md                    @szkoladotneta
+/docs/DOMAIN_RULES.md                @szkoladotneta
