@@ -1,6 +1,6 @@
 # MentorPath — Backlog rozwoju po MVP (v2)
 
-Status: **PROPOSED** — wymaga akceptacji decyzji z §8 (D-36…D-40 w `DECISIONS.md`).
+Status: **ADOPTED (2026-10-18)** — decyzje D-36…D-40 zaakceptowane. Zmiany zakresu faz i schematu przez Change Request.
 Źródła: `docs/deep-research-report.md` (research z 17.10.2026), stan MVP z `docs/IMPLEMENTATION_PLAN.md` §0, P1 z `docs/BACKLOG.md`.
 Zasady pracy, własność plików i Change Requesty: bez zmian (`AGENTS.md`). Każda zmiana schematu = CR → A1.
 
@@ -217,7 +217,7 @@ Pilotaż (Faza 0) trwa w trakcie budowy Fazy 1; priorytety N11–N19 korygujemy 
 
 ---
 
-## 8. Decyzje do akceptacji
+## 8. Decyzje (zaakceptowane 2026-10-18)
 
 Szczegóły w `docs/DECISIONS.md` (D-36…D-40).
 
