@@ -2,9 +2,16 @@ bin/
 obj/
 .vs/
 .idea/
+.vscode/
 *.user
 *.db
+*.sqlite
+*.pem
+*.key
 TestResults/
 .DS_Store
 appsettings.*.local.json
 .env
+.env.*
+!.env.example
+secrets*.json
