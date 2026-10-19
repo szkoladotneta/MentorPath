@@ -8,6 +8,7 @@ using MentorPath.Application.Common.Markdown;
 using MentorPath.Application.Common.Storage;
 using MentorPath.Application.Invitations;
 using MentorPath.Application.Mentorships;
+using MentorPath.Application.Privacy;
 using MentorPath.Application.Progress;
 using MentorPath.Application.Reviews;
 using MentorPath.Application.Roadmaps;
@@ -43,6 +44,7 @@ public static class MentorPathApplication
         services.AddSubmissionsModule();
         services.AddReviewsModule();
         services.AddProgressModule();
+        services.AddPrivacyModule();
         return services;
     }
 

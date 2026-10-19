@@ -23,7 +23,7 @@ Integration tests use real PostgreSQL via Testcontainers. Never replace the data
 | Path | Contents |
 |---|---|
 | `src/MentorPath.Data` | `AppDbContext`, entities, EF configurations, migrations |
-| `src/MentorPath.Application/<Module>` | Services and `Contracts/` (interfaces, DTOs). Modules: Workspaces, Mentorships, Invitations, Catalog, AiAuthoring, Roadmaps, Submissions, Reviews, Progress, Common |
+| `src/MentorPath.Application/<Module>` | Services and `Contracts/` (interfaces, DTOs). Modules: Workspaces, Mentorships, Invitations, Catalog, AiAuthoring, Roadmaps, Submissions, Reviews, Progress, Privacy, Common |
 | `src/MentorPath.Web` | Blazor pages and components, endpoints, composition root, CLI commands |
 | `tests/MentorPath.UnitTests` | Domain rules, validators, progress calculation |
 | `tests/MentorPath.IntegrationTests` | Per-module tests, `Isolation/` (convention + isolation tests), `Release/` (end-to-end scenario) |
