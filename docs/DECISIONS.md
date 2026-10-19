@@ -285,15 +285,18 @@ Wpływ: pozycje N-xx realizowane jako issue → PR; reguły zmieniamy w jednym m
 Status: Proposed (2026-10-19; odpowiedzi właściciela w issue #4)
 
 Decyzja:
-- Moduł `Privacy` (`IPersonalDataService`), wywoływany wyłącznie z CLI (`export-user`, `anonymize-user`); bez aktora, więc metody są wyjątkiem od reguły `actorUserId` (jak `ProvisionMentorAsync`). Brak UI.
+- Moduł `Privacy` (`IPersonalDataService`), wywoływany wyłącznie z CLI (`export-user`, `anonymize-user`); bez aktora, więc metody są wyjątkiem od reguły `actorUserId` (jak `ProvisionMentorAsync`). Brak UI. Użycie poza `src/MentorPath.Web/Cli` blokuje `ConventionTests.Operator_services_are_used_only_by_the_CLI`. Metody nadal podlegają testowi pokrycia `NotFound` (nieznany podmiot → `privacy.not_found`).
+- `export-user` zapisuje JSON wyłącznie do pliku: `--out <ścieżka>` jest wymagane, istniejący plik nie jest nadpisywany, uprawnienia `0600` (Unix). Nigdy na stdout — stdout jest strumieniem logów w produkcji (`DEPLOYMENT.md` §6); na stdout trafia tylko id użytkownika i liczniki.
 - Podmiotem może być tylko mentee; właściciel workspace'u → `privacy.unsupported_subject` (erasure mentora dotyka cudzych relacji, D-04, D-27).
 - Eksport: profil, relacje, próby, metadane załączników (klucze, bez treści plików), feedback, refleksje, zaproszenia na e-mail osoby. Bez `MentorPrivateNotes`, danych innych osób i sekretów Identity.
-- Anonimizacja: konto (nazwa `Usunięty użytkownik`, e-mail `deleted-<id>@anonymized.invalid`, hasło i logowania usunięte, blokada), relacje `Closed` (D-12) z wyczyszczonym `Goal`/`Challenges`/`MentorPrivateNotes`, teksty prób, refleksji i trzech pól feedbacku wyczyszczone (werdykt i daty zostają), pliki usunięte, wiersze `SubmissionAttachments` usunięte, e-mail w zaproszeniach zastąpiony. Statystyki workspace'u (statusy, numery prób, confidence, czasy) bez zmian. Idempotentne (znacznik domeny `anonymized.invalid`, bez zmiany schematu).
-- Próba `PendingReview` anonimizowanego użytkownika zostaje w kolejce mentora (puste treści); jej status się nie zmienia.
+- Anonimizacja: konto (nazwa `Usunięty użytkownik`, e-mail `deleted-<id>@anonymized.invalid`, hasło i logowania usunięte, blokada), relacje `Closed` (D-12) z wyczyszczonym `Goal`/`Challenges`/`MentorPrivateNotes`, teksty prób, refleksji i trzech pól feedbacku wyczyszczone (werdykt i daty zostają), pliki usunięte, wiersze `SubmissionAttachments` usunięte, e-mail w zaproszeniach zastąpiony. Statystyki workspace'u (statusy, numery prób, confidence, czasy) bez zmian. Tabele Identity zmieniane wyłącznie przez `UserManager`.
+- Idempotencja bez zmiany schematu: konto uznaje się za zanonimizowane wyłącznie, gdy e-mail jest dokładnie równy `deleted-{UserId:N}@anonymized.invalid` dla tego użytkownika — nigdy po samej domenie (zaproszenie akceptuje dowolny poprawny adres, więc prawdziwe konto może mieć domenę `anonymized.invalid`). Ponowne uruchomienie zawsze czyści treści i usuwa pliki (obejmuje też feedback wystawiony po pierwszym uruchomieniu); pomija tylko zmiany konta.
+- Mentor może przywrócić relację `Closed → Active` (D-12); dla zanonimizowanego mentee jest to nieszkodliwe (konto zablokowane, brak PII) i nie jest blokowane.
+- Próba `PendingReview` anonimizowanego użytkownika zostaje w kolejce mentora (puste treści); jej status się nie zmienia. Feedback wystawiony do niej później usuwa kolejne uruchomienie `anonymize-user` (procedura w `DATA_RETENTION.md`).
 - Usuwanie plików przed zmianami w bazie; błąd magazynu → baza bez zmian, ponowne uruchomienie dokończy pracę.
 - Retencja: relacja aktywna — dane do końca relacji; `Closed` — anonimizacja po 12 mies.; zaproszenia — 30 dni po wygaśnięciu; kopie DB 14 dziennych + 8 tygodniowych; prośby obsługiwane w 30 dni; wersjonowanie S3 — reguła cyklu życia dla nieaktualnych wersji (bez kodu). Szczegóły w `docs/DATA_RETENTION.md` (PR z implementacją).
 
-Wpływ: nowy wpis własności zapisu `Privacy` (DOMAIN_RULES §5), wyjątek twardego usuwania załączników (§3).
+Wpływ: nowy wpis własności zapisu `Privacy` (DOMAIN_RULES §5, w tym tabele Identity), wyjątek twardego usuwania załączników (§3), test `Operator_services_are_used_only_by_the_CLI`.
 
 ---
 

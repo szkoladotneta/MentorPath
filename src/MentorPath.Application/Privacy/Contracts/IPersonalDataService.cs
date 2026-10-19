@@ -5,7 +5,8 @@ namespace MentorPath.Application.Privacy.Contracts;
 
 /// <summary>
 /// Operator-only personal data procedures (GDPR minimum, N04), executed from the CLI. There is no logged-in actor,
-/// so these methods are exempt from the `actorUserId` convention (like <c>IMentorProvisioningService</c>).
+/// so these methods are exempt from the `actorUserId` convention (like <c>IMentorProvisioningService</c>), and only
+/// CLI commands may use this service (<c>ConventionTests.Operator_services_are_used_only_by_the_CLI</c>).
 /// Only mentees can be subjects; workspace owners are refused.
 /// Error codes: <c>privacy.not_found</c> (NotFound), <c>privacy.invalid_request</c> (Validation: exactly one of UserId / Email),
 /// <c>privacy.unsupported_subject</c> (Validation: workspace owner), <c>privacy.storage_failed</c> (Unavailable: file deletion failed, database unchanged).
@@ -17,7 +18,9 @@ public interface IPersonalDataService
 
     /// <summary>
     /// Removes PII and files while keeping workspace statistics. <paramref name="apply"/> = false is a dry run that only reports counts.
-    /// Idempotent: an already anonymized subject succeeds with <see cref="AnonymizationReport.AlreadyAnonymized"/>.
+    /// Idempotent and safe to re-run: the account is anonymized once, while content scrubbing and file deletion always run
+    /// (they also catch feedback written after the first run). <see cref="AnonymizationReport.AlreadyAnonymized"/> is true only when
+    /// the account e-mail is exactly <c>deleted-{UserId:N}@anonymized.invalid</c> for this user, never on a domain match.
     /// </summary>
     Task<Result<AnonymizationReport>> AnonymizeAsync(PersonalDataSubject subject, bool apply, CancellationToken ct);
 }

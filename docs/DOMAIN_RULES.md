@@ -93,7 +93,9 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Progress | nic (wszystko wyliczane) |
 | Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback i SubmissionReflections (czyszczenie tekstów), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
-Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont.
+Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
+
+Serwisy bez aktora (`IMentorProvisioningService`, `IPersonalDataService`) mogą być używane wyłącznie przez komendy CLI (`src/MentorPath.Web/Cli`); egzekwuje `ConventionTests.Operator_services_are_used_only_by_the_CLI`.
 
 ## 6. Postęp (D-16)
 
