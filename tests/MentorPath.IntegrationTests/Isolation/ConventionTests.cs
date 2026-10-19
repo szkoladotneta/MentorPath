@@ -19,6 +19,8 @@ public sealed class ConventionTests
         "IInvitationService.PreviewAsync",
         "IInvitationService.AcceptWithNewAccountAsync",
         "IMentorProvisioningService.ProvisionMentorAsync",
+        "IPersonalDataService.ExportAsync",
+        "IPersonalDataService.AnonymizeAsync",
     ];
 
     // Which module may insert/update/delete which tables (docs/DOMAIN_RULES.md, write ownership).
@@ -33,6 +35,7 @@ public sealed class ConventionTests
         ["Submissions"] = ["Submissions", "SubmissionAttachments"],
         ["Reviews"] = ["MentorFeedback", "SubmissionReflections", "Submissions"],
         ["Progress"] = [],
+        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "SubmissionReflections", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.

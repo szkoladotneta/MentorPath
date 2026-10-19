@@ -281,6 +281,20 @@ Decyzja:
 
 Wpływ: pozycje N-xx realizowane jako issue → PR; reguły zmieniamy w jednym miejscu.
 
+## D-42 — RODO minimum: eksport i anonimizacja mentee z CLI (N04)
+Status: Proposed (2026-10-19; odpowiedzi właściciela w issue #4)
+
+Decyzja:
+- Moduł `Privacy` (`IPersonalDataService`), wywoływany wyłącznie z CLI (`export-user`, `anonymize-user`); bez aktora, więc metody są wyjątkiem od reguły `actorUserId` (jak `ProvisionMentorAsync`). Brak UI.
+- Podmiotem może być tylko mentee; właściciel workspace'u → `privacy.unsupported_subject` (erasure mentora dotyka cudzych relacji, D-04, D-27).
+- Eksport: profil, relacje, próby, metadane załączników (klucze, bez treści plików), feedback, refleksje, zaproszenia na e-mail osoby. Bez `MentorPrivateNotes`, danych innych osób i sekretów Identity.
+- Anonimizacja: konto (nazwa `Usunięty użytkownik`, e-mail `deleted-<id>@anonymized.invalid`, hasło i logowania usunięte, blokada), relacje `Closed` (D-12) z wyczyszczonym `Goal`/`Challenges`/`MentorPrivateNotes`, teksty prób, refleksji i trzech pól feedbacku wyczyszczone (werdykt i daty zostają), pliki usunięte, wiersze `SubmissionAttachments` usunięte, e-mail w zaproszeniach zastąpiony. Statystyki workspace'u (statusy, numery prób, confidence, czasy) bez zmian. Idempotentne (znacznik domeny `anonymized.invalid`, bez zmiany schematu).
+- Próba `PendingReview` anonimizowanego użytkownika zostaje w kolejce mentora (puste treści); jej status się nie zmienia.
+- Usuwanie plików przed zmianami w bazie; błąd magazynu → baza bez zmian, ponowne uruchomienie dokończy pracę.
+- Retencja: relacja aktywna — dane do końca relacji; `Closed` — anonimizacja po 12 mies.; zaproszenia — 30 dni po wygaśnięciu; kopie DB 14 dziennych + 8 tygodniowych; prośby obsługiwane w 30 dni; wersjonowanie S3 — reguła cyklu życia dla nieaktualnych wersji (bez kodu). Szczegóły w `docs/DATA_RETENTION.md` (PR z implementacją).
+
+Wpływ: nowy wpis własności zapisu `Privacy` (DOMAIN_RULES §5), wyjątek twardego usuwania załączników (§3).
+
 ---
 
 ## Change Requests
