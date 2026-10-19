@@ -19,6 +19,27 @@ public sealed class ConventionTests
         "IInvitationService.PreviewAsync",
         "IInvitationService.AcceptWithNewAccountAsync",
         "IMentorProvisioningService.ProvisionMentorAsync",
+        "IPersonalDataService.ExportAsync",
+        "IPersonalDataService.AnonymizeAsync",
+    ];
+
+    // Actorless methods with no resource to probe, so no NotFound contract. Every other actorless method
+    // (e.g. IPersonalDataService: unknown subject -> privacy.not_found) stays under the NotFound coverage test.
+    private static readonly HashSet<string> NoNotFoundContract =
+    [
+        "IInvitationService.PreviewAsync",
+        "IInvitationService.AcceptWithNewAccountAsync",
+        "IMentorProvisioningService.ProvisionMentorAsync",
+    ];
+
+    // Actorless services bypass IWorkspaceAccessService, so only operator CLI commands may call them.
+    private static readonly string[] OperatorServices = ["IMentorProvisioningService", "IPersonalDataService"];
+
+    private static readonly string[] OperatorServiceAllowedDirs =
+    [
+        "src/MentorPath.Web/Cli/",
+        "src/MentorPath.Application/Workspaces/",
+        "src/MentorPath.Application/Privacy/",
     ];
 
     // Which module may insert/update/delete which tables (docs/DOMAIN_RULES.md, write ownership).
@@ -33,6 +54,7 @@ public sealed class ConventionTests
         ["Submissions"] = ["Submissions", "SubmissionAttachments"],
         ["Reviews"] = ["MentorFeedback", "SubmissionReflections", "Submissions"],
         ["Progress"] = [],
+        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "SubmissionReflections", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.
@@ -76,8 +98,10 @@ public sealed class ConventionTests
             .ToList();
 
         // A call counts as covered when the same statement asserts NotFound (ShouldBeNotFound / ErrorKind.NotFound).
+        // A contract with no implementation yet (schema-change PR before the feature PR) cannot be called; it is checked once implemented.
         var uncovered = ServiceMethods()
-            .Where(m => !ActorlessMethods.Contains($"{m.DeclaringType!.Name}.{m.Name}"))
+            .Where(m => !NoNotFoundContract.Contains($"{m.DeclaringType!.Name}.{m.Name}"))
+            .Where(m => HasImplementation(m.DeclaringType!))
             .Select(m => (Key: $"{m.DeclaringType!.Name}.{m.Name}", Pattern: new Regex($@"\.{m.Name}\([^;]*NotFound", RegexOptions.Singleline)))
             .Where(x => !testSources.Any(s => x.Pattern.IsMatch(s)))
             .Select(x => x.Key)
@@ -145,6 +169,21 @@ public sealed class ConventionTests
 
         violations.Distinct().ShouldBeEmpty("write ownership matrix in docs/DOMAIN_RULES.md");
     }
+
+    [Fact]
+    public void Operator_services_are_used_only_by_the_CLI()
+    {
+        var offenders = SourceFiles("src")
+            .Where(f => !OperatorServiceAllowedDirs.Any(d => f.Replace('\\', '/').Contains(d, StringComparison.Ordinal)))
+            .Where(f => OperatorServices.Any(s => Regex.IsMatch(File.ReadAllText(f), $@"\b{s}\b")))
+            .Select(f => Path.GetRelativePath(RepoRoot, f))
+            .ToList();
+
+        offenders.ShouldBeEmpty("actorless operator services must not be reachable from pages, endpoints or other modules");
+    }
+
+    private static bool HasImplementation(Type contract) =>
+        ApplicationAssembly.GetTypes().Any(t => t is { IsClass: true, IsAbstract: false } && contract.IsAssignableFrom(t));
 
     private static IEnumerable<string> SourceFiles(string relativeDir) =>
         Directory.EnumerateFiles(Path.Combine(RepoRoot, relativeDir), "*.*", SearchOption.AllDirectories)

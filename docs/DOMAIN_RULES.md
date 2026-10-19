@@ -18,7 +18,7 @@ Reguły, które da się sprawdzić mechanicznie, pilnuje `tests/MentorPath.Integ
 
 - Namespace: `MentorPath.Data.*`, `MentorPath.Application.<Module>[.Contracts]`.
 - DTO = `public sealed record`. Encje nie występują w publicznych sygnaturach serwisów.
-- Publiczna metoda serwisu: `(Guid actorUserId, <Request/Id...>, CancellationToken ct)` → `Task<Result>` / `Task<Result<T>>`. Wyjątki (jawnie wymienione w `ConventionTests`): anonimowe metody zaproszeń (`PreviewAsync`, `AcceptWithNewAccountAsync`) i `IMentorProvisioningService.ProvisionMentorAsync` (CLI).
+- Publiczna metoda serwisu: `(Guid actorUserId, <Request/Id...>, CancellationToken ct)` → `Task<Result>` / `Task<Result<T>>`. Wyjątki (jawnie wymienione w `ConventionTests`): anonimowe metody zaproszeń (`PreviewAsync`, `AcceptWithNewAccountAsync`) `IMentorProvisioningService.ProvisionMentorAsync` (CLI) oraz `IPersonalDataService.ExportAsync` / `AnonymizeAsync` (CLI, operator; D-42).
 - Implementacje `internal sealed`; rejestracja w `<Module>Module.cs`.
 - Teksty Markdown: suffix `Markdown`. Czas: `DateTime` UTC, suffix `Utc`, wyłącznie z `TimeProvider`.
 - Komunikaty błędów dla UI po polsku; `AppError.Code` stabilny, angielski, `snake_case` z prefiksem modułu (np. `submission.already_completed`).
@@ -64,7 +64,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
 - Indeks po `WorkspaceId` na każdej tabeli `IWorkspaceScoped`.
-- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions.
+- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions, oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
 - Enumy zapisywane jako string. Role Identity: `Mentor`, `Mentee`, `PlatformOperator`.
 
 ## 4. `DecisionAnswerJson` (schemat v1)
@@ -91,8 +91,11 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Submissions | Submissions (insert), SubmissionAttachments |
 | Reviews | MentorFeedback, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`) |
 | Progress | nic (wszystko wyliczane) |
+| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback i SubmissionReflections (czyszczenie tekstów), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
-Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont.
+Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
+
+Serwisy bez aktora (`IMentorProvisioningService`, `IPersonalDataService`) mogą być używane wyłącznie przez komendy CLI (`src/MentorPath.Web/Cli`); egzekwuje `ConventionTests.Operator_services_are_used_only_by_the_CLI`.
 
 ## 6. Postęp (D-16)
 
