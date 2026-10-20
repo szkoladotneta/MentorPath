@@ -1,5 +1,6 @@
 using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Invitations.Contracts;
+using MentorPath.Application.Reviews.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Application.Workspaces.Contracts;
@@ -59,20 +60,20 @@ public sealed partial class TestDataBuilder(TestApp app)
         _ => new("Decyzja", "Scenariusz decyzji", "Ograniczenia", "Rezultaty", "Kryteria", null, null, "Guide AD", 60, []),
     };
 
-    public async Task<Guid> PublishedExerciseAsync(MentorRef mentor, Guid topicId, ExerciseType type)
+    public async Task<Guid> PublishedExerciseAsync(MentorRef mentor, Guid topicId, ExerciseType type, IReadOnlyList<Guid>? criterionIds = null)
     {
         var exercises = app.Get<IExerciseAuthoringService>();
-        var id = (await exercises.CreateDraftAsync(mentor.UserId, new(topicId, type, ValidContent(type)), default)).ShouldSucceed();
+        var id = (await exercises.CreateDraftAsync(mentor.UserId, new(topicId, type, ValidContent(type) with { CriterionIds = criterionIds }), default)).ShouldSucceed();
         (await exercises.PublishAsync(mentor.UserId, id, default)).ShouldSucceed();
         return id;
     }
 
     /// <summary>Creates a published roadmap for the mentee with one topic and one required assignment of the given type.</summary>
-    public async Task<AssignmentRef> PublishedAssignmentAsync(MentorRef mentor, MenteeRef mentee, ExerciseType type, bool publish = true)
+    public async Task<AssignmentRef> PublishedAssignmentAsync(MentorRef mentor, MenteeRef mentee, ExerciseType type, bool publish = true, IReadOnlyList<Guid>? criterionIds = null)
     {
         var roadmaps = app.Get<IRoadmapService>();
         var topicId = await TopicAsync(mentor);
-        var exerciseId = await PublishedExerciseAsync(mentor, topicId, type);
+        var exerciseId = await PublishedExerciseAsync(mentor, topicId, type, criterionIds);
         var existing = (await roadmaps.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed();
         var roadmapId = existing?.RoadmapId ?? (await roadmaps.CreateAsync(mentor.UserId, new(mentee.MentorshipId, "Roadmapa", "Cel"), default)).ShouldSucceed();
         var itemId = (await roadmaps.AddTopicAsync(mentor.UserId, new(roadmapId, topicId, null), default)).ShouldSucceed();
@@ -80,6 +81,13 @@ public sealed partial class TestDataBuilder(TestApp app)
         if (publish && existing?.Status != RoadmapStatus.Published)
             (await roadmaps.PublishAsync(mentor.UserId, roadmapId, default)).ShouldSucceed();
         return new AssignmentRef(roadmapId, itemId, assignmentId, exerciseId, topicId);
+    }
+
+    /// <summary>Scores every active criterion of the mentor's workspace (the default selection of a new exercise).</summary>
+    public async Task<IReadOnlyList<CriterionScoreInput>> ScoresAsync(MentorRef mentor, int score = 4)
+    {
+        var criteria = (await app.Get<IRubricService>().ListCriteriaAsync(mentor.UserId, false, default)).ShouldSucceed();
+        return criteria.Select(c => new CriterionScoreInput(c.CriterionId, score, "")).ToList();
     }
 
     public async Task<SubmissionResultDto> DecisionSubmissionAsync(MenteeRef mentee, Guid assignmentId) =>

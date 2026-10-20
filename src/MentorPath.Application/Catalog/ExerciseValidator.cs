@@ -34,12 +34,21 @@ public static partial class ExerciseValidator
             e.Optional($"QuizOptions[{i}].Text", options[i].Text, InputLimits.ShortText, "Treść opcji");
             e.Optional($"QuizOptions[{i}].ExplanationMarkdown", options[i].ExplanationMarkdown, InputLimits.Markdown, "Wyjaśnienie opcji");
         }
+
+        var criteria = c.CriterionIds ?? [];
+        if (type == ExerciseType.QuizSingleChoice && criteria.Count > 0)
+            e.Add(nameof(c.CriterionIds), "Kryteria procesu decyzyjnego nie dotyczą quizu.");
+        if (criteria.Distinct().Count() != criteria.Count)
+            e.Add(nameof(c.CriterionIds), "Kryteria nie mogą się powtarzać.");
         return e;
     }
 
     public static FieldErrors ValidateForPublish(ExerciseType type, ExerciseContent c)
     {
         var e = ValidateDraft(type, c);
+        // A null selection means "not loaded" (e.g. AI drafts, which default to all criteria); only an explicit empty list is invalid.
+        if (type != ExerciseType.QuizSingleChoice && c.CriterionIds is { Count: 0 })
+            e.Add(nameof(c.CriterionIds), "Wybierz co najmniej jedno kryterium oceny procesu decyzyjnego.");
         e.Required(nameof(c.ScenarioMarkdown), c.ScenarioMarkdown, InputLimits.Markdown, type == ExerciseType.PracticalTask ? "Opis zadania" : "Scenariusz");
         var options = c.QuizOptions ?? [];
 

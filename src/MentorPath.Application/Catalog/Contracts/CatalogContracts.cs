@@ -38,6 +38,17 @@ public sealed record ExerciseContent(
     string? MentorGuideMarkdown, int? EstimatedMinutes, IReadOnlyList<QuizOptionInput> QuizOptions,
     IReadOnlyList<Guid>? CriterionIds = null);
 
+public interface IRubricService
+{
+    Task<Result<IReadOnlyList<RubricCriterionDto>>> ListCriteriaAsync(Guid actorUserId, bool includeInactive, CancellationToken ct);
+    Task<Result> UpdateCriterionAsync(Guid actorUserId, Guid criterionId, UpdateRubricCriterionRequest request, CancellationToken ct);
+    Task<Result> SetActiveAsync(Guid actorUserId, Guid criterionId, bool isActive, CancellationToken ct);
+    Task<Result> ReorderAsync(Guid actorUserId, IReadOnlyList<Guid> criterionIds, CancellationToken ct);
+}
+
+// LevelDescriptions must contain exactly 5 entries (levels 1..5).
+public sealed record UpdateRubricCriterionRequest(string Name, IReadOnlyList<string> LevelDescriptions);
+
 // Level descriptions are indexed 0..4 for levels 1..5.
 public sealed record RubricCriterionDto(Guid CriterionId, string Name, int Position, bool IsActive, IReadOnlyList<string> LevelDescriptions);
 public sealed record QuizOptionInput(string Text, bool IsCorrect, string? ExplanationMarkdown);

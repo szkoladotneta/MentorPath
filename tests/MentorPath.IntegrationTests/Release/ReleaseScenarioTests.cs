@@ -73,7 +73,8 @@ public sealed class ReleaseScenarioTests(PostgresFixture db) : IntegrationTestBa
 
         // 8. Mentor sends the ADR back for revision.
         (await App.Get<IReviewService>().GetPendingAsync(mentorA.UserId, default)).ShouldSucceed().Count.ShouldBe(2);
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(adr1.SubmissionId, "Dobre alternatywy", "Brak ryzyk", "Co przy 10x ruchu?", ReviewVerdict.NeedsRevision), default)).ShouldSucceed();
+        var scoresA = await Data.ScoresAsync(mentorA);
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(adr1.SubmissionId, "Dobre alternatywy", "Brak ryzyk", "Co przy 10x ruchu?", ReviewVerdict.NeedsRevision, scoresA), default)).ShouldSucceed();
         (await App.Get<IReflectionService>().SaveReflectionAsync(mentee.UserId, new(adr1.SubmissionId, 3, "Muszę opisywać ryzyka"), default)).ShouldSucceed();
 
         // 9. Mentee improves the solution.
@@ -81,8 +82,8 @@ public sealed class ReleaseScenarioTests(PostgresFixture db) : IntegrationTestBa
         adr2.AttemptNumber.ShouldBe(2);
 
         // 10. Mentor accepts both open submissions.
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(adr2.SubmissionId, "Kompletne", "Drobne", "Kiedy wydzielić?", ReviewVerdict.Accepted), default)).ShouldSucceed();
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(practical.SubmissionId, "Testy", "README", "Retencja kluczy?", ReviewVerdict.Accepted), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(adr2.SubmissionId, "Kompletne", "Drobne", "Kiedy wydzielić?", ReviewVerdict.Accepted, scoresA), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentorA.UserId, new(practical.SubmissionId, "Testy", "README", "Retencja kluczy?", ReviewVerdict.Accepted, scoresA), default)).ShouldSucceed();
         (await App.Get<IReflectionService>().SaveReflectionAsync(mentee.UserId, new(adr2.SubmissionId, 5, "Rozumiem kompromisy"), default)).ShouldSucceed();
 
         // 11. Roadmap progress is updated.

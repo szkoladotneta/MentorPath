@@ -40,8 +40,12 @@ internal sealed class ExerciseAuthoringService(
             Source = source,
             CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
         };
+        var criteria = await ResolveCriteriaAsync(db, ws.Value, request.Type, request.Content.CriterionIds, ct);
+        if (!criteria.IsSuccess) return criteria.Error!;
+
         ApplyContent(exercise, request.Content);
         db.Exercises.Add(exercise);
+        AddCriteria(db, exercise, criteria.Value!);
         await db.SaveChangesAsync(ct);
         return exercise.Id;
     }
@@ -59,12 +63,27 @@ internal sealed class ExerciseAuthoringService(
         var errors = ExerciseValidator.ValidateDraft(exercise.Type, content);
         if (errors.HasErrors) return errors.ToError("catalog.invalid_exercise");
 
+        List<Guid>? criteria = null;
+        if (content.CriterionIds is not null)
+        {
+            var resolved = await ResolveCriteriaAsync(db, ws.Value, exercise.Type, content.CriterionIds, ct);
+            if (!resolved.IsSuccess) return resolved.Error!;
+            criteria = resolved.Value!;
+        }
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         db.QuizOptions.RemoveRange(exercise.QuizOptions);
         exercise.QuizOptions.Clear();
         // Remove old options first so the single-correct partial unique index is never violated mid-update.
         await db.SaveChangesAsync(ct);
         ApplyContent(exercise, content);
+        if (criteria is not null)
+        {
+            await db.ExerciseCriteria.Where(x => x.ExerciseId == exerciseId && x.WorkspaceId == ws).ExecuteDeleteAsync(ct);
+            AddCriteria(db, exercise, criteria);
+        }
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return Result.Success();
     }
 
@@ -78,7 +97,8 @@ internal sealed class ExerciseAuthoringService(
         if (exercise is null) return Errors.NotFound(Module);
         if (exercise.Status != ExerciseStatus.Draft) return NotDraft();
 
-        var errors = ExerciseValidator.ValidateForPublish(exercise.Type, ToContent(exercise));
+        var activeCriteria = await LoadCriterionIdsAsync(db, ws.Value, exerciseId, activeOnly: true, ct);
+        var errors = ExerciseValidator.ValidateForPublish(exercise.Type, ToContent(exercise) with { CriterionIds = activeCriteria });
         if (errors.HasErrors) return Errors.Validation("catalog.publish_invalid", "Ćwiczenie nie spełnia wymagań publikacji.", errors.ToDictionary());
 
         var now = clock.GetUtcNow().UtcDateTime;
@@ -110,6 +130,7 @@ internal sealed class ExerciseAuthoringService(
         var content = ToContent(source);
         ApplyContent(clone, content with { Title = Truncate($"{source.Title} (kopia)", InputLimits.Title) });
         db.Exercises.Add(clone);
+        AddCriteria(db, clone, await LoadCriterionIdsAsync(db, ws.Value, exerciseId, activeOnly: false, ct));
         await db.SaveChangesAsync(ct);
         return clone.Id;
     }
@@ -150,11 +171,40 @@ internal sealed class ExerciseAuthoringService(
         var e = await db.Exercises.AsNoTracking().Include(x => x.QuizOptions).Include(x => x.Topic)
             .FirstOrDefaultAsync(x => x.Id == exerciseId && x.WorkspaceId == ws, ct);
         if (e is null) return Errors.NotFound(Module);
-        return ToMentorDto(e);
+        return ToMentorDto(e, await LoadCriterionIdsAsync(db, ws.Value, e.Id, activeOnly: false, ct));
     }
 
-    internal static MentorExerciseDto ToMentorDto(Exercise e) =>
-        new(e.Id, e.TopicId, e.Topic?.Title ?? "", e.Type, e.Status, e.Source, ToContent(e), e.PublishedAtUtc, e.CreatedAtUtc);
+    internal static MentorExerciseDto ToMentorDto(Exercise e, IReadOnlyList<Guid> criterionIds) =>
+        new(e.Id, e.TopicId, e.Topic?.Title ?? "", e.Type, e.Status, e.Source, ToContent(e) with { CriterionIds = criterionIds }, e.PublishedAtUtc, e.CreatedAtUtc);
+
+    internal static async Task<List<Guid>> LoadCriterionIdsAsync(AppDbContext db, Guid workspaceId, Guid exerciseId, bool activeOnly, CancellationToken ct) =>
+        await db.ExerciseCriteria.AsNoTracking()
+            .Where(x => x.ExerciseId == exerciseId && x.WorkspaceId == workspaceId && (!activeOnly || x.Criterion!.IsActive))
+            .OrderBy(x => x.Criterion!.Position).ThenBy(x => x.Criterion!.Name)
+            .Select(x => x.CriterionId)
+            .ToListAsync(ct);
+
+    // Quiz exercises have no rubric. A null selection defaults to every active criterion of the workspace.
+    private async Task<Result<List<Guid>>> ResolveCriteriaAsync(AppDbContext db, Guid workspaceId, ExerciseType type, IReadOnlyList<Guid>? requested, CancellationToken ct)
+    {
+        if (type == ExerciseType.QuizSingleChoice) return new List<Guid>();
+        await RubricService.EnsureSeededAsync(db, workspaceId, clock, ct);
+        var criteria = await db.RubricCriteria.AsNoTracking().Where(c => c.WorkspaceId == workspaceId)
+            .Select(c => new { c.Id, c.IsActive }).ToListAsync(ct);
+        if (requested is null) return criteria.Where(c => c.IsActive).Select(c => c.Id).ToList();
+
+        var byId = criteria.ToDictionary(c => c.Id);
+        if (requested.Any(id => !byId.ContainsKey(id))) return Errors.NotFound(Module);
+        if (requested.Any(id => !byId[id].IsActive))
+            return Errors.Validation("catalog.invalid_exercise", new Dictionary<string, string[]> { [nameof(ExerciseContent.CriterionIds)] = ["Wybrane kryterium jest nieaktywne."] });
+        return requested.ToList();
+    }
+
+    private static void AddCriteria(AppDbContext db, Exercise exercise, IEnumerable<Guid> criterionIds)
+    {
+        foreach (var id in criterionIds)
+            db.ExerciseCriteria.Add(new ExerciseCriterion { WorkspaceId = exercise.WorkspaceId, ExerciseId = exercise.Id, CriterionId = id });
+    }
 
     public async Task<Result<IReadOnlyList<ExerciseListItem>>> ListAsync(Guid actorUserId, ExerciseListFilter filter, CancellationToken ct)
     {

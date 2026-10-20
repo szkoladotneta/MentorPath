@@ -218,7 +218,7 @@ public sealed class SubmissionTests(PostgresFixture db) : IntegrationTestBase(db
         var mentee = await Data.MenteeAsync(mentor);
         var asg = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
         var first = await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(first.SubmissionId, "S", "I", "Q?", ReviewVerdict.NeedsRevision), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(first.SubmissionId, "S", "I", "Q?", ReviewVerdict.NeedsRevision, await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
         await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
 
         var history = (await App.Get<ISubmissionService>().GetHistoryAsync(mentee.UserId, asg.AssignmentId, default)).ShouldSucceed();

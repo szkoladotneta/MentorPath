@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MentorPath.Application.Common;
 using MentorPath.Application.Common.Storage;
+using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Mentorships.Contracts;
 using MentorPath.Application.Privacy.Contracts;
 using MentorPath.Application.Progress.Contracts;
@@ -43,13 +44,15 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
 
         var decision = await data.PublishedAssignmentAsync(mentor, a, ExerciseType.ArchitecturalDecision);
         var first = await data.DecisionSubmissionAsync(a, decision.AssignmentId);
+        var rubric = (await app.Get<IRubricService>().ListCriteriaAsync(mentor.UserId, false, default)).ShouldSucceed();
         (await app.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
-            new(first.SubmissionId, "Mocne A1", "Popraw A1", "Pytanie A1", ReviewVerdict.NeedsRevision), default)).ShouldSucceed();
+            new(first.SubmissionId, "Mocne A1", "Popraw A1", "Pytanie A1", ReviewVerdict.NeedsRevision, rubric
+                .Select(c => new CriterionScoreInput(c.CriterionId, 2, "Komentarz do kryterium A sekret")).ToList()), default)).ShouldSucceed();
         (await app.Get<IReflectionService>().SaveReflectionAsync(a.UserId, new(first.SubmissionId, 4, "Wniosek A sekret"), default)).ShouldSucceed();
         app.Clock.Advance(TimeSpan.FromHours(1));
         var accepted = await data.DecisionSubmissionAsync(a, decision.AssignmentId);
         (await app.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
-            new(accepted.SubmissionId, "Mocne A2", "Popraw A2", "Pytanie A2", ReviewVerdict.Accepted), default)).ShouldSucceed();
+            new(accepted.SubmissionId, "Mocne A2", "Popraw A2", "Pytanie A2", ReviewVerdict.Accepted, await data.ScoresAsync(mentor)), default)).ShouldSucceed();
 
         app.Clock.Advance(TimeSpan.FromHours(1));
         var practical = await data.PublishedAssignmentAsync(mentor, a, ExerciseType.PracticalTask);
@@ -62,7 +65,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
         var bAssignment = await data.PublishedAssignmentAsync(mentor, b, ExerciseType.ArchitecturalDecision);
         var bSubmission = await data.DecisionSubmissionAsync(b, bAssignment.AssignmentId);
         (await app.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
-            new(bSubmission.SubmissionId, "Mocne B", "Popraw B", "Pytanie B", ReviewVerdict.Accepted), default)).ShouldSucceed();
+            new(bSubmission.SubmissionId, "Mocne B", "Popraw B", "Pytanie B", ReviewVerdict.Accepted, await data.ScoresAsync(mentor)), default)).ShouldSucceed();
         (await app.Get<IReflectionService>().SaveReflectionAsync(b.UserId, new(bSubmission.SubmissionId, 5, "Wniosek B"), default)).ShouldSucceed();
 
         var cAssignment = await data.PublishedAssignmentAsync(otherMentor, c, ExerciseType.ArchitecturalDecision);
@@ -97,6 +100,9 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
         var reflection = first.Reflection.ShouldNotBeNull();
         (reflection.ConfidenceAfter, reflection.TakeawayMarkdown).ShouldBe(((short)4, "Wniosek A sekret"));
         export.Submissions[1].Feedback.ShouldNotBeNull().Verdict.ShouldBe(ReviewVerdict.Accepted);
+        feedback.CriterionScores.ShouldNotBeNull().Count.ShouldBe(6);
+        feedback.CriterionScores.ShouldAllBe(x => x.Score == 2 && x.CommentMarkdown == "Komentarz do kryterium A sekret");
+        feedback.CriterionScores.Select(x => x.Position).ShouldBe([0, 1, 2, 3, 4, 5]);
         var pending = export.Submissions[2];
         (pending.Status, pending.AnswerMarkdown, pending.ExternalUrl).ShouldBe((SubmissionStatus.PendingReview, "Uzasadnienie A sekret", "https://example.com/a-sekret"));
         var attachment = pending.Attachment.ShouldNotBeNull();
@@ -242,6 +248,10 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
             var feedback = await db.MentorFeedback.Where(x => x.Submission!.MenteeUserId == s.A.UserId).ToListAsync();
             feedback.Count.ShouldBe(2);
             feedback.ShouldAllBe(x => x.StrengthsMarkdown == "" && x.ImprovementsMarkdown == "" && x.ChallengeQuestionMarkdown == "");
+            var scores = await db.FeedbackCriterionScores.Where(x => x.Feedback!.Submission!.MenteeUserId == s.A.UserId).ToListAsync();
+            scores.Count.ShouldBe(12);
+            scores.ShouldAllBe(x => x.CommentMarkdown == "");
+            scores.Count(x => x.Score == 2).ShouldBe(6);
             (await db.SubmissionReflections.SingleAsync(x => x.SubmissionId == s.FirstAttemptId)).TakeawayMarkdown.ShouldBe("");
             (await db.Invitations.CountAsync(x => x.WorkspaceId == s.Mentor.WorkspaceId && x.NormalizedEmail == placeholderNormalized)).ShouldBe(1);
             (await db.Invitations.CountAsync(x => x.NormalizedEmail == s.A.Email.ToUpperInvariant())).ShouldBe(0);
@@ -304,7 +314,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
         (await Privacy.AnonymizeAsync(new(s.A.UserId, null), apply: true, default)).ShouldSucceed();
         var stamp = await App.Db(db => db.Users.Where(u => u.Id == s.A.UserId).Select(u => u.SecurityStamp).SingleAsync());
         (await App.Get<IReviewService>().SubmitFeedbackAsync(s.Mentor.UserId,
-            new(s.PendingAttemptId, "Po anonimizacji", "Po anonimizacji", "Po anonimizacji", ReviewVerdict.Accepted), default)).ShouldSucceed();
+            new(s.PendingAttemptId, "Po anonimizacji", "Po anonimizacji", "Po anonimizacji", ReviewVerdict.Accepted, await Data.ScoresAsync(s.Mentor)), default)).ShouldSucceed();
 
         var report = (await Privacy.AnonymizeAsync(new(s.A.UserId, null), apply: true, default)).ShouldSucceed();
 
@@ -414,6 +424,8 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
                 .Select(x => new { x.Id, x.StrengthsMarkdown, x.ImprovementsMarkdown, x.ChallengeQuestionMarkdown, x.Verdict, x.CreatedAtUtc }).ToListAsync(),
             Reflections = await db.SubmissionReflections.Where(x => workspaces.Contains(x.Submission!.WorkspaceId) && x.Submission.MenteeUserId != excludedUserId).OrderBy(x => x.Id)
                 .Select(x => new { x.Id, x.TakeawayMarkdown, x.ConfidenceAfter }).ToListAsync(),
+            Scores = await db.FeedbackCriterionScores.Where(x => workspaces.Contains(x.WorkspaceId) && x.Feedback!.Submission!.MenteeUserId != excludedUserId)
+                .OrderBy(x => x.FeedbackId).ThenBy(x => x.CriterionId).Select(x => new { x.FeedbackId, x.CriterionId, x.Score, x.CommentMarkdown }).ToListAsync(),
             Attachments = await db.SubmissionAttachments.Where(x => workspaces.Contains(x.WorkspaceId) && x.Submission!.MenteeUserId != excludedUserId).OrderBy(x => x.Id)
                 .Select(x => new { x.Id, x.ObjectKey, x.OriginalFileName }).ToListAsync(),
             Invitations = await db.Invitations.Where(x => workspaces.Contains(x.WorkspaceId) && x.NormalizedEmail != excludedNormalized

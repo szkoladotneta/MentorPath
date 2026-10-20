@@ -212,8 +212,26 @@ internal sealed class SubmissionService(
             })
             .ToListAsync(ct);
 
+        var submissionIds = rows.Where(r => r.Feedback is not null).Select(r => r.Id).ToList();
+        var scoreRows = submissionIds.Count == 0 ? [] : await db.FeedbackCriterionScores.AsNoTracking()
+            .Where(x => x.WorkspaceId == acc.WorkspaceId && submissionIds.Contains(x.Feedback!.SubmissionId))
+            .OrderBy(x => x.Criterion!.Position).ThenBy(x => x.Criterion!.Name)
+            .Select(x => new
+            {
+                x.Feedback!.SubmissionId, x.CriterionId, x.Criterion!.Name, x.Criterion.Position, x.Score, x.CommentMarkdown,
+                x.Criterion.Level1Description, x.Criterion.Level2Description, x.Criterion.Level3Description,
+                x.Criterion.Level4Description, x.Criterion.Level5Description,
+            })
+            .ToListAsync(ct);
+        var scoresBySubmission = scoreRows.GroupBy(x => x.SubmissionId).ToDictionary(g => g.Key, g => (IReadOnlyList<FeedbackCriterionScoreDto>)g
+            .Select(x => new FeedbackCriterionScoreDto(x.CriterionId, x.Name, x.Position, x.Score, x.CommentMarkdown,
+                x.Score switch { 1 => x.Level1Description, 2 => x.Level2Description, 3 => x.Level3Description, 4 => x.Level4Description, _ => x.Level5Description }))
+            .ToList());
+
         var items = rows.Select(s => new SubmissionHistoryItem(s.Id, s.AttemptNumber, s.Status, s.SubmittedAtUtc, s.ConfidenceBefore,
-                s.OptionText, ParseDecision(s.DecisionAnswerJson), s.AnswerMarkdown, s.ExternalUrl, s.Attachment, s.Feedback, s.Reflection,
+                s.OptionText, ParseDecision(s.DecisionAnswerJson), s.AnswerMarkdown, s.ExternalUrl, s.Attachment,
+                s.Feedback is not null && scoresBySubmission.TryGetValue(s.Id, out var scores) ? s.Feedback with { Scores = scores } : s.Feedback,
+                s.Reflection,
                 acc.Role == AccessRole.Mentee && s.Reflection is null && CanReflectOn(s.Status)))
             .ToList();
         return new SubmissionHistoryDto(acc.AssignmentId, exercise.Title, exercise.Type, items);

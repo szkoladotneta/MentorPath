@@ -51,7 +51,10 @@ public sealed record SubmissionExport(
 public sealed record AttachmentExport(string ObjectKey, string OriginalFileName, string ContentType, long SizeBytes, DateTime CreatedAtUtc);
 
 public sealed record FeedbackExport(
-    ReviewVerdict Verdict, string StrengthsMarkdown, string ImprovementsMarkdown, string ChallengeQuestionMarkdown, DateTime CreatedAtUtc);
+    ReviewVerdict Verdict, string StrengthsMarkdown, string ImprovementsMarkdown, string ChallengeQuestionMarkdown, DateTime CreatedAtUtc,
+    IReadOnlyList<CriterionScoreExport>? CriterionScores = null);
+
+public sealed record CriterionScoreExport(string CriterionName, int Position, int Score, string CommentMarkdown);
 
 public sealed record ReflectionExport(short ConfidenceAfter, string TakeawayMarkdown, DateTime CreatedAtUtc);
 
