@@ -51,6 +51,21 @@
                 <div class="section-title">Mocne strony</div><Markdown Value="@f.StrengthsMarkdown" />
                 <div class="section-title">Do poprawy</div><Markdown Value="@f.ImprovementsMarkdown" />
                 <div class="section-title">Pytanie pogłębiające</div><Markdown Value="@f.ChallengeQuestionMarkdown" />
+                @if (f.Scores is { Count: > 0 } scores)
+                {
+                    <div class="section-title">Ocena procesu decyzyjnego</div>
+                    @foreach (var s in scores)
+                    {
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small"><span class="fw-semibold">@s.Name</span><span>@s.Score/5</span></div>
+                            <div class="progress" role="progressbar" aria-label="@s.Name" aria-valuenow="@s.Score" aria-valuemin="1" aria-valuemax="5">
+                                <div class="progress-bar" style="width:@(s.Score * 20)%"></div>
+                            </div>
+                            <div class="small text-secondary mt-1">@s.LevelDescription</div>
+                            @if (!string.IsNullOrWhiteSpace(s.CommentMarkdown)) { <Markdown Value="@s.CommentMarkdown" /> }
+                        </div>
+                    }
+                }
             </div>
         }
         @if (a.Reflection is { } r)

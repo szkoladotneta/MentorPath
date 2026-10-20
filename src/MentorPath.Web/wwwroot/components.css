@@ -208,3 +208,6 @@ a.mp-datarow--link:hover { background: var(--mp-ground); }
 
 /* Mentee submission history: mentor feedback as a quiet panel (not a nested card) */
 .mp-feedback { background: var(--mp-surface-sunken); border-radius: var(--mp-radius); padding: var(--mp-space-4); }
+.mp-criterion { padding: var(--mp-space-3) 0; border-bottom: 1px solid var(--mp-line); }
+.mp-criterion:last-of-type { border-bottom: 0; }
+.mp-criterion--inactive { opacity: .75; }
