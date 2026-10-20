@@ -57,6 +57,35 @@
                         <div class="card-header">Feedback</div>
                         <div class="card-body">
                             <ErrorAlert Error="Error" ShowFieldList="false" />
+                            @if (detail.Criteria is { Count: > 0 } criteria)
+                            {
+                                <div class="section-title">Kryteria procesu decyzyjnego</div>
+                                <FieldError Error="Error" Field="Scores" />
+                                @for (var i = 0; i < criteria.Count; i++)
+                                {
+                                    var index = i;
+                                    var c = criteria[index];
+                                    var selected = scores.GetValueOrDefault(c.CriterionId);
+                                    <div class="border rounded p-2 mb-2">
+                                        <div class="fw-semibold">@c.Name</div>
+                                        <div class="btn-group btn-group-sm my-1" role="group" aria-label="@($"Ocena: {c.Name}")">
+                                            @for (var level = 1; level <= 5; level++)
+                                            {
+                                                var value = level;
+                                                <button type="button" class="btn @(selected == value ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(selected == value)"
+                                                        @onclick="() => scores[c.CriterionId] = value" disabled="@busy">@value</button>
+                                            }
+                                        </div>
+                                        <div class="small text-secondary">
+                                            @if (selected > 0) { @c.LevelDescriptions[selected - 1] } else { <span>Wybierz poziom 1–5.</span> }
+                                        </div>
+                                        <FieldError Error="Error" Field="@($"Scores[{index}].Score")" />
+                                        <textarea class="form-control form-control-sm mt-1" rows="2" placeholder="Komentarz do kryterium (opcjonalnie, widoczny dla mentee)"
+                                                  value="@comments.GetValueOrDefault(c.CriterionId)" @onchange="e => comments[c.CriterionId] = e.Value?.ToString() ?? string.Empty"></textarea>
+                                        <FieldError Error="Error" Field="@($"Scores[{index}].CommentMarkdown")" />
+                                    </div>
+                                }
+                            }
                             <label class="form-label">Mocne strony</label>
                             <textarea class="form-control mb-1" rows="3" @bind="strengths"></textarea>
                             <FieldError Error="Error" Field="StrengthsMarkdown" />
@@ -67,9 +96,10 @@
                             <textarea class="form-control mb-1" rows="2" @bind="challenge"></textarea>
                             <FieldError Error="Error" Field="ChallengeQuestionMarkdown" />
                             <div class="d-flex gap-2 mt-3">
-                                <button class="btn btn-success" @onclick="() => SubmitAsync(ReviewVerdict.Accepted)" disabled="@busy">Accepted</button>
-                                <button class="btn btn-warning" @onclick="() => SubmitAsync(ReviewVerdict.NeedsRevision)" disabled="@busy">Needs revision</button>
+                                <button class="btn btn-success" @onclick="() => SubmitAsync(ReviewVerdict.Accepted)" disabled="@(busy || !AllScored)">Accepted</button>
+                                <button class="btn btn-warning" @onclick="() => SubmitAsync(ReviewVerdict.NeedsRevision)" disabled="@(busy || !AllScored)">Needs revision</button>
                             </div>
+                            @if (!AllScored) { <div class="form-text">Oceń wszystkie kryteria, aby zapisać feedback.</div> }
                         </div>
                     </div>
                 }
@@ -90,6 +120,10 @@
     private string improvements = "";
     private string challenge = "";
     private bool busy;
+    private readonly Dictionary<Guid, int> scores = [];
+    private readonly Dictionary<Guid, string> comments = [];
+
+    private bool AllScored => detail?.Criteria is not { } criteria || criteria.All(c => scores.ContainsKey(c.CriterionId));
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -103,8 +137,11 @@
     private async Task SubmitAsync(ReviewVerdict verdict)
     {
         busy = true;
+        var inputs = (detail?.Criteria ?? [])
+            .Select(c => new CriterionScoreInput(c.CriterionId, scores.GetValueOrDefault(c.CriterionId), comments.GetValueOrDefault(c.CriterionId) ?? string.Empty))
+            .ToList();
         var result = await Reviews.SubmitFeedbackAsync(await GetUserIdAsync(),
-            new SubmitFeedbackRequest(SubmissionId, strengths, improvements, challenge, verdict), Ct);
+            new SubmitFeedbackRequest(SubmissionId, strengths, improvements, challenge, verdict, inputs), Ct);
         if (Handle(result)) await LoadAsync();
         else if (result.Error?.Kind == ErrorKind.Conflict) await LoadAsync();
         busy = false;
