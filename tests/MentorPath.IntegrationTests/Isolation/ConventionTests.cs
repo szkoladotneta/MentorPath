@@ -48,13 +48,13 @@ public sealed class ConventionTests
         ["Workspaces"] = ["Workspaces"],
         ["Mentorships"] = ["Mentorships"],
         ["Invitations"] = ["Invitations", "Mentorships"],
-        ["Catalog"] = ["Topics", "Exercises", "QuizOptions"],
+        ["Catalog"] = ["Topics", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
         ["AiAuthoring"] = ["AiGenerationRequests"],
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments"],
-        ["Reviews"] = ["MentorFeedback", "SubmissionReflections", "Submissions"],
+        ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions"],
         ["Progress"] = [],
-        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "SubmissionReflections", "Invitations"],
+        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.

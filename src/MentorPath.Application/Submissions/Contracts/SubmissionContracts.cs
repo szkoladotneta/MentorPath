@@ -33,6 +33,9 @@ public sealed record SubmissionHistoryItem(Guid SubmissionId, int AttemptNumber,
     int ConfidenceBefore, string? SelectedOptionText, DecisionAnswerV1? DecisionAnswer, string? AnswerMarkdown, string? ExternalUrl,
     AttachmentInfo? Attachment, FeedbackDto? Feedback, ReflectionDto? Reflection, bool CanAddReflection);
 public sealed record AttachmentInfo(Guid AttachmentId, string FileName, string ContentType, long SizeBytes);
-public sealed record FeedbackDto(ReviewVerdict Verdict, string StrengthsMarkdown, string ImprovementsMarkdown, string ChallengeQuestionMarkdown, DateTime CreatedAtUtc);
+public sealed record FeedbackDto(ReviewVerdict Verdict, string StrengthsMarkdown, string ImprovementsMarkdown, string ChallengeQuestionMarkdown, DateTime CreatedAtUtc,
+    IReadOnlyList<FeedbackCriterionScoreDto>? Scores = null);
+// Mentee-safe: criterion text and the description of the awarded level only; never mentor-private data.
+public sealed record FeedbackCriterionScoreDto(Guid CriterionId, string Name, int Position, int Score, string CommentMarkdown, string LevelDescription);
 public sealed record ReflectionDto(int ConfidenceAfter, string TakeawayMarkdown, DateTime CreatedAtUtc);
 public sealed record AttachmentDownload(Stream Content, string FileName, string ContentType);

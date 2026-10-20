@@ -35,7 +35,11 @@ public sealed record CreateExerciseDraftRequest(Guid TopicId, ExerciseType Type,
 public sealed record ExerciseContent(
     string Title, string ScenarioMarkdown, string? InstructionsMarkdown, string? ExpectedOutcomeMarkdown,
     string? RubricMarkdown, string? DiscussionQuestionsMarkdown, string? ExplanationMarkdown,
-    string? MentorGuideMarkdown, int? EstimatedMinutes, IReadOnlyList<QuizOptionInput> QuizOptions);
+    string? MentorGuideMarkdown, int? EstimatedMinutes, IReadOnlyList<QuizOptionInput> QuizOptions,
+    IReadOnlyList<Guid>? CriterionIds = null);
+
+// Level descriptions are indexed 0..4 for levels 1..5.
+public sealed record RubricCriterionDto(Guid CriterionId, string Name, int Position, bool IsActive, IReadOnlyList<string> LevelDescriptions);
 public sealed record QuizOptionInput(string Text, bool IsCorrect, string? ExplanationMarkdown);
 public sealed record ExerciseListFilter(Guid? TopicId, ExerciseStatus? Status, ExerciseType? Type);
 public sealed record ExerciseListItem(Guid ExerciseId, Guid TopicId, string Title, ExerciseType Type, ExerciseStatus Status, ExerciseSource Source, DateTime CreatedAtUtc);
