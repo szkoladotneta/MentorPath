@@ -4,6 +4,7 @@
 @inherits AppComponentBase
 @using MentorPath.Application.Catalog.Contracts
 @inject IExerciseAuthoringService Exercises
+@inject IRubricService Rubric
 
 <PageTitle>Ćwiczenie — MentorPath</PageTitle>
 
@@ -50,7 +51,7 @@
         <ErrorAlert Error="Error" />
         <div class="card">
             <div class="card-body">
-                <ExerciseForm Model="form" Type="exercise.Type" Error="Error" ReadOnly="!isDraft" />
+                <ExerciseForm Model="form" Type="exercise.Type" Error="Error" ReadOnly="!isDraft" Criteria="criteria" />
             </div>
         </div>
     }
@@ -61,6 +62,7 @@
 
     private MentorExerciseDto? exercise;
     private ExerciseFormModel? form;
+    private IReadOnlyList<RubricCriterionDto> criteria = [];
     private bool busy;
     private bool confirmDelete;
     private string? message;
@@ -69,11 +71,14 @@
 
     private async Task LoadAsync()
     {
-        var result = await Exercises.GetMentorExerciseAsync(await GetUserIdAsync(), ExerciseId, Ct);
-        if (Handle(result))
+        var userId = await GetUserIdAsync();
+        var result = await Exercises.GetMentorExerciseAsync(userId, ExerciseId, Ct);
+        var criteriaResult = await Rubric.ListCriteriaAsync(userId, false, Ct);
+        if (Handle(result) && Handle(criteriaResult))
         {
             exercise = result.Value;
-            form = ExerciseFormModel.From(exercise!.Content);
+            criteria = criteriaResult.Value!;
+            form = ExerciseFormModel.From(exercise!.Content, criteria.Select(c => c.CriterionId));
             if (exercise.Type == ExerciseType.QuizSingleChoice && form.QuizOptions.Count == 0)
             {
                 form.QuizOptions.Add(new());
@@ -86,7 +91,7 @@
     private async Task<bool> SaveCoreAsync()
     {
         message = null;
-        return Handle(await Exercises.UpdateDraftAsync(await GetUserIdAsync(), ExerciseId, form!.ToContent(), Ct));
+        return Handle(await Exercises.UpdateDraftAsync(await GetUserIdAsync(), ExerciseId, form!.ToContent(exercise!.Type), Ct));
     }
 
     private async Task SaveAsync()

@@ -1,3 +1,4 @@
+@using MentorPath.Application.Catalog.Contracts
 @{
     var isQuiz = Type == ExerciseType.QuizSingleChoice;
     var isPractical = Type == ExerciseType.PracticalTask;
@@ -29,6 +30,22 @@
             <label class="form-label">Kryteria oceny <span class="text-secondary small">(widoczne dla mentee i podczas review)</span></label>
             <InputTextArea class="form-control" rows="4" @bind-Value="Model.RubricMarkdown" />
             <FieldError Error="Error" Field="RubricMarkdown" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Kryteria procesu decyzyjnego <span class="text-secondary small">(mentor oceni każde w skali 1–5; zarządzasz nimi w <a href="mentor/rubric">rubryce</a>)</span></label>
+            @if (Criteria.Count == 0)
+            {
+                <div class="text-secondary small">Brak aktywnych kryteriów.</div>
+            }
+            @foreach (var c in Criteria)
+            {
+                var id = c.CriterionId;
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="@($"criterion-{id}")" checked="@Model.CriterionIds.Contains(id)" @onchange="e => ToggleCriterion(id, (bool)e.Value!)" />
+                    <label class="form-check-label" for="@($"criterion-{id}")">@c.Name</label>
+                </div>
+            }
+            <FieldError Error="Error" Field="CriterionIds" />
         </div>
     }
     <div class="mb-3">
@@ -84,6 +101,13 @@
     [Parameter] public ExerciseType Type { get; set; }
     [Parameter] public AppError? Error { get; set; }
     [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public IReadOnlyList<RubricCriterionDto> Criteria { get; set; } = [];
+
+    private void ToggleCriterion(Guid id, bool selected)
+    {
+        if (selected) Model.CriterionIds.Add(id);
+        else Model.CriterionIds.Remove(id);
+    }
 
     private void AddOption() => Model.QuizOptions.Add(new ExerciseFormModel.OptionModel());
 

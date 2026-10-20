@@ -1,4 +1,5 @@
 using MentorPath.Application.Catalog.Contracts;
+using MentorPath.Data.Enums;
 
 namespace MentorPath.Web.Components.Pages.Mentor.Exercises;
 
@@ -14,6 +15,7 @@ public sealed class ExerciseFormModel
     public string? MentorGuideMarkdown { get; set; }
     public int? EstimatedMinutes { get; set; }
     public List<OptionModel> QuizOptions { get; set; } = [];
+    public HashSet<Guid> CriterionIds { get; set; } = [];
 
     public sealed class OptionModel
     {
@@ -22,16 +24,19 @@ public sealed class ExerciseFormModel
         public string? ExplanationMarkdown { get; set; }
     }
 
-    public ExerciseContent ToContent() => new(Title, ScenarioMarkdown, InstructionsMarkdown, ExpectedOutcomeMarkdown, RubricMarkdown,
+    /// <summary>A null selection (quiz) leaves the stored selection unchanged on update.</summary>
+    public ExerciseContent ToContent(ExerciseType type) => new(Title, ScenarioMarkdown, InstructionsMarkdown, ExpectedOutcomeMarkdown, RubricMarkdown,
         DiscussionQuestionsMarkdown, ExplanationMarkdown, MentorGuideMarkdown, EstimatedMinutes,
-        QuizOptions.Select(o => new QuizOptionInput(o.Text, o.IsCorrect, o.ExplanationMarkdown)).ToList());
+        QuizOptions.Select(o => new QuizOptionInput(o.Text, o.IsCorrect, o.ExplanationMarkdown)).ToList(),
+        type == ExerciseType.QuizSingleChoice ? null : CriterionIds.ToList());
 
-    public static ExerciseFormModel From(ExerciseContent c) => new()
+    public static ExerciseFormModel From(ExerciseContent c, IEnumerable<Guid> activeCriterionIds) => new()
     {
         Title = c.Title, ScenarioMarkdown = c.ScenarioMarkdown, InstructionsMarkdown = c.InstructionsMarkdown,
         ExpectedOutcomeMarkdown = c.ExpectedOutcomeMarkdown, RubricMarkdown = c.RubricMarkdown,
         DiscussionQuestionsMarkdown = c.DiscussionQuestionsMarkdown, ExplanationMarkdown = c.ExplanationMarkdown,
         MentorGuideMarkdown = c.MentorGuideMarkdown, EstimatedMinutes = c.EstimatedMinutes,
         QuizOptions = c.QuizOptions.Select(o => new OptionModel { Text = o.Text, IsCorrect = o.IsCorrect, ExplanationMarkdown = o.ExplanationMarkdown }).ToList(),
+        CriterionIds = (c.CriterionIds ?? []).Intersect(activeCriterionIds).ToHashSet(),
     };
 }

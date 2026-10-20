@@ -35,6 +35,18 @@ async function login(browser, email) {
   return page;
 }
 
+// Scores every rubric criterion (buttons 1-5) and fills the three feedback fields.
+async function fillFeedback(page, strengths, improvements, challenge, level = 4) {
+  const card = page.locator('.card:has-text("Feedback")').last();
+  const groups = card.locator('[role=group]');
+  const count = await groups.count();
+  if (count === 0) throw new Error('No rubric criteria on the review form');
+  for (let i = 0; i < count; i++) await groups.nth(i).locator(`button:text-is("${level}")`).click();
+  await card.locator('label:has-text("Mocne strony") + textarea').fill(strengths);
+  await card.locator('label:has-text("Do poprawy") + textarea').fill(improvements);
+  await card.locator('label:has-text("Pytanie pogłębiające") + textarea').fill(challenge);
+}
+
 async function expectText(page, text, timeout = 10000) {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout });
 }
@@ -191,10 +203,7 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.waitForURL(/\/mentor\/reviews\/[0-9a-f-]+$/);
     await settle(mentor);
     await expectText(mentor, 'Mentor guide');
-    const fb = mentor.locator('.card:has-text("Feedback") textarea');
-    await fb.nth(0).fill('Dobra analiza alternatyw.');
-    await fb.nth(1).fill('Brakuje opisu ryzyk operacyjnych.');
-    await fb.nth(2).fill('Co się stanie przy 10x ruchu?');
+    await fillFeedback(mentor, 'Dobra analiza alternatyw.', 'Brakuje opisu ryzyk operacyjnych.', 'Co się stanie przy 10x ruchu?', 3);
     await mentor.click('button:has-text("Needs revision")');
     await expectText(mentor, 'została już oceniona');
     log('Mentor sent the ADR back for revision');
@@ -203,6 +212,8 @@ async function expectText(page, text, timeout = 10000) {
     current = mentee;
     await go(mentee, new URL(decisionUrl).pathname + '/history');
     await expectText(mentee, 'Brakuje opisu ryzyk operacyjnych.');
+    await expectText(mentee, 'Ocena procesu decyzyjnego');
+    await expectText(mentee, '3/5');
     await mentee.click('.card:has-text("Refleksja po ocenie") label[for$="-3"]');
     await mentee.locator('.card:has-text("Refleksja po ocenie") textarea').fill('Muszę opisywać ryzyka.');
     await mentee.click('button:has-text("Zapisz refleksję")');
@@ -224,10 +235,7 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.click(`a:has-text("Decyzja CQRS ${stamp}")`);
     await mentor.waitForURL(/\/mentor\/reviews\/[0-9a-f-]+$/);
     await settle(mentor);
-    const fb2 = mentor.locator('.card:has-text("Feedback") textarea');
-    await fb2.nth(0).fill('Kompletne.');
-    await fb2.nth(1).fill('Drobne poprawki.');
-    await fb2.nth(2).fill('Kiedy wrócisz do decyzji?');
+    await fillFeedback(mentor, 'Kompletne.', 'Drobne poprawki.', 'Kiedy wrócisz do decyzji?', 5);
     await mentor.click('button:has-text("Accepted")');
     await expectText(mentor, 'została już oceniona');
     log('Mentor accepted attempt #2');
@@ -254,8 +262,7 @@ async function expectText(page, text, timeout = 10000) {
         await go(mentor, '/mentor/reviews');
         await mentor.click('a:has-text("Idempotentny endpoint płatności")');
         await settle(mentor);
-        const fb3 = mentor.locator('.card:has-text("Feedback") textarea');
-        await fb3.nth(0).fill('OK'); await fb3.nth(1).fill('Dodaj testy'); await fb3.nth(2).fill('Retencja kluczy?');
+        await fillFeedback(mentor, 'OK', 'Dodaj testy', 'Retencja kluczy?');
         await mentor.click('button:has-text("Needs revision")');
         await expectText(mentor, 'została już oceniona');
         current = ola;
