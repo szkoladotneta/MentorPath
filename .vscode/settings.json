@@ -1,0 +1,22 @@
+{
+  "dotnet.defaultSolution": "MentorPath.slnx",
+  "dotnet.preferCSharpExtension": true,
+  "omnisharp.enableMsBuildLoadProjectsOnDemand": true,
+  "terminal.integrated.env.osx": {
+    "ASPNETCORE_ENVIRONMENT": "Development"
+  },
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/.idea": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/TestResults": true
+  },
+  "editor.formatOnSave": true,
+  "github.copilot.chat.localeOverride": "pl",
+  "github.copilot.chat.agent.thinkingTool": true
+}

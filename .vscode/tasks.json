@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dotnet: build",
+      "type": "shell",
+      "command": "dotnet build MentorPath.slnx --nologo",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "dotnet: unit tests",
+      "type": "shell",
+      "command": "dotnet test tests/MentorPath.UnitTests --nologo",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: integration tests",
+      "type": "shell",
+      "command": "dotnet test tests/MentorPath.IntegrationTests --nologo",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "dotnet: seed demo",
+      "type": "shell",
+      "command": "dotnet run --project src/MentorPath.Web -- seed-demo",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "dotnet: web app",
+      "type": "shell",
+      "command": "dotnet run --project src/MentorPath.Web --launch-profile https",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
