@@ -2,7 +2,6 @@ bin/
 obj/
 .vs/
 .idea/
-.vscode/
 *.user
 *.db
 *.sqlite

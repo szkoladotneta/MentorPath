@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MentorPath Web (HTTPS)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/MentorPath.Web/bin/Debug/net10.0/MentorPath.Web.dll",
+      "cwd": "${workspaceFolder}/src/MentorPath.Web",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on .*https://localhost:7083"
+      }
+    },
+    {
+      "name": "MentorPath Web (HTTP)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/MentorPath.Web/bin/Debug/net10.0/MentorPath.Web.dll",
+      "cwd": "${workspaceFolder}/src/MentorPath.Web",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on .*http://localhost:5237"
+      }
+    }
+  ]
+}

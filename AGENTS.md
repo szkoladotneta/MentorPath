@@ -49,6 +49,18 @@ If the docs do not answer a question, do not guess: add a `Proposed` entry to `d
 6. **Review.** CI must pass. A human reviews; for changes touching authorization or data access, also run the `mentorpath-security-reviewer` agent.
 7. **Board.** Work is tracked on the GitHub Project "MentorPath Backlog" (`Backlog → Planned → In progress → In review → Done`). Move cards with `scripts/board.sh <issue> <status>` (best effort; if it cannot, tell the human which card to move).
 
+### Session flow for GitHub Copilot
+
+Use the repo's issue-driven rhythm in the app:
+
+- Start a session for a backlog item such as `pickup #<n>` or an equivalent issue-focused session name.
+- In the first pass, keep the session in planning mode and confirm the issue, acceptance criteria, and isolation matrix.
+- Once the plan is clear, switch to autopilot for implementation.
+- At the end, ask whether the human wants to `ship` the change, then open the draft PR using the repo template.
+- Start a separate review session afterward with `mentorpath-pr-reviewer` on a different model; if review comments remain, the implementer should `/address-review` them, otherwise end with a retro.
+
+Repo-defined slash commands like `/pickup`, `/ship`, and `/pr-review` are not native to this GitHub Copilot project. The supported equivalent is this agent + model + issue/PR workflow, defined by the files in `.github/`.
+
 **Always end your final answer with a `## Next step` section**: exactly one concrete action for the human with the literal prompt or link to use, chosen from the workflow above (answer open questions, merge the schema PR, run the security reviewer, review and merge, or what is blocking you). Never end without it.
 
 ## Definition of Done
