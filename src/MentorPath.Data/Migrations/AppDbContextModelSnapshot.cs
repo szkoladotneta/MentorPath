@@ -276,6 +276,56 @@ namespace MentorPath.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.ExerciseCriterion", b =>
+                {
+                    b.Property<Guid>("ExerciseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ExerciseId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId", "ExerciseId");
+
+                    b.ToTable("ExerciseCriteria");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.FeedbackCriterionScore", b =>
+                {
+                    b.Property<Guid>("FeedbackId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommentMarkdown")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<short>("Score")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("FeedbackId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId", "FeedbackId");
+
+                    b.ToTable("FeedbackCriterionScores", t =>
+                        {
+                            t.HasCheckConstraint("CK_FeedbackCriterionScores_Score", "\"Score\" BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -529,6 +579,64 @@ namespace MentorPath.Data.Migrations
                     b.HasIndex("WorkspaceId", "TopicId");
 
                     b.ToTable("RoadmapItems");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.RubricCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Level1Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Level2Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Level3Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Level4Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Level5Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkspaceId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("RubricCriteria", t =>
+                        {
+                            t.HasCheckConstraint("CK_RubricCriteria_Position", "\"Position\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Submission", b =>
@@ -948,6 +1056,60 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.ExerciseCriterion", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.RubricCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CriterionId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Exercise", "Exercise")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "ExerciseId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Criterion");
+
+                    b.Navigation("Exercise");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.FeedbackCriterionScore", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.RubricCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CriterionId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.MentorFeedback", "Feedback")
+                        .WithMany("CriterionScores")
+                        .HasForeignKey("WorkspaceId", "FeedbackId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Criterion");
+
+                    b.Navigation("Feedback");
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Invitation", b =>
                 {
                     b.HasOne("MentorPath.Data.AppUser", null)
@@ -1060,6 +1222,15 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Roadmap");
 
                     b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.RubricCriterion", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Submission", b =>
@@ -1203,6 +1374,11 @@ namespace MentorPath.Data.Migrations
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
                 {
                     b.Navigation("QuizOptions");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.MentorFeedback", b =>
+                {
+                    b.Navigation("CriterionScores");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Mentorship", b =>

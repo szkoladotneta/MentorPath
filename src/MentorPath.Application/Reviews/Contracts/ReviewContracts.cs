@@ -15,9 +15,10 @@ public interface IReviewService
 public sealed record PendingReviewItem(Guid SubmissionId, Guid MentorshipId, string MenteeDisplayName, string ExerciseTitle,
     ExerciseType Type, int AttemptNumber, DateTime SubmittedAtUtc, DateTime? DueAtUtc);
 public sealed record ReviewDetailDto(Guid SubmissionId, Guid MentorshipId, string MenteeDisplayName, SubmissionStatus Status,
-    MentorExerciseDto Exercise, SubmissionHistoryDto History);
+    MentorExerciseDto Exercise, SubmissionHistoryDto History, IReadOnlyList<RubricCriterionDto>? Criteria = null);
+public sealed record CriterionScoreInput(Guid CriterionId, int Score, string CommentMarkdown);
 public sealed record SubmitFeedbackRequest(Guid SubmissionId, string StrengthsMarkdown, string ImprovementsMarkdown,
-    string ChallengeQuestionMarkdown, ReviewVerdict Verdict);
+    string ChallengeQuestionMarkdown, ReviewVerdict Verdict, IReadOnlyList<CriterionScoreInput>? Scores = null);
 
 public interface IReflectionService
 {

@@ -181,6 +181,7 @@ internal sealed class MentorFeedbackConfiguration : IEntityTypeConfiguration<Men
     public void Configure(EntityTypeBuilder<MentorFeedback> e)
     {
         e.ToTable("MentorFeedback");
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
         e.HasIndex(x => x.SubmissionId).IsUnique();
         e.HasIndex(x => x.WorkspaceId);
         e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
@@ -189,6 +190,60 @@ internal sealed class MentorFeedbackConfiguration : IEntityTypeConfiguration<Men
             .HasForeignKey<MentorFeedback>(x => new { x.WorkspaceId, x.SubmissionId })
             .HasPrincipalKey<Submission>(s => new { s.WorkspaceId, s.Id })
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class RubricCriterionConfiguration : IEntityTypeConfiguration<RubricCriterion>
+{
+    public void Configure(EntityTypeBuilder<RubricCriterion> e)
+    {
+        e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        e.Property(x => x.Level1Description).HasMaxLength(1000).IsRequired();
+        e.Property(x => x.Level2Description).HasMaxLength(1000).IsRequired();
+        e.Property(x => x.Level3Description).HasMaxLength(1000).IsRequired();
+        e.Property(x => x.Level4Description).HasMaxLength(1000).IsRequired();
+        e.Property(x => x.Level5Description).HasMaxLength(1000).IsRequired();
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_RubricCriteria_Position", "\"Position\" >= 0"));
+    }
+}
+
+internal sealed class ExerciseCriterionConfiguration : IEntityTypeConfiguration<ExerciseCriterion>
+{
+    public void Configure(EntityTypeBuilder<ExerciseCriterion> e)
+    {
+        e.HasKey(x => new { x.ExerciseId, x.CriterionId });
+        e.HasIndex(x => new { x.WorkspaceId, x.CriterionId });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Exercise).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.ExerciseId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Cascade);
+        e.HasOne(x => x.Criterion).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.CriterionId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class FeedbackCriterionScoreConfiguration : IEntityTypeConfiguration<FeedbackCriterionScore>
+{
+    public void Configure(EntityTypeBuilder<FeedbackCriterionScore> e)
+    {
+        e.HasKey(x => new { x.FeedbackId, x.CriterionId });
+        e.HasIndex(x => new { x.WorkspaceId, x.CriterionId });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Feedback).WithMany(f => f.CriterionScores)
+            .HasForeignKey(x => new { x.WorkspaceId, x.FeedbackId })
+            .HasPrincipalKey(f => new { f.WorkspaceId, f.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Criterion).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.CriterionId })
+            .HasPrincipalKey(c => new { c.WorkspaceId, c.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_FeedbackCriterionScores_Score", "\"Score\" BETWEEN 1 AND 5"));
     }
 }
 

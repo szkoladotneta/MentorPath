@@ -195,6 +195,44 @@ public sealed class MentorFeedback : IWorkspaceScoped
     public DateTime CreatedAtUtc { get; set; }
 
     public Submission? Submission { get; set; }
+    public List<FeedbackCriterionScore> CriterionScores { get; set; } = [];
+}
+
+public sealed class RubricCriterion : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public string Name { get; set; } = "";
+    public int Position { get; set; }
+    public bool IsActive { get; set; }
+    public string Level1Description { get; set; } = "";
+    public string Level2Description { get; set; } = "";
+    public string Level3Description { get; set; } = "";
+    public string Level4Description { get; set; } = "";
+    public string Level5Description { get; set; } = "";
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public sealed class ExerciseCriterion : IWorkspaceScoped
+{
+    public Guid WorkspaceId { get; set; }
+    public Guid ExerciseId { get; set; }
+    public Guid CriterionId { get; set; }
+
+    public Exercise? Exercise { get; set; }
+    public RubricCriterion? Criterion { get; set; }
+}
+
+public sealed class FeedbackCriterionScore : IWorkspaceScoped
+{
+    public Guid WorkspaceId { get; set; }
+    public Guid FeedbackId { get; set; }
+    public Guid CriterionId { get; set; }
+    public short Score { get; set; }
+    public string CommentMarkdown { get; set; } = "";
+
+    public MentorFeedback? Feedback { get; set; }
+    public RubricCriterion? Criterion { get; set; }
 }
 
 public sealed class SubmissionReflection

@@ -301,6 +301,23 @@ Decyzja:
 
 Wpływ: nowy wpis własności zapisu `Privacy` (DOMAIN_RULES §5, w tym tabele Identity), wyjątek twardego usuwania załączników (§3), test `Operator_services_are_used_only_by_the_CLI`.
 
+## D-43 — Rubryka procesu decyzyjnego: model danych i reguły (N10)
+Status: Proposed (2026-10-20; zakres i odpowiedzi w issue #5)
+
+Doprecyzowuje D-38. Zastępuje REV-04 („bez obowiązkowej skali”) dla ćwiczeń recenzowanych: ocena punktowa jest obowiązkowa, ale nie zastępuje jakościowego feedbacku (Strengths/Improvements/Challenge pozostają wymagane).
+
+Decyzja:
+- Tabele: `RubricCriteria` (per workspace: nazwa, pozycja, `IsActive`, opisy poziomów 1–5), `ExerciseCriteria` (wybór kryteriów przez ćwiczenie), `FeedbackCriterionScores` (ocena 1–5 + komentarz widoczny dla mentee, per kryterium). Własność zapisu: Catalog (`RubricCriteria`, `ExerciseCriteria`), Reviews i Privacy (`FeedbackCriterionScores`).
+- Migracja zasiewa 6 domyślnych kryteriów dla każdego istniejącego workspace'u i wybiera wszystkie dla każdego ćwiczenia recenzowanego (typ ≠ quiz). `RubricMarkdown` pozostaje bez zmian jako opis zadania. Treść domyślnych opisów poziomów jest szkicem do akceptacji właściciela.
+- Workspace utworzony po migracji dostaje domyślne kryteria leniwie i idempotentnie przy pierwszym użyciu w module Catalog (bez zapisu między modułami z `Workspaces`).
+- Nowe ćwiczenie recenzowane domyślnie wybiera wszystkie aktywne kryteria; mentor może zmienić wybór (min. 1).
+- Review wymaga dokładnie jednej oceny na każde wybrane kryterium; ocena jest niezmienna po zapisie (jak feedback), zapisana w tej samej transakcji co feedback.
+- Kryteria można tylko dezaktywować, nie usuwać. Brak snapshotu: edycja nazwy/opisu zmienia sposób wyświetlania także starszych ocen (świadomie, najprostsze rozwiązanie). Feedback sprzed N10 nie ma ocen.
+- DTO mentee zawiera nazwę kryterium, ocenę, komentarz i opis przyznanego poziomu; nie zawiera danych prywatnych mentora. Brak prywatnych notatek per kryterium w N10.
+- Zmiana kontraktów w PR schematu ogranicza się do kształtu DTO (opcjonalne parametry końcowe); nowy `IRubricService` powstaje w PR z serwisami.
+
+Wpływ: nowe tabele i `AK (WorkspaceId, Id)` na `MentorFeedback`; DOMAIN_RULES §3 i §5; `WriteOwnership` w `ConventionTests`.
+
 ---
 
 ## Change Requests
