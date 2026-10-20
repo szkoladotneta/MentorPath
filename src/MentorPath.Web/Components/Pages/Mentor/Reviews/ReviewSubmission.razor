@@ -125,7 +125,22 @@
 
     private bool AllScored => detail?.Criteria is not { } criteria || criteria.All(c => scores.ContainsKey(c.CriterionId));
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private Guid? loadedSubmissionId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Blazor reuses this instance across route changes; drop the previous review's input.
+        if (loadedSubmissionId != SubmissionId)
+        {
+            loadedSubmissionId = SubmissionId;
+            detail = null;
+            strengths = improvements = challenge = "";
+            scores.Clear();
+            comments.Clear();
+            Loading = true;
+        }
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
