@@ -74,7 +74,7 @@ internal sealed class RubricService(
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // Serializes concurrent changes within the workspace so the "last active criterion" guard cannot be raced.
-        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({ws.Value.ToString()}, 0))", ct);
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({ws.Value.ToString()}::text, 0::bigint))", ct);
         if (!isActive && !await db.RubricCriteria.AnyAsync(c => c.WorkspaceId == ws && c.IsActive && c.Id != criterionId, ct))
             return Errors.Conflict("rubric.last_active_criterion", "Co najmniej jedno kryterium musi pozostać aktywne.");
 

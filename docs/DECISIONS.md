@@ -324,7 +324,7 @@ Doprecyzowanie (PR z serwisami):
 - Nie można dezaktywować ostatniego aktywnego kryterium (`rubric.last_active_criterion`); nazwa kryterium jest unikalna w workspace (`rubric.name_taken`).
 - `ExerciseContent.CriterionIds == null` przy edycji oznacza „bez zmian”; przy tworzeniu — wszystkie aktywne. Pusta lista jest dozwolona w szkicu, ale blokuje publikację (typ ≠ quiz). Quiz nie ma kryteriów.
 - Kryterium z innego workspace'u w ocenie lub w wyborze ćwiczenia → `NotFound`; kryterium nieaktywne w wyborze ćwiczenia → walidacja.
-- Wyjątek od zasady „kontrakty w PR schematu”: `IRubricService`, `UpdateRubricCriterionRequest` i `CriterionScoreExport` dodane w PR z serwisami, bo zależą od implementacji (wymaga review CODEOWNERS).
+- Wyjątek od zasady „kontrakty w PR schematu”: `IRubricService`, `UpdateRubricCriterionRequest` i `CriterionScoreExport` dodane w PR z serwisami (wymaga jawnej akceptacji CODEOWNERS). Uzasadnienie: `ConventionTests` wymagają testu `NotFound` dla każdej metody `I*Service`, więc samego interfejsu nie da się zmergować bez implementacji; kształty DTO, które zależą od schematu, były już w PR schematu (#52).
 - Eksport danych osobowych zawiera oceny kryteriów; anonimizacja czyści komentarze do kryteriów.
 
 ---
