@@ -64,7 +64,8 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         var a = await Data.MentorAsync();
         var mentee = await Data.MenteeAsync(a);
         var s = await Data.DecisionSubmissionAsync(mentee, (await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.ArchitecturalDecision)).AssignmentId);
-        (await Reviews.SubmitFeedbackAsync(a.UserId, new(s.SubmissionId, "", "", "", ReviewVerdict.Accepted), default))
+        var scores = await Data.ScoresAsync(a);
+        (await Reviews.SubmitFeedbackAsync(a.UserId, new(s.SubmissionId, "", "", "", ReviewVerdict.Accepted, scores), default))
             .ShouldFail(ErrorKind.Validation).FieldErrors!.Count.ShouldBe(3);
     }
 
@@ -74,14 +75,16 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         var a = await Data.MentorAsync();
         var mentee = await Data.MenteeAsync(a);
         var s = await Data.DecisionSubmissionAsync(mentee, (await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.ArchitecturalDecision)).AssignmentId);
+        var scores = await Data.ScoresAsync(a);
 
         var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(i =>
             App.Get<IReviewService>().SubmitFeedbackAsync(a.UserId,
-                new(s.SubmissionId, "S", "I", "Q", i % 2 == 0 ? ReviewVerdict.Accepted : ReviewVerdict.NeedsRevision), default)));
+                new(s.SubmissionId, "S", "I", "Q", i % 2 == 0 ? ReviewVerdict.Accepted : ReviewVerdict.NeedsRevision, scores), default)));
 
         results.Count(r => r.IsSuccess).ShouldBe(1);
         results.Where(r => !r.IsSuccess).ShouldAllBe(r => r.Error!.Kind == ErrorKind.Conflict);
         (await App.Db(ctx => ctx.MentorFeedback.CountAsync(f => f.SubmissionId == s.SubmissionId))).ShouldBe(1);
+        (await App.Db(ctx => ctx.FeedbackCriterionScores.CountAsync(x => x.Feedback!.SubmissionId == s.SubmissionId))).ShouldBe(scores.Count);
         var feedback = await App.Db(ctx => ctx.MentorFeedback.SingleAsync(f => f.SubmissionId == s.SubmissionId));
         var status = (await App.Db(ctx => ctx.Submissions.SingleAsync(x => x.Id == s.SubmissionId))).Status;
         status.ShouldBe(feedback.Verdict == ReviewVerdict.Accepted ? SubmissionStatus.Accepted : SubmissionStatus.NeedsRevision);
@@ -94,13 +97,14 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         var mentee = await Data.MenteeAsync(a);
         var asg = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.ArchitecturalDecision);
         var first = await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
-        (await Reviews.SubmitFeedbackAsync(a.UserId, new(first.SubmissionId, "S", "I", "Q", ReviewVerdict.NeedsRevision), default)).ShouldSucceed();
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(a.UserId, new(first.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted), default))
+        var scores = await Data.ScoresAsync(a);
+        (await Reviews.SubmitFeedbackAsync(a.UserId, new(first.SubmissionId, "S", "I", "Q", ReviewVerdict.NeedsRevision, scores), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(a.UserId, new(first.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted, scores), default))
             .ShouldFail(ErrorKind.Conflict, "review.not_pending");
 
         var second = await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
         second.AttemptNumber.ShouldBe(2);
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(a.UserId, new(second.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(a.UserId, new(second.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted, scores), default)).ShouldSucceed();
 
         (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, asg.AssignmentId, default)).ShouldSucceed()
             .SubmitBlockReason.ShouldBe(SubmitBlockReason.AlreadyCompleted);
@@ -117,7 +121,7 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         var reflections = App.Get<IReflectionService>();
 
         (await reflections.SaveReflectionAsync(mentee.UserId, new(s.SubmissionId, 4, "Wniosek"), default)).ShouldFail(ErrorKind.Conflict, "reflection.not_reviewed");
-        (await Reviews.SubmitFeedbackAsync(a.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted), default)).ShouldSucceed();
+        (await Reviews.SubmitFeedbackAsync(a.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted, await Data.ScoresAsync(a)), default)).ShouldSucceed();
 
         (await App.Get<IReflectionService>().SaveReflectionAsync(other.UserId, new(s.SubmissionId, 4, "x"), default)).ShouldBeNotFound();
         (await App.Get<IReflectionService>().SaveReflectionAsync(a.UserId, new(s.SubmissionId, 4, "x"), default)).ShouldBeNotFound();

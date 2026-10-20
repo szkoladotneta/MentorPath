@@ -58,8 +58,19 @@ internal sealed class ReviewService(
         var acc = new AssignmentAccess(s.AssignmentId, ws.Value, s.Roadmap.MentorshipId, s.MenteeUserId, s.ExerciseId,
             AccessRole.WorkspaceOwner, s.MentorshipStatus, s.Roadmap.Status, s.IsActive, s.ItemActive);
         var history = await SubmissionService.LoadHistoryAsync(db, acc, ct);
-        return new ReviewDetailDto(s.Id, s.Roadmap.MentorshipId, s.MenteeName, s.Status, ExerciseAuthoringService.ToMentorDto(exercise), history);
+        var criteria = (await LoadReviewCriteriaAsync(db, ws.Value, s.ExerciseId, ct)).Select(RubricService.ToDto).ToList();
+        var criterionIds = await ExerciseAuthoringService.LoadCriterionIdsAsync(db, ws.Value, s.ExerciseId, activeOnly: false, ct);
+        return new ReviewDetailDto(s.Id, s.Roadmap.MentorshipId, s.MenteeName, s.Status,
+            ExerciseAuthoringService.ToMentorDto(exercise, criterionIds), history, criteria);
     }
+
+    // Criteria a review must score: those selected for the exercise that are still active.
+    private static Task<List<RubricCriterion>> LoadReviewCriteriaAsync(AppDbContext db, Guid workspaceId, Guid exerciseId, CancellationToken ct) =>
+        db.ExerciseCriteria.AsNoTracking()
+            .Where(x => x.ExerciseId == exerciseId && x.WorkspaceId == workspaceId && x.Criterion!.IsActive)
+            .Select(x => x.Criterion!)
+            .OrderBy(c => c.Position).ThenBy(c => c.Name)
+            .ToListAsync(ct);
 
     public async Task<Result<Guid>> SubmitFeedbackAsync(Guid actorUserId, SubmitFeedbackRequest request, CancellationToken ct)
     {
@@ -71,10 +82,22 @@ internal sealed class ReviewService(
         errors.Required(nameof(request.ImprovementsMarkdown), request.ImprovementsMarkdown, InputLimits.Markdown, "Do poprawy");
         errors.Required(nameof(request.ChallengeQuestionMarkdown), request.ChallengeQuestionMarkdown, InputLimits.Markdown, "Pytanie pogłębiające");
         if (!Enum.IsDefined(request.Verdict)) errors.Add(nameof(request.Verdict), "Wybierz werdykt.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var exerciseId = await db.Submissions.AsNoTracking()
+            .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws)
+            .Select(s => (Guid?)s.Assignment!.ExerciseId)
+            .FirstOrDefaultAsync(ct);
+        if (exerciseId is null) return Errors.NotFound(Module);
+
+        var required = await LoadReviewCriteriaAsync(db, ws.Value, exerciseId.Value, ct);
+        var scores = request.Scores ?? [];
+        var workspaceCriterionIds = await db.RubricCriteria.AsNoTracking().Where(c => c.WorkspaceId == ws).Select(c => c.Id).ToListAsync(ct);
+        if (scores.Any(x => !workspaceCriterionIds.Contains(x.CriterionId))) return Errors.NotFound(Module);
+        ValidateScores(errors, scores, required);
         if (errors.HasErrors) return errors.ToError("review.invalid");
 
         var newStatus = request.Verdict == ReviewVerdict.Accepted ? SubmissionStatus.Accepted : SubmissionStatus.NeedsRevision;
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var rows = await db.Submissions
             .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws && s.Status == SubmissionStatus.PendingReview)
@@ -101,6 +124,15 @@ internal sealed class ReviewService(
             CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
         };
         db.MentorFeedback.Add(feedback);
+        foreach (var score in scores)
+            db.FeedbackCriterionScores.Add(new FeedbackCriterionScore
+            {
+                WorkspaceId = ws.Value,
+                FeedbackId = feedback.Id,
+                CriterionId = score.CriterionId,
+                Score = (short)score.Score,
+                CommentMarkdown = score.CommentMarkdown?.Trim() ?? "",
+            });
         try
         {
             await db.SaveChangesAsync(ct);
@@ -112,6 +144,23 @@ internal sealed class ReviewService(
             return Errors.Conflict("review.already_reviewed", "Ta próba ma już feedback.");
         }
         return feedback.Id;
+    }
+
+    private static void ValidateScores(FieldErrors errors, IReadOnlyList<CriterionScoreInput> scores, IReadOnlyList<RubricCriterion> required)
+    {
+        const string Field = nameof(SubmitFeedbackRequest.Scores);
+        var requiredIds = required.Select(c => c.Id).ToHashSet();
+        if (scores.Select(x => x.CriterionId).Distinct().Count() != scores.Count)
+            errors.Add(Field, "Każde kryterium może mieć tylko jedną ocenę.");
+        if (scores.Any(x => !requiredIds.Contains(x.CriterionId)))
+            errors.Add(Field, "Oceniono kryterium, które nie dotyczy tego ćwiczenia.");
+        foreach (var c in required.Where(c => scores.All(x => x.CriterionId != c.Id)))
+            errors.Add(Field, $"Brak oceny dla kryterium „{c.Name}”.");
+        for (var i = 0; i < scores.Count; i++)
+        {
+            errors.Range($"{Field}[{i}].Score", scores[i].Score, 1, 5, "Ocena");
+            errors.Optional($"{Field}[{i}].CommentMarkdown", scores[i].CommentMarkdown, InputLimits.Markdown, "Komentarz do kryterium");
+        }
     }
 }
 

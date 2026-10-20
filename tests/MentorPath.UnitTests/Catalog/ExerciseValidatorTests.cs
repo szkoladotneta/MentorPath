@@ -63,6 +63,31 @@ public sealed class ExerciseValidatorTests
     }
 
     [Fact]
+    public void Quiz_cannot_have_criteria()
+    {
+        var content = Quiz(new QuizOptionInput("A", true, null)) with { CriterionIds = [Guid.NewGuid()] };
+        ExerciseValidator.ValidateDraft(ExerciseType.QuizSingleChoice, content).ToDictionary().ShouldContainKey("CriterionIds");
+    }
+
+    [Fact]
+    public void Criteria_must_be_unique()
+    {
+        var id = Guid.NewGuid();
+        var content = new ExerciseContent("AD", "S", "I", "E", "R", null, null, null, null, []) with { CriterionIds = [id, id] };
+        ExerciseValidator.ValidateDraft(ExerciseType.ArchitecturalDecision, content).ToDictionary().ShouldContainKey("CriterionIds");
+        ExerciseValidator.ValidateDraft(ExerciseType.ArchitecturalDecision, content with { CriterionIds = [id, Guid.NewGuid()] }).HasErrors.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Publish_requires_criteria_for_non_quiz_unless_not_loaded()
+    {
+        var content = new ExerciseContent("AD", "S", "I", "E", "R", null, null, null, null, []);
+        ExerciseValidator.ValidateForPublish(ExerciseType.ArchitecturalDecision, content with { CriterionIds = [] }).ToDictionary().ShouldContainKey("CriterionIds");
+        ExerciseValidator.ValidateForPublish(ExerciseType.ArchitecturalDecision, content with { CriterionIds = null }).ToDictionary().ShouldNotContainKey("CriterionIds");
+        ExerciseValidator.ValidateForPublish(ExerciseType.ArchitecturalDecision, content with { CriterionIds = [Guid.NewGuid()] }).ToDictionary().ShouldNotContainKey("CriterionIds");
+    }
+
+    [Fact]
     public void Draft_allows_incomplete_content_but_enforces_lengths()
     {
         var content = new ExerciseContent("Tytuł", "", null, null, null, null, null, null, null, []);

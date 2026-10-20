@@ -30,7 +30,7 @@ public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
         var pending = (await App.Get<IProgressService>().GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
         pending.Topics.Single(t => t.RoadmapItemId == required.RoadmapItemId).Status.ShouldBe(TopicProgressStatus.InProgress);
 
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted, await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
         var after = (await App.Get<IProgressService>().GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
         after.Topics.Single(t => t.RoadmapItemId == required.RoadmapItemId).Status.ShouldBe(TopicProgressStatus.Completed);
         after.CompletedTopics.ShouldBe(1);
@@ -46,7 +46,7 @@ public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
         var first = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
         var second = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
         var s = await Data.DecisionSubmissionAsync(mentee, first.AssignmentId);
-        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted), default)).ShouldSucceed();
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId, new(s.SubmissionId, "S", "I", "Q", ReviewVerdict.Accepted, await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
         (await App.Get<IProgressService>().GetRoadmapProgressAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed().PercentComplete.ShouldBe(50);
 
         (await App.Get<IRoadmapService>().SetTopicActiveAsync(mentor.UserId, second.RoadmapItemId, false, default)).ShouldSucceed();

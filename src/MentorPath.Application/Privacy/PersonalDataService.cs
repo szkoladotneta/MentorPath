@@ -65,6 +65,23 @@ internal sealed class PersonalDataService(
                     s.Reflection.CreatedAtUtc)))
             .ToListAsync(ct);
 
+        var submissionIds = submissions.Where(s => s.Feedback is not null).Select(s => s.SubmissionId).ToList();
+        if (submissionIds.Count > 0)
+        {
+            var scores = (await read.FeedbackCriterionScores.AsNoTracking()
+                    .Where(x => submissionIds.Contains(x.Feedback!.SubmissionId))
+                    .OrderBy(x => x.Criterion!.Position).ThenBy(x => x.Criterion!.Name)
+                    .Select(x => new { x.Feedback!.SubmissionId, Score = new CriterionScoreExport(x.Criterion!.Name, x.Criterion.Position, x.Score, x.CommentMarkdown) })
+                    .ToListAsync(ct))
+                .GroupBy(x => x.SubmissionId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<CriterionScoreExport>)g.Select(x => x.Score).ToList());
+            submissions = submissions
+                .Select(s => s.Feedback is not null && scores.TryGetValue(s.SubmissionId, out var list)
+                    ? s with { Feedback = s.Feedback with { CriterionScores = list } }
+                    : s)
+                .ToList();
+        }
+
         var normalizedEmail = user.NormalizedEmail ?? "";
         var invitations = await read.Invitations.AsNoTracking()
             .Where(i => i.NormalizedEmail == normalizedEmail)
@@ -150,6 +167,9 @@ internal sealed class PersonalDataService(
                 .SetProperty(f => f.StrengthsMarkdown, "")
                 .SetProperty(f => f.ImprovementsMarkdown, "")
                 .SetProperty(f => f.ChallengeQuestionMarkdown, ""), ct);
+        await db.FeedbackCriterionScores
+            .Where(x => submissionIds.Contains(x.Feedback!.SubmissionId))
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.CommentMarkdown, ""), ct);
         await db.SubmissionReflections
             .Where(r => submissionIds.Contains(r.SubmissionId))
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.TakeawayMarkdown, ""), ct);
