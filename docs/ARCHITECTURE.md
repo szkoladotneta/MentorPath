@@ -50,7 +50,8 @@ MentorPath/
 │  │  ├─ Roadmaps/                  # A3
 │  │  ├─ Submissions/               # A3
 │  │  ├─ Reviews/                   # A4 (Reviews + Reflections)
-│  │  └─ Progress/                  # A4
+│  │  ├─ Progress/                  # A4
+│  │  └─ Privacy/                   # N04: eksport i anonimizacja mentee (tylko CLI, D-42)
 │  │     # Każdy moduł:
 │  │     #   Contracts/            — interfejsy + DTO (ZAMROŻONE, zmiana przez CR)
 │  │     #   <X>Service.cs         — implementacja (internal sealed)
@@ -58,7 +59,7 @@ MentorPath/
 │  └─ MentorPath.Web/
 │     ├─ Program.cs                 # A1
 │     ├─ Composition/               # A1: auth, cookies, rate limiting, health, headers, AddMentorPathModules()
-│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs)
+│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs); N04: export-user, anonymize-user (PrivacyCommands.cs)
 │     ├─ Endpoints/                 # A1: Account (jeśli potrzebne); A3: AttachmentEndpoints.cs, PracticalSubmissionEndpoints.cs
 │     └─ Components/
 │        ├─ App.razor, Routes.razor, _Imports.razor     # A1
@@ -106,7 +107,7 @@ flowchart TB
   subgraph Web["MentorPath.Web (Blazor Interactive Server + endpoints + CLI)"]
     UI[Pages / Components]
     EP[Endpoints: upload/download]
-    CLI[CLI: migrate, create-mentor, seed]
+    CLI[CLI: migrate, create-mentor, seed, export-user, anonymize-user]
   end
   subgraph App["MentorPath.Application"]
     COMMON["Common (A1)<br/>Result · IWorkspaceAccessService · IFileStorage · IMarkdownRenderer"]
@@ -117,6 +118,7 @@ flowchart TB
     SUB["Submissions (A3)"]
     REV["Reviews (A4)"]
     PRG["Progress (A4)"]
+    PRV["Privacy (N04, tylko CLI)"]
   end
   DATA["MentorPath.Data (A1)<br/>AppDbContext · Entities · Migrations"]
   PG[(PostgreSQL)]
@@ -125,13 +127,13 @@ flowchart TB
 
   UI --> WS & CAT & AI & RDM & SUB & REV & PRG
   EP --> SUB
-  CLI --> WS
+  CLI --> WS & PRV
   AI -->|"IExerciseAuthoringService"| CAT
   RDM -.->|read Topics/Exercises| DATA
   SUB -->|"IExerciseAuthoringService.GetMenteeExerciseAsync"| CAT
   REV -->|"ISubmissionService.GetHistoryAsync"| SUB
   PRG -.->|read Roadmaps/Assignments/Submissions| DATA
-  WS & CAT & AI & RDM & SUB & REV & PRG --> COMMON
+  WS & CAT & AI & RDM & SUB & REV & PRG & PRV --> COMMON
   COMMON --> DATA
   WS & CAT & AI & RDM & SUB & REV & PRG --> DATA
   DATA --> PG
@@ -227,6 +229,8 @@ Lokalnie: `docker compose up -d` (postgres, SeaweedFS S3, mailpit) + `dotnet run
 - `migrate` — stosuje migracje (deploy: krok przed startem aplikacji). W Development migracje także przy starcie.
 - `create-mentor --email --name --workspace` — tworzy użytkownika (rola Mentor) + Workspace, wypisuje jednorazowy link ustawienia hasła (D-11).
 - `seed-demo` — tylko `Development` (lub `--force`): 2 mentorów, 2 mentees (jedna w obu workspace'ach), katalog, roadmapy (D-34).
+- `export-user (--email | --user-id) --out <plik>` — eksport danych osobowych mentee do pliku JSON (D-42).
+- `anonymize-user (--email | --user-id) [--confirm]` — anonimizacja mentee; bez `--confirm` tylko podgląd (D-42). Procedura: `docs/DATA_RETENTION.md`.
 
 ---
 

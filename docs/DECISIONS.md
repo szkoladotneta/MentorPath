@@ -178,7 +178,7 @@ Spec §6.4 przypisuje dashboard mentee do Progress, a backlog B09 do A3. Rozwią
 ## D-24 — Komendy administracyjne w binarium aplikacji
 Status: Adopted (2026-10-17, delegacja)
 
-`migrate`, `create-mentor`, `seed-dev`, `seed-demo` jako verby `MentorPath.Web` — jeden obraz, jedna konfiguracja.
+`migrate`, `create-mentor`, `seed-dev`, `seed-demo` jako verby `MentorPath.Web` — jeden obraz, jedna konfiguracja. Dodane później: `export-user`, `anonymize-user` (D-42).
 
 ## D-25 — Zadanie praktyczne: link i/lub plik
 Status: Adopted (2026-10-17, delegacja)
@@ -295,6 +295,9 @@ Decyzja:
 - Próba `PendingReview` anonimizowanego użytkownika zostaje w kolejce mentora (puste treści); jej status się nie zmienia. Feedback wystawiony do niej później usuwa kolejne uruchomienie `anonymize-user` (procedura w `DATA_RETENTION.md`).
 - Usuwanie plików przed zmianami w bazie; błąd magazynu → baza bez zmian, ponowne uruchomienie dokończy pracę.
 - Retencja: relacja aktywna — dane do końca relacji; `Closed` — anonimizacja po 12 mies.; zaproszenia — 30 dni po wygaśnięciu; kopie DB 14 dziennych + 8 tygodniowych; prośby obsługiwane w 30 dni; wersjonowanie S3 — reguła cyklu życia dla nieaktualnych wersji (bez kodu). Szczegóły w `docs/DATA_RETENTION.md` (PR z implementacją).
+
+- Błąd aktualizacji konta przez `UserManager` (np. walidacja Identity) → `privacy.account_update_failed` (Conflict), transakcja wycofana; kod nie jest wymieniony w komentarzu kontraktu (zmiana `Contracts/` poza tym PR).
+- Kody wyjścia CLI: 0 sukces, 1 błąd (w tym nieznany użytkownik, istniejący plik `--out`), 2 niepoprawne argumenty.
 
 Wpływ: nowy wpis własności zapisu `Privacy` (DOMAIN_RULES §5, w tym tabele Identity), wyjątek twardego usuwania załączników (§3), test `Operator_services_are_used_only_by_the_CLI`.
 

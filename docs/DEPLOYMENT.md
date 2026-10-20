@@ -65,6 +65,14 @@ Blazor Interactive Server używa WebSocketów — reverse proxy musi przepuszcza
 docker run --rm --env-file prod.env registry.example.com/mentorpath:<wersja> create-mentor \
   --email anna@firma.pl --name "Anna Nowak" --workspace "Mentoring Anny"
 ```
+Eksport i usunięcie danych osobowych mentee (RODO, D-42) — procedura i okresy retencji w `docs/DATA_RETENTION.md`:
+```bash
+# Eksport do pliku (wymagane --out; plik 0600, bez nadpisywania; na stdout tylko id i liczniki)
+docker run --rm --env-file prod.env -v /secure/exports:/exports registry.example.com/mentorpath:<wersja> export-user \
+  --email osoba@example.com --out /exports/<id-prośby>.json
+# Anonimizacja: bez --confirm tylko podgląd liczników; --confirm wykonuje
+docker run --rm --env-file prod.env registry.example.com/mentorpath:<wersja> anonymize-user --user-id <guid> --confirm
+```
 Reset hasła mentee/mentora: przez stronę „Nie pamiętasz hasła?” (e-mail SMTP). Zaproszenia mentees tworzy mentor w UI i sam przekazuje link (ważny 7 dni, jednorazowy).
 
 ## 5. Backup i odtwarzanie
@@ -108,4 +116,5 @@ docker compose exec -T postgres pg_restore -U mentorpath -d mentorpath --clean <
 - [ ] Decyzja o dostawcy AI (D-19) — do tego czasu `Ai__Provider=Fake` (szkice testowe) lub wyłączenie przycisku w praktyce przez limit `0`.
 - [ ] Backup działa i został raz odtworzony.
 - [ ] Utworzeni mentorzy (`create-mentor`), smoke test: logowanie, zaproszenie, roadmapa.
-- [ ] Polityka prywatności, retencji i umowy powierzenia z dostawcami hostingu/AI/SMTP (RODO) — poza kodem, wymagane przed użyciem z prawdziwymi danymi.
+- [ ] Reguła cyklu życia bucketu: wygasanie nieaktualnych wersji obiektów po 30 dniach (`DATA_RETENTION.md` §1).
+- [ ] Polityka prywatności i umowy powierzenia z dostawcami hostingu/AI/SMTP (RODO) — poza kodem, wymagane przed użyciem z prawdziwymi danymi. Retencja i procedura eksportu/usunięcia: `docs/DATA_RETENTION.md`.

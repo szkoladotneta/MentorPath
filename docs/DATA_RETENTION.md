@@ -1,0 +1,74 @@
+# MentorPath — Retencja danych i procedura RODO (minimum)
+
+Status: **żywy dokument** · decyzja: D-42 (N04, issue #4) · dotyczy danych w PostgreSQL i w magazynie plików S3.
+
+Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuje prośbę o **dostęp/eksport** (art. 15 i 20 RODO) oraz o **usunięcie** (art. 17). Polityka prywatności (tekst dla użytkowników) i umowy powierzenia z dostawcami hostingu, SMTP i AI są poza repozytorium (`SECURITY_REVIEW.md` S8).
+
+## 1. Okresy przechowywania
+
+| Kategoria danych | Okres | Co potem |
+|---|---|---|
+| Konto, relacja mentoringowa i jej treści (onboarding, próby, pliki, feedback, refleksje) — relacja `Active`/`Paused` | przez czas trwania relacji | — |
+| Jak wyżej, wszystkie relacje mentee `Closed` | 12 miesięcy od zamknięcia ostatniej relacji | `anonymize-user --confirm` |
+| Zaproszenia zaakceptowane | jak konto osoby | e-mail zastępuje `anonymize-user` |
+| Zaproszenia niezaakceptowane, wygasłe | 30 dni po `ExpiresAtUtc` | usunięcie przez operatora (SQL poniżej; nie ma konta, więc nie ma czego anonimizować w CLI) |
+| Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5) | kopie wygasają rotacyjnie; nie edytujemy kopii |
+| Nieaktualne wersje obiektów S3 (bucket z wersjonowaniem) | 30 dni | reguła cyklu życia bucketu „expire noncurrent versions after 30 days” (konfiguracja u dostawcy, bez kodu) |
+| Logi aplikacji | zgodnie z retencją platformy logów (zalecane ≤ 30 dni) | logi nie zawierają e-maili, tokenów, treści rozwiązań ani promptów |
+
+Czyszczenie wygasłych zaproszeń (operator, raz w miesiącu, po backupie):
+```sql
+DELETE FROM "Invitations" WHERE "AcceptedAtUtc" IS NULL AND "ExpiresAtUtc" < now() - interval '30 days';
+```
+
+Prośbę osoby (eksport lub usunięcie) realizujemy **w ciągu 30 dni** od jej otrzymania. Operator prowadzi rejestr próśb (data, typ, id użytkownika, data realizacji) poza aplikacją — aplikacja nie ma tabeli audytu (N02 doda zdarzenia).
+
+## 2. Kto jest objęty procedurą
+
+Wyłącznie **mentees**. Konto będące właścicielem workspace'u (mentor) jest odrzucane (`privacy.unsupported_subject`) — usunięcie mentora dotyka relacji i treści innych osób i wymaga osobnej decyzji. Konto mentora, który jest równocześnie mentee w innym workspace (D-27), też jest odrzucane.
+
+## 3. Eksport danych (`export-user`)
+
+```bash
+docker run --rm --env-file prod.env -v /secure/exports:/exports registry.example.com/mentorpath:<wersja> \
+  export-user --email osoba@example.com --out /exports/<id-prośby>.json
+# albo: --user-id <guid>
+```
+
+- JSON trafia **tylko do pliku** (`--out` wymagane); istniejący plik nie jest nadpisywany; uprawnienia `0600`. Na stdout jest tylko id użytkownika i liczniki — stdout jest strumieniem logów.
+- Zawartość (`schemaVersion: 1`, daty UTC ISO-8601, stała kolejność): profil (id, e-mail, nazwa, data utworzenia, role), relacje jako mentee (workspace, cel, poziom, godziny, wyzwania, status, daty), wszystkie próby (ćwiczenie, temat, numer próby, status, wybrana odpowiedź quizu, odpowiedź ADR, uzasadnienie, link, confidence, data), metadane załączników (klucz obiektu, nazwa, typ, rozmiar — **bez treści plików**), feedback mentora (werdykt, trzy pola, data), refleksje, zaproszenia na e-mail osoby.
+- Nie zawiera: haseł, tokenów i sekretów Identity, prywatnych notatek mentora (`MentorPrivateNotes`), przewodników mentora i poprawnych odpowiedzi quizów, danych innych osób (w tym e-maila mentora).
+- Pliki załączników operator może dołączyć osobno, pobierając obiekty po kluczach z eksportu.
+- Przekaż plik osobie bezpiecznym kanałem i usuń go z wolumenu po przekazaniu.
+
+## 4. Usunięcie danych (`anonymize-user`)
+
+```bash
+# 1) podgląd (nic nie zmienia, wypisuje liczniki)
+docker run --rm --env-file prod.env registry.example.com/mentorpath:<wersja> anonymize-user --email osoba@example.com
+# 2) wykonanie
+docker run --rm --env-file prod.env registry.example.com/mentorpath:<wersja> anonymize-user --user-id <guid> --confirm
+```
+
+Kolejność: najpierw usuwane są pliki z magazynu, potem w jednej transakcji zmiany w bazie. Błąd magazynu (`privacy.storage_failed`) zostawia bazę bez zmian — uruchom polecenie ponownie. Polecenie jest bezpieczne do ponownego uruchomienia: konto anonimizuje raz, a treści czyści i pliki usuwa zawsze (np. feedback wystawiony do oczekującej próby już po anonimizacji). Zapisz w rejestrze próśb wypisany `UserId` — po anonimizacji e-mail już nie zadziała.
+
+### Co jest usuwane
+
+| Dane | Efekt |
+|---|---|
+| Konto | nazwa `Usunięty użytkownik`; e-mail i login `deleted-<id>@anonymized.invalid`; hasło, telefon, role, logowania zewnętrzne, claims i tokeny usunięte; nowy security stamp (wylogowanie); blokada konta bez końca |
+| Relacje mentoringowe | status `Closed`; cel, wyzwania i prywatne notatki mentora wyczyszczone |
+| Próby | odpowiedź ADR, uzasadnienie i link wyczyszczone |
+| Załączniki | obiekty usunięte z magazynu, wiersze `SubmissionAttachments` usunięte |
+| Feedback mentora | trzy pola tekstowe wyczyszczone |
+| Refleksje | wniosek wyczyszczony |
+| Zaproszenia na e-mail osoby | e-mail zastąpiony identyfikatorem zastępczym |
+
+### Co zostaje i dlaczego
+
+Statystyki workspace'u i postęp roadmapy: identyfikatory, statusy prób, numery prób, wybrana opcja quizu, confidence przed/po, werdykty, daty, poziom i liczba godzin z onboardingu. Te dane nie identyfikują osoby po usunięciu konta i treści, a mentor potrzebuje ich do oceny działania programu (N02). Oczekująca próba zostaje w kolejce mentora z pustą treścią i nazwą `Usunięty użytkownik`. Mentor może technicznie przywrócić relację `Closed → Active` — dla zanonimizowanego konta nie ma to skutków (konto zablokowane, brak danych osobowych).
+
+### Ograniczenia
+
+- **Kopie bazy** zawierają dane do czasu ich rotacji (§1). Przy odtwarzaniu z kopii wykonanej przed anonimizacją uruchom `anonymize-user --user-id <guid> --confirm` ponownie dla wszystkich id z rejestru próśb.
+- **Wersjonowanie S3**: `DeleteObject` tworzy znacznik usunięcia; poprzednie wersje znikają zgodnie z regułą cyklu życia (§1).

@@ -28,7 +28,7 @@ public sealed class TestApp : IAsyncDisposable
     public InMemoryFileStorage Storage { get; }
     public TestDataBuilder Data { get; }
 
-    public static async Task<TestApp> CreateAsync(PostgresFixture db, IDictionary<string, string?>? settings = null)
+    public static async Task<TestApp> CreateAsync(PostgresFixture db, IDictionary<string, string?>? settings = null, Action<IServiceCollection>? overrides = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -62,6 +62,7 @@ public sealed class TestApp : IAsyncDisposable
         var storage = new InMemoryFileStorage();
         services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton<IFileStorage>(storage);
+        overrides?.Invoke(services);
 
         var root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         await using (var scope = root.CreateAsyncScope())
@@ -78,6 +79,9 @@ public sealed class TestApp : IAsyncDisposable
         }
         return new TestApp(root, clock, storage);
     }
+
+    /// <summary>A fresh scope for code that resolves several services itself (e.g. CLI commands).</summary>
+    public AsyncServiceScope CreateScope() => _root.CreateAsyncScope();
 
     /// <summary>Resolves a service in a fresh scope (mirrors one HTTP request / circuit operation).</summary>
     public T Get<T>() where T : notnull => _root.CreateScope().ServiceProvider.GetRequiredService<T>();
