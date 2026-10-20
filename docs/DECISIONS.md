@@ -327,6 +327,23 @@ Doprecyzowanie (PR z serwisami):
 - Wyjątek od zasady „kontrakty w PR schematu”: `IRubricService`, `UpdateRubricCriterionRequest` i `CriterionScoreExport` dodane w PR z serwisami (wymaga jawnej akceptacji CODEOWNERS). Uzasadnienie: `ConventionTests` wymagają testu `NotFound` dla każdej metody `I*Service`, więc samego interfejsu nie da się zmergować bez implementacji; kształty DTO, które zależą od schematu, były już w PR schematu (#52).
 - Eksport danych osobowych zawiera oceny kryteriów; anonimizacja czyści komentarze do kryteriów.
 
+## D-44 — Wizualna mapa roadmapy renderowana po stronie serwera (SVG), bez nowych pakietów (N28)
+Status: Proposed (2026-10-21)
+
+Decyzja:
+- Mapa „gdzie jestem / co zostało” to komponent Razor `RoadmapMap` rysujący SVG po stronie serwera; brak biblioteki wykresów i JS interop (zakaz nowych pakietów bez ADR). Układ liczy czysta funkcja `RoadmapMapLayout` (testowana jednostkowo).
+- Dane mapy zwraca `IRoadmapMapService` w module `Progress` (Progress już czyta roadmapę, przydziały i zgłoszenia; `Roadmaps` nie może zależeć od `Progress`). Serwis jest tylko do odczytu — własność zapisu bez zmian.
+- Mentee widzi wyłącznie opublikowaną roadmapę i aktywne pozycje; bez notatek mentora i bez pozycji wycofanych. Mentor (właściciel workspace'u) widzi także szkic i pozycje wycofane. Brak dostępu lub nieistniejący mentoring → `NotFound`.
+- Stan węzła wynika z przydziałów wg reguł D-16 (`ProgressCalculator`); „Tu jesteś” = pierwszy temat wymagający poprawki, w przeciwnym razie pierwszy zaliczany i niezaliczony. Widok mapy jest domyślny dla mentee i przełączalny z listą; u mentora to zakładka obok edytora.
+
+## D-45 — Poddrzewa tematów: relacja rodzic–dziecko w katalogu (N29, plan)
+Status: Proposed (2026-10-21)
+
+Decyzja (do realizacji w osobnych PR-ach: schemat, serwisy/UI):
+- Hierarchia na poziomie katalogu: `Topic.ParentTopicId` (opcjonalny; jeden rodzic; głębokość ≤ 3; ten sam workspace — złożony FK; brak cykli). Tylko drzewo; prerequisites/DAG pozostają w N20.
+- Podtemat trafia do roadmapy mentee wyłącznie jawnie (mentor dodaje go jak każdy temat). Postęp (D-16) nie zmienia się; ewentualna agregacja rodzica jest tylko wyświetlana.
+- Podtemat spoza planu mentee jest na mapie szary („poza planem”), tylko tytuł, i tylko pod tematem, który jest na roadmapie — bez ujawniania treści katalogu.
+
 ---
 
 ## Change Requests

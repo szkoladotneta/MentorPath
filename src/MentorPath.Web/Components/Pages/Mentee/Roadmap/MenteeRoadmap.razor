@@ -4,6 +4,7 @@
 @inherits AppComponentBase
 @using MentorPath.Application.Roadmaps.Contracts
 @using MentorPath.Web.Components.Modules.Progress
+@using MentorPath.Web.Components.Modules.Roadmaps
 @inject IRoadmapService Roadmaps
 
 <PageTitle>Roadmapa — MentorPath</PageTitle>
@@ -24,6 +25,16 @@
         </div>
         <div class="row g-4">
             <div class="col-lg-8">
+                <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Widok roadmapy">
+                    <button type="button" class="btn @(showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(showMap ? "true" : "false")" @onclick="() => showMap = true">Mapa</button>
+                    <button type="button" class="btn @(!showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!showMap ? "true" : "false")" @onclick="() => showMap = false">Lista</button>
+                </div>
+                @if (showMap)
+                {
+                    <RoadmapMap MentorshipId="MentorshipId" />
+                }
+                else
+                {
                 @foreach (var item in roadmap.Items)
                 {
                     <div class="card mb-3">
@@ -47,6 +58,7 @@
                         </div>
                     </div>
                 }
+                }
             </div>
             <div class="col-lg-4">
                 <div class="card mb-3">
@@ -69,6 +81,7 @@
     [Parameter] public Guid MentorshipId { get; set; }
 
     private MenteeRoadmapDto? roadmap;
+    private bool showMap = true;
 
     protected override async Task OnParametersSetAsync()
     {

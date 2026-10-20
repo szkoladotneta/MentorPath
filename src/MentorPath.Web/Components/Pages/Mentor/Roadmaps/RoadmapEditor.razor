@@ -5,6 +5,7 @@
 @using MentorPath.Application.Catalog.Contracts
 @using MentorPath.Application.Mentorships.Contracts
 @using MentorPath.Application.Roadmaps.Contracts
+@using MentorPath.Web.Components.Modules.Roadmaps
 @inject IRoadmapService Roadmaps
 @inject ITopicService Topics
 @inject IExerciseAuthoringService Exercises
@@ -44,6 +45,17 @@
         </div>
     }
     else
+    {
+        <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Widok roadmapy">
+            <button type="button" class="btn @(!showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!showMap ? "true" : "false")" @onclick="() => showMap = false">Edytor</button>
+            <button type="button" class="btn @(showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(showMap ? "true" : "false")" @onclick="() => showMap = true">Mapa</button>
+        </div>
+    }
+    @if (roadmap is not null && showMap)
+    {
+        <RoadmapMap MentorshipId="MentorshipId" MentorView="true" />
+    }
+    else if (roadmap is not null)
     {
         <div class="card mb-4">
             <div class="card-body">
@@ -180,6 +192,7 @@
     private string newObjective = "";
     private Guid addTopicId;
     private string? addNote;
+    private bool showMap;
     private bool busy;
     private string? message;
 

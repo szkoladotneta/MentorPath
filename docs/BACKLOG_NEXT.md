@@ -139,8 +139,12 @@ Kryteria akceptacji (wybrane):
 | N25 | Wieloma kompetencjami na ćwiczenie (`ExerciseCompetencies` z wagą), główny temat pozostaje | S | A2 | tak | 6 |
 | N26 | Rodowód wersji ćwiczeń (`SourceExerciseId`, numer wersji) — statystyki biblioteki łączą wersje | C | A2 | tak | 4 |
 | N27 | Startowy katalog kompetencji .NET (13 obszarów decyzji z researchu) jako import/seed szablonu workspace'u | S | A2 + mentor (content) | — | 8 + content |
+| N28 | **Wizualna mapa roadmapy** (mentee: „gdzie jestem / co zostało”; mentor: podgląd ścieżki mentee) — SVG po stronie serwera, bez nowych pakietów (D-44) | M | A3 | nie | 12 |
+| N29 | **Poddrzewa tematów**: `Topic.ParentTopicId` (drzewo, głębokość ≤ 3), edycja w katalogu, gałęzie na mapie z N28 (D-45); poprzedza N20 | M | A2 + A3 | tak | 16 |
 
 Kryteria akceptacji (wybrane):
+- **N28:** mentee widzi mapę tylko własnej, opublikowanej roadmapy; mentor tylko własnego workspace'u; obcy mentor/mentee i nieznany użytkownik → `NotFound`; stany węzłów zgodne z D-16; widok czytelny z klawiatury (aria), stany ładowania/pusty/błąd.
+- **N29:** rodzic tylko z tego samego workspace'u (złożony FK, inny workspace → `NotFound`); cykl lub głębokość > 3 → walidacja; podtemat poza planem mentee widoczny wyłącznie jako szary tytuł; zmiana nie wpływa na liczenie postępu.
 - **N20:** prerequisite tylko w obrębie workspace'u (złożony FK); próba utworzenia cyklu → błąd walidacji; migracja zachowuje ID tematów i wszystkie powiązania.
 - **N21:** szablon nie zawiera danych mentee; klonowanie tylko z własnego workspace'u; zmiana szablonu nie zmienia istniejących roadmap.
 
