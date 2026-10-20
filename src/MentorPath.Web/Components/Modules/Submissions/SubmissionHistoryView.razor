@@ -46,13 +46,11 @@
         }
         @if (a.Feedback is { } f)
         {
-            <div class="card bg-light border-0 mb-2">
-                <div class="card-body">
-                    <div class="d-flex gap-2 align-items-center mb-2"><strong>Feedback mentora</strong><Badge Value="f.Verdict" /><span class="small text-secondary">@Labels.Date(f.CreatedAtUtc)</span></div>
-                    <div class="section-title">Mocne strony</div><Markdown Value="@f.StrengthsMarkdown" />
-                    <div class="section-title mt-2">Do poprawy</div><Markdown Value="@f.ImprovementsMarkdown" />
-                    <div class="section-title mt-2">Pytanie pogłębiające</div><Markdown Value="@f.ChallengeQuestionMarkdown" />
-                </div>
+            <div class="mp-feedback mb-3">
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2"><strong>Feedback mentora</strong><Badge Value="f.Verdict" /><span class="small text-secondary">@Labels.Date(f.CreatedAtUtc)</span></div>
+                <div class="section-title">Mocne strony</div><Markdown Value="@f.StrengthsMarkdown" />
+                <div class="section-title">Do poprawy</div><Markdown Value="@f.ImprovementsMarkdown" />
+                <div class="section-title">Pytanie pogłębiające</div><Markdown Value="@f.ChallengeQuestionMarkdown" />
             </div>
         }
         @if (a.Reflection is { } r)

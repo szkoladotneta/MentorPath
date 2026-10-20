@@ -1,0 +1,48 @@
+<aside class="app-rail" id="app-rail" aria-label="Nawigacja główna">
+    <div class="rail-head">
+        <a class="brand" href="" aria-label="MentorPath — strona główna">
+            <BrandMark />
+            <span class="brand-text">MentorPath</span>
+        </a>
+        <button type="button" class="rail-btn rail-collapse" data-rail-toggle aria-controls="app-rail" aria-label="Zwiń menu boczne" title="Zwiń / rozwiń menu">
+            <Icon Name="chevrons-left" />
+        </button>
+        <button type="button" class="rail-btn rail-close" data-drawer-close aria-label="Zamknij menu">
+            <Icon Name="x" />
+        </button>
+    </div>
+    <nav class="rail-nav" aria-label="Główna">
+        <AuthorizeView Roles="@AppRoles.Mentor">
+            <div class="rail-group">
+                <h2 class="rail-heading">Mentor</h2>
+                <ul class="rail-list">
+                    <li><NavLink class="rail-link" href="mentor" Match="NavLinkMatch.All"><Icon Name="dashboard" /><span class="rail-label">Dashboard</span></NavLink></li>
+                    <li><NavLink class="rail-link" href="mentor/mentees"><Icon Name="users" /><span class="rail-label">Mentees</span></NavLink></li>
+                    <li><NavLink class="rail-link" href="mentor/catalog/topics"><Icon Name="library" /><span class="rail-label">Katalog</span></NavLink></li>
+                    <li><NavLink class="rail-link" href="mentor/exercises/new"><Icon Name="file-plus" /><span class="rail-label">Nowe ćwiczenie</span></NavLink></li>
+                    <li><NavLink class="rail-link" href="mentor/reviews"><Icon Name="clipboard-check" /><span class="rail-label">Review</span></NavLink></li>
+                </ul>
+            </div>
+        </AuthorizeView>
+        <AuthorizeView Roles="@AppRoles.Mentee">
+            <div class="rail-group">
+                <h2 class="rail-heading">Mentee</h2>
+                <ul class="rail-list">
+                    <li><NavLink class="rail-link" href="app" Match="NavLinkMatch.All"><Icon Name="dashboard" /><span class="rail-label">Dashboard</span></NavLink></li>
+                    @if (ActiveMentorshipId is { } id)
+                    {
+                        <li><NavLink class="rail-link" href="@($"app/roadmap/{id}")"><Icon Name="map" /><span class="rail-label">Roadmapa</span></NavLink></li>
+                        <li><NavLink class="rail-link" href="@($"app/progress/{id}")"><Icon Name="trending-up" /><span class="rail-label">Postęp</span></NavLink></li>
+                    }
+                    <li><NavLink class="rail-link" href="app/profile"><Icon Name="user" /><span class="rail-label">Profil mentoringu</span></NavLink></li>
+                    <li><NavLink class="rail-link" href="app/mentorships"><Icon Name="swap" /><span class="rail-label">Moje mentoringi</span></NavLink></li>
+                </ul>
+            </div>
+        </AuthorizeView>
+    </nav>
+</aside>
+
+@code {
+    /// <summary>Navigation state only (D-08): the mentorship whose roadmap and progress the rail points to.</summary>
+    [Parameter] public Guid? ActiveMentorshipId { get; set; }
+}

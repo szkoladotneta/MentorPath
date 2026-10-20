@@ -3,7 +3,7 @@
 
 @if (!string.IsNullOrWhiteSpace(Value))
 {
-    <div class="markdown @Class">@((MarkupString)Renderer.RenderToSafeHtml(Value))</div>
+    <div class="markdown mp-prose @Class">@((MarkupString)Renderer.RenderToSafeHtml(Value))</div>
 }
 
 @code {

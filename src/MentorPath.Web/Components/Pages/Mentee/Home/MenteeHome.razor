@@ -10,73 +10,77 @@
 
 <PageTitle>Dashboard — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Twój mentoring</h1>
-        <div class="subtitle">Bieżące zadania i postęp w każdej relacji mentoringowej.</div>
-    </div>
-    @if (items.Count > 1)
-    {
-        <a class="btn btn-outline-primary" href="app/mentorships">Zmień mentoring</a>
-    }
-</div>
+<Page Width="wide">
+    <PageHeader Title="Twój mentoring" Subtitle="Bieżące zadania i postęp w każdej relacji mentoringowej.">
+        <Actions>
+            @if (items.Count > 1)
+            {
+                <a class="btn btn-outline-primary" href="app/mentorships">Zmień mentoring</a>
+            }
+        </Actions>
+    </PageHeader>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (items.Count == 0)
-    {
-        <EmptyState Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
-    }
-    @foreach (var m in items)
-    {
-        var roadmap = roadmaps.GetValueOrDefault(m.MentorshipId);
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>@m.WorkspaceName <span class="text-secondary fw-normal small">· mentor: @m.MentorDisplayName</span></span>
-                <Badge Value="m.Status" />
-            </div>
-            <div class="card-body">
-                @if (!m.OnboardingCompleted)
-                {
-                    <div class="alert alert-info py-2">Uzupełnij <a href="@($"app/profile?mentorshipId={m.MentorshipId}")">profil mentoringu</a>, aby mentor mógł dopasować ścieżkę.</div>
-                }
-                @if (m.Status == MentorshipStatus.Paused)
-                {
-                    <div class="alert alert-warning py-2">Mentoring jest wstrzymany — możesz przeglądać materiały, ale nie wysyłać nowych prób.</div>
-                }
-                <RoadmapProgressSummary MentorshipId="m.MentorshipId" />
-                @if (roadmap is null)
-                {
-                    <p class="text-secondary small mt-3 mb-0">Mentor nie opublikował jeszcze roadmapy.</p>
-                }
-                else
-                {
-                    var next = roadmap.Items.SelectMany(i => i.Assignments.Select(a => (Topic: i.TopicTitle, A: a)))
-                        .Where(x => x.A.LatestStatus is not (SubmissionStatus.Correct or SubmissionStatus.Accepted)).Take(4).ToList();
-                    <div class="section-title mt-3">Następne zadania</div>
-                    @if (next.Count == 0)
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (items.Count == 0)
+        {
+            <EmptyState Icon="users" Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
+        }
+        @foreach (var m in items)
+        {
+            var roadmap = roadmaps.GetValueOrDefault(m.MentorshipId);
+            <Section Title="@m.WorkspaceName">
+                <Aside>
+                    <span class="text-secondary">mentor: @m.MentorDisplayName</span>
+                    <Badge Value="m.Status" />
+                </Aside>
+                <ChildContent>
+                    @if (!m.OnboardingCompleted)
                     {
-                        <p class="small text-success mb-0">Wszystkie zadania ukończone. 🎯</p>
+                        <div class="alert alert-info py-2">Uzupełnij <a href="@($"app/profile?mentorshipId={m.MentorshipId}")">profil mentoringu</a>, aby mentor mógł dopasować ścieżkę.</div>
                     }
-                    @foreach (var (topic, a) in next)
+                    @if (m.Status == MentorshipStatus.Paused)
                     {
-                        <div class="list-row px-0">
-                            <div>
-                                <a href="@($"app/assignments/{a.AssignmentId}")">@a.ExerciseTitle</a>
-                                <div class="small text-secondary">@topic · @Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") @(a.DueAtUtc is not null ? $"· termin {Labels.Day(a.DueAtUtc)}" : "")</div>
-                            </div>
-                            @if (a.LatestStatus is { } s) { <Badge Value="s" /> } else { <span class="badge text-bg-light">Nierozpoczęte</span> }
-                        </div>
+                        <div class="alert alert-warning py-2">Mentoring jest wstrzymany — możesz przeglądać materiały, ale nie wysyłać nowych prób.</div>
                     }
-                    <a class="btn btn-sm btn-primary mt-3" href="@($"app/roadmap/{m.MentorshipId}")">Pełna roadmapa</a>
-                }
-            </div>
-        </div>
-    }
-</PageState>
+                    <RoadmapProgressSummary MentorshipId="m.MentorshipId" />
+                    @if (roadmap is null)
+                    {
+                        <p class="text-secondary small mt-3 mb-0">Mentor nie opublikował jeszcze roadmapy.</p>
+                    }
+                    else
+                    {
+                        var next = roadmap.Items.SelectMany(i => i.Assignments.Select(a => (Topic: i.TopicTitle, A: a)))
+                            .Where(x => x.A.LatestStatus is not (SubmissionStatus.Correct or SubmissionStatus.Accepted)).Take(4).ToList();
+                        <div class="section-title">Następne zadania</div>
+                        @if (next.Count == 0)
+                        {
+                            <p class="small text-success mb-0">Wszystkie zadania ukończone.</p>
+                        }
+                        <DataList>
+                            @foreach (var (topic, a) in next)
+                            {
+                                <DataRow Class="px-0" Href="@($"app/assignments/{a.AssignmentId}")" Title="@a.ExerciseTitle"
+                                         Meta="@AssignmentMeta(topic, a.Type, a.IsRequired, a.DueAtUtc)">
+                                    <Aside>
+                                        @if (a.LatestStatus is { } s) { <Badge Value="s" /> } else { <Badge Tone="light" Label="Nierozpoczęte" /> }
+                                    </Aside>
+                                </DataRow>
+                            }
+                        </DataList>
+                        <a class="btn btn-sm btn-primary mt-3" href="@($"app/roadmap/{m.MentorshipId}")">Pełna roadmapa</a>
+                    }
+                </ChildContent>
+            </Section>
+        }
+    </PageState>
+</Page>
 
 @code {
     private List<MenteeMentorshipListItem> items = [];
     private readonly Dictionary<Guid, MenteeRoadmapDto> roadmaps = [];
+
+    private static string AssignmentMeta(string topic, ExerciseType type, bool required, DateTime? dueAtUtc) =>
+        $"{topic} · {Labels.Of(type)} · {(required ? "wymagane" : "opcjonalne")}{(dueAtUtc is not null ? $" · termin {Labels.Day(dueAtUtc)}" : "")}";
 
     protected override async Task OnInitializedAsync()
     {

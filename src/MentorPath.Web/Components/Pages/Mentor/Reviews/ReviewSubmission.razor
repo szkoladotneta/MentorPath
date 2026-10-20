@@ -8,79 +8,67 @@
 
 <PageTitle>Ocena rozwiązania — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (detail is not null)
-    {
-        var ex = detail.Exercise.Content;
-        <div class="page-header">
-            <div>
-                <a href="mentor/reviews" class="small">← Kolejka review</a>
-                <h1>@ex.Title</h1>
-                <div class="subtitle d-flex gap-2 align-items-center">
-                    <a href="@($"mentor/mentees/{detail.MentorshipId}")">@detail.MenteeDisplayName</a>
-                    <Badge Value="detail.Exercise.Type" /> <Badge Value="detail.Status" />
-                </div>
-            </div>
-        </div>
-        <div class="row g-4">
-            <div class="col-lg-7">
-                <div class="card mb-4">
-                    <div class="card-header">Treść zadania</div>
-                    <div class="card-body">
+<Page>
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (detail is not null)
+        {
+            var ex = detail.Exercise.Content;
+            <PageHeader Title="@ex.Title" Crumbs="@(new[] { new Crumb("Kolejka review", "mentor/reviews"), new Crumb(ex.Title) })">
+                <ChildContent>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                        <a href="@($"mentor/mentees/{detail.MentorshipId}")">@detail.MenteeDisplayName</a>
+                        <Badge Value="detail.Exercise.Type" /> <Badge Value="detail.Status" />
+                    </div>
+                </ChildContent>
+            </PageHeader>
+            <SplitView WideSide="true">
+                <Main>
+                    <Section Title="Treść zadania">
                         <Markdown Value="@ex.ScenarioMarkdown" />
-                        @if (ex.InstructionsMarkdown is not null) { <div class="section-title mt-3">Wymagania</div><Markdown Value="@ex.InstructionsMarkdown" /> }
-                        @if (ex.ExpectedOutcomeMarkdown is not null) { <div class="section-title mt-3">Oczekiwany rezultat</div><Markdown Value="@ex.ExpectedOutcomeMarkdown" /> }
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">Rozwiązanie i historia prób</div>
-                    <div class="card-body">
+                        @if (ex.InstructionsMarkdown is not null) { <div class="section-title mt-4">Wymagania</div><Markdown Value="@ex.InstructionsMarkdown" /> }
+                        @if (ex.ExpectedOutcomeMarkdown is not null) { <div class="section-title mt-4">Oczekiwany rezultat</div><Markdown Value="@ex.ExpectedOutcomeMarkdown" /> }
+                    </Section>
+                    <Section Title="Rozwiązanie i historia prób">
                         <SubmissionHistoryView History="detail.History" />
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="card mb-4">
-                    <div class="card-header">Kryteria oceny</div>
-                    <div class="card-body">
-                        <Markdown Value="@(ex.RubricMarkdown ?? "Brak zdefiniowanych kryteriów.")" />
-                        @if (ex.MentorGuideMarkdown is not null)
-                        {
-                            <div class="section-title mt-3">Mentor guide <span class="badge text-bg-warning">prywatne</span></div>
-                            <Markdown Value="@ex.MentorGuideMarkdown" />
-                        }
-                    </div>
-                </div>
-                @if (detail.Status == SubmissionStatus.PendingReview)
-                {
-                    <div class="card">
-                        <div class="card-header">Feedback</div>
-                        <div class="card-body">
+                    </Section>
+                </Main>
+                <Side>
+                    @if (detail.Status == SubmissionStatus.PendingReview)
+                    {
+                        <Section Title="Feedback">
                             <ErrorAlert Error="Error" ShowFieldList="false" />
-                            <label class="form-label">Mocne strony</label>
-                            <textarea class="form-control mb-1" rows="3" @bind="strengths"></textarea>
+                            <label class="form-label" for="fb-strengths">Mocne strony</label>
+                            <textarea id="fb-strengths" class="form-control mb-1" rows="3" @bind="strengths"></textarea>
                             <FieldError Error="Error" Field="StrengthsMarkdown" />
-                            <label class="form-label mt-2">Do poprawy</label>
-                            <textarea class="form-control mb-1" rows="3" @bind="improvements"></textarea>
+                            <label class="form-label mt-2" for="fb-improvements">Do poprawy</label>
+                            <textarea id="fb-improvements" class="form-control mb-1" rows="3" @bind="improvements"></textarea>
                             <FieldError Error="Error" Field="ImprovementsMarkdown" />
-                            <label class="form-label mt-2">Pytanie pogłębiające</label>
-                            <textarea class="form-control mb-1" rows="2" @bind="challenge"></textarea>
+                            <label class="form-label mt-2" for="fb-challenge">Pytanie pogłębiające</label>
+                            <textarea id="fb-challenge" class="form-control mb-1" rows="2" @bind="challenge"></textarea>
                             <FieldError Error="Error" Field="ChallengeQuestionMarkdown" />
-                            <div class="d-flex gap-2 mt-3">
+                            <div class="d-flex flex-wrap gap-2 mt-3">
                                 <button class="btn btn-success" @onclick="() => SubmitAsync(ReviewVerdict.Accepted)" disabled="@busy">Accepted</button>
                                 <button class="btn btn-warning" @onclick="() => SubmitAsync(ReviewVerdict.NeedsRevision)" disabled="@busy">Needs revision</button>
                             </div>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="alert alert-success">Ta próba została już oceniona. Feedback jest widoczny w historii.</div>
-                }
-            </div>
-        </div>
-    }
-</PageState>
+                        </Section>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-0">Ta próba została już oceniona. Feedback jest widoczny w historii.</div>
+                    }
+                    <Section Title="Kryteria oceny">
+                        <Markdown Value="@(ex.RubricMarkdown ?? "Brak zdefiniowanych kryteriów.")" />
+                        @if (ex.MentorGuideMarkdown is not null)
+                        {
+                            <div class="section-title mt-4">Mentor guide <Badge Tone="warning" Label="prywatne" /></div>
+                            <Markdown Value="@ex.MentorGuideMarkdown" />
+                        }
+                    </Section>
+                </Side>
+            </SplitView>
+        }
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid SubmissionId { get; set; }

@@ -7,34 +7,30 @@
 
 <PageTitle>Profil mentoringu — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Profil mentoringu</h1>
-        <div class="subtitle">Twoje cele pomagają mentorowi dopasować ścieżkę. Każdy mentoring ma osobny profil.</div>
-    </div>
-</div>
+<Page Width="narrow">
+    <PageHeader Title="Profil mentoringu" Subtitle="Twoje cele pomagają mentorowi dopasować ścieżkę. Każdy mentoring ma osobny profil."
+                Crumbs="Crumbs" />
 
-<PageState Loading="Loading" NotFound="false">
-    @if (items.Count == 0)
-    {
-        <EmptyState Title="Nie masz aktywnych mentoringów" />
-    }
-    else
-    {
-        @if (items.Count > 1)
+    <PageState Loading="Loading" NotFound="false">
+        @if (items.Count == 0)
         {
-            <div class="mb-3" style="max-width:420px">
-                <label class="form-label">Mentoring</label>
-                <select class="form-select" value="@selected" @onchange="OnSelectAsync">
-                    @foreach (var m in items)
-                    {
-                        <option value="@m.MentorshipId">@m.WorkspaceName (@m.MentorDisplayName)</option>
-                    }
-                </select>
-            </div>
+            <EmptyState Icon="users" Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
         }
-        <div class="card" style="max-width:720px">
-            <div class="card-body">
+        else
+        {
+            @if (items.Count > 1)
+            {
+                <div class="field-medium">
+                    <label class="form-label">Mentoring</label>
+                    <select class="form-select" value="@selected" @onchange="OnSelectAsync">
+                        @foreach (var m in items)
+                        {
+                            <option value="@m.MentorshipId">@m.WorkspaceName (@m.MentorDisplayName)</option>
+                        }
+                    </select>
+                </div>
+            }
+            <Section>
                 <ErrorAlert Error="Error" ShowFieldList="false" />
                 @if (saved) { <div class="alert alert-success">Zapisano profil.</div> }
                 <div class="mb-3">
@@ -56,20 +52,24 @@
                     <InputTextArea class="form-control" rows="3" @bind-Value="form.Challenges" />
                     <FieldError Error="Error" Field="Challenges" />
                 </div>
-                <div class="mb-3" style="max-width:200px">
+                <div class="mb-3 field-narrow">
                     <label class="form-label">Dostępne godziny tygodniowo</label>
                     <InputNumber class="form-control" @bind-Value="form.WeeklyHours" min="1" max="80" />
                     <FieldError Error="Error" Field="WeeklyHours" />
                 </div>
-                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
-                <a class="btn btn-link" href="@($"app/roadmap/{selected}")">Przejdź do roadmapy</a>
-            </div>
-        </div>
-    }
-</PageState>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
+                    <a class="btn btn-link" href="@($"app/roadmap/{selected}")">Przejdź do roadmapy</a>
+                </div>
+            </Section>
+        }
+    </PageState>
+</Page>
 
 @code {
     [SupplyParameterFromQuery] public Guid? MentorshipId { get; set; }
+
+    private static readonly Crumb[] Crumbs = [new("Moje mentoringi", "app/mentorships"), new("Profil mentoringu")];
 
     private List<MenteeMentorshipListItem> items = [];
     private Guid selected;

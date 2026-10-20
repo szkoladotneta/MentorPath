@@ -1,0 +1,8 @@
+<div class="mp-datalist @(Bordered ? "mp-datalist--bordered" : null) @Class">@ChildContent</div>
+
+@code {
+    /// <summary>Draws its own border; leave false inside a flush <see cref="Section"/>.</summary>
+    [Parameter] public bool Bordered { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

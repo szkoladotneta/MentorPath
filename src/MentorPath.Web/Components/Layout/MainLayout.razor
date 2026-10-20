@@ -1,16 +1,80 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IMentorshipService Mentorships
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@using MentorPath.Application.Mentorships.Contracts
 
-<div class="app-shell">
-    <NavMenu />
-    <main class="app-main">
-        <div class="app-content">
-            @Body
+<AuthorizeView>
+    <Authorized>
+        <a class="skip-link" href="@CurrentPath#main-content">Przejdź do treści</a>
+        <div class="app-shell">
+            <AppRail ActiveMentorshipId="activeMentorshipId" />
+            <div class="app-frame">
+                <TopBar UserName="@context.User.Identity?.Name" Mentorships="menteeMentorships" ActiveMentorshipId="activeMentorshipId" CurrentPath="@CurrentPath" />
+                <main id="main-content" class="app-main" tabindex="-1">
+                    <div class="app-content">
+                        @Body
+                    </div>
+                </main>
+            </div>
+            <div class="app-scrim" data-drawer-close></div>
         </div>
-    </main>
-</div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-shell">
+            <a class="auth-brand" href="">
+                <BrandMark />
+                <span>MentorPath</span>
+            </a>
+            <main id="main-content" class="auth-main" tabindex="-1">
+                @Body
+            </main>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 <div id="blazor-error-ui" data-nosnippet>
     Wystąpił nieoczekiwany błąd.
     <a href="." class="reload">Odśwież</a>
-    <span class="dismiss">🗙</span>
+    <button type="button" class="dismiss" aria-label="Zamknij komunikat">×</button>
 </div>
+
+@code {
+    private static readonly Regex MentorshipInPath = new(@"/app/(?:roadmap|progress)/(?<id>[0-9a-fA-F-]{36})", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
+
+    private IReadOnlyList<MenteeMentorshipListItem> menteeMentorships = [];
+    private Guid? activeMentorshipId;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string CurrentPath => new Uri(Nav.Uri).PathAndQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        if (user.Identity?.IsAuthenticated != true || !user.IsInRole(AppRoles.Mentee)) return;
+
+        var userId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+        var result = await Mentorships.ListForMenteeAsync(userId, CancellationToken.None);
+        if (!result.IsSuccess || result.Value is not { Count: > 0 } list) return;
+
+        menteeMentorships = list;
+        activeMentorshipId = ResolveActive(list);
+    }
+
+    // The active mentorship is navigation state read from the URL (D-08); the service still authorizes every id.
+    private Guid ResolveActive(IReadOnlyList<MenteeMentorshipListItem> list)
+    {
+        var uri = new Uri(Nav.Uri);
+        var fromPath = MentorshipInPath.Match(uri.AbsolutePath);
+        var candidate = fromPath.Success && Guid.TryParse(fromPath.Groups["id"].Value, out var p) ? p : (Guid?)null;
+        if (candidate is null)
+        {
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (query.TryGetValue("mentorshipId", out var q) && Guid.TryParse(q.ToString(), out var qid)) candidate = qid;
+        }
+        return candidate is { } c && list.Any(m => m.MentorshipId == c) ? c : list[0].MentorshipId;
+    }
+}

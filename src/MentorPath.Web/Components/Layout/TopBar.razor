@@ -1,0 +1,81 @@
+@using MentorPath.Application.Mentorships.Contracts
+
+<header class="app-topbar">
+    <div class="topbar-start">
+        <button type="button" class="topbar-menu" data-drawer-open aria-controls="app-rail" aria-expanded="false" aria-label="Otwórz menu">
+            <Icon Name="menu" />
+        </button>
+        <a class="brand topbar-brand" href="" aria-label="MentorPath — strona główna">
+            <BrandMark />
+            <span class="brand-text">MentorPath</span>
+        </a>
+    </div>
+    <div class="topbar-end">
+        @if (Mentorships.Count > 0)
+        {
+            var active = Mentorships.FirstOrDefault(m => m.MentorshipId == ActiveMentorshipId) ?? Mentorships[0];
+            @if (Mentorships.Count == 1)
+            {
+                <span class="menu-text menu-text-hide-sm text-secondary small">@active.WorkspaceName</span>
+            }
+            else
+            {
+                <details class="menu" data-menu>
+                    <summary aria-label="Zmień mentoring. Aktywny: @active.WorkspaceName">
+                        <Icon Name="swap" />
+                        <span class="menu-text menu-text-hide-sm">@active.WorkspaceName</span>
+                        <Icon Name="chevron-down" Size="16" />
+                    </summary>
+                    <div class="menu-panel">
+                        <div class="menu-label">Aktywny mentoring</div>
+                        @foreach (var m in Mentorships)
+                        {
+                            <a class="menu-item" href="@SwitchTarget(m)" aria-current="@(m.MentorshipId == active.MentorshipId ? "true" : null)">
+                                <span>
+                                    @m.WorkspaceName
+                                    <span class="menu-sub">Mentor: @m.MentorDisplayName</span>
+                                </span>
+                            </a>
+                        }
+                        <hr class="menu-sep" />
+                        <a class="menu-item" href="app/mentorships">Wszystkie mentoringi</a>
+                    </div>
+                </details>
+            }
+        }
+        <details class="menu" data-menu>
+            <summary aria-label="Menu użytkownika @UserName">
+                <span class="avatar" aria-hidden="true">@Initial</span>
+                <span class="menu-text menu-text-hide-sm">@UserName</span>
+                <Icon Name="chevron-down" Size="16" />
+            </summary>
+            <div class="menu-panel">
+                <div class="menu-label">@UserName</div>
+                <a class="menu-item" href="Account/Manage"><Icon Name="user" Size="18" />Konto</a>
+                <a class="menu-item" href="Account/Manage/ChangePassword"><Icon Name="key" Size="18" />Zmień hasło</a>
+                <hr class="menu-sep" />
+                <form action="Account/Logout" method="post">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="ReturnUrl" value="" />
+                    <button type="submit" class="menu-item"><Icon Name="log-out" Size="18" />Wyloguj</button>
+                </form>
+            </div>
+        </details>
+    </div>
+</header>
+
+@code {
+    [Parameter] public string? UserName { get; set; }
+    /// <summary>Mentee only; empty for mentors.</summary>
+    [Parameter] public IReadOnlyList<MenteeMentorshipListItem> Mentorships { get; set; } = [];
+    [Parameter] public Guid? ActiveMentorshipId { get; set; }
+    [Parameter] public string CurrentPath { get; set; } = "";
+
+    private string Initial => string.IsNullOrWhiteSpace(UserName) ? "?" : UserName.Trim()[..1].ToUpperInvariant();
+
+    // Switching keeps the user on the same kind of page (roadmap, progress, profile); anything else lands on the roadmap.
+    private string SwitchTarget(MenteeMentorshipListItem m) =>
+        CurrentPath.Contains("/app/progress", StringComparison.OrdinalIgnoreCase) ? $"app/progress/{m.MentorshipId}"
+        : CurrentPath.Contains("/app/profile", StringComparison.OrdinalIgnoreCase) ? $"app/profile?mentorshipId={m.MentorshipId}"
+        : $"app/roadmap/{m.MentorshipId}";
+}

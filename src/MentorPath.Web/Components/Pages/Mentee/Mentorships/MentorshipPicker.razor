@@ -7,42 +7,34 @@
 
 <PageTitle>Moje mentoringi — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Wybierz mentoring</h1>
-        <div class="subtitle">Każda relacja mentoringowa to osobna przestrzeń z własną roadmapą i historią.</div>
-    </div>
-</div>
+<Page Width="wide">
+    <PageHeader Title="Wybierz mentoring" Subtitle="Każda relacja mentoringowa to osobna przestrzeń z własną roadmapą i historią." />
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (items.Count == 0)
-    {
-        <EmptyState Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
-    }
-    <div class="row g-3">
-        @foreach (var m in items)
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (items.Count == 0)
         {
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h2 class="h5 mb-1">@m.WorkspaceName</h2>
-                                <div class="small text-secondary">Mentor: @m.MentorDisplayName</div>
-                            </div>
-                            <Badge Value="m.Status" />
-                        </div>
-                        <div class="d-flex gap-2 mt-3 flex-wrap">
-                            <a class="btn btn-primary btn-sm" href="@($"app/roadmap/{m.MentorshipId}")">Roadmapa</a>
-                            <a class="btn btn-outline-primary btn-sm" href="@($"app/progress/{m.MentorshipId}")">Postęp</a>
-                            <a class="btn btn-outline-secondary btn-sm" href="@($"app/profile?mentorshipId={m.MentorshipId}")">@(m.OnboardingCompleted ? "Profil" : "Uzupełnij onboarding")</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <EmptyState Icon="users" Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
         }
-    </div>
-</PageState>
+        else
+        {
+            <Section Flush="true">
+                <DataList>
+                    @foreach (var m in items)
+                    {
+                        <DataRow Title="@m.WorkspaceName" Meta="@($"Mentor: {m.MentorDisplayName}")">
+                            <Aside>
+                                <Badge Value="m.Status" />
+                                <a class="btn btn-primary btn-sm" href="@($"app/roadmap/{m.MentorshipId}")">Roadmapa</a>
+                                <a class="btn btn-outline-primary btn-sm" href="@($"app/progress/{m.MentorshipId}")">Postęp</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="@($"app/profile?mentorshipId={m.MentorshipId}")">@(m.OnboardingCompleted ? "Profil" : "Uzupełnij onboarding")</a>
+                            </Aside>
+                        </DataRow>
+                    }
+                </DataList>
+            </Section>
+        }
+    </PageState>
+</Page>
 
 @code {
     private List<MenteeMentorshipListItem> items = [];

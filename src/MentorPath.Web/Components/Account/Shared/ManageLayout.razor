@@ -1,12 +1,10 @@
 @inherits LayoutComponentBase
 @layout MentorPath.Web.Components.Layout.MainLayout
 
-<h1 class="h3 mb-3">Ustawienia konta</h1>
-<div class="row">
-    <div class="col-lg-3 mb-3">
-        <ManageNavMenu />
-    </div>
-    <div class="col-lg-9">
+<Page Width="narrow">
+    <PageHeader Title="Konto" Subtitle="Profil i bezpieczeństwo Twojego konta." />
+    <ManageNavMenu />
+    <div class="mp-account-content">
         @Body
     </div>
-</div>
+</Page>

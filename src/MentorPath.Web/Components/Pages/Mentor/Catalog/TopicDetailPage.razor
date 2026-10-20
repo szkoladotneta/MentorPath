@@ -7,64 +7,67 @@
 
 <PageTitle>Temat — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (topic is not null)
-    {
-        <div class="page-header">
-            <div>
-                <a href="mentor/catalog/topics" class="small">← Katalog</a>
-                <h1>@topic.Title @if (topic.IsArchived) { <span class="badge text-bg-secondary align-middle fs-6">Zarchiwizowany</span> }</h1>
-                <div class="subtitle">@topic.Category · @Labels.Of(topic.Difficulty) · <code>@topic.Slug</code></div>
-            </div>
-            <div class="d-flex gap-2">
-                @if (!topic.IsArchived)
-                {
-                    <a class="btn btn-primary" href="@($"mentor/exercises/new?topicId={TopicId}")">Nowe ćwiczenie</a>
-                }
-                <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">@(editing ? "Anuluj" : "Edytuj")</button>
-                <button class="btn btn-outline-secondary" @onclick="ToggleArchiveAsync">@(topic.IsArchived ? "Przywróć" : "Archiwizuj")</button>
-            </div>
-        </div>
-
-        @if (editing && form is not null)
+<Page>
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (topic is not null)
         {
-            <div class="card mb-4">
-                <div class="card-body">
+            <PageHeader Title="@topic.Title" Crumbs="@(new[] { new Crumb("Katalog", "mentor/catalog/topics"), new Crumb(topic.Title) })">
+                <ChildContent>
+                    <p class="mp-page-header__subtitle">
+                        @if (topic.IsArchived) { <Badge Tone="secondary" Label="Zarchiwizowany" /> }
+                        @topic.Category · @Labels.Of(topic.Difficulty) · <code>@topic.Slug</code>
+                    </p>
+                </ChildContent>
+                <Actions>
+                    @if (!topic.IsArchived)
+                    {
+                        <a class="btn btn-primary" href="@($"mentor/exercises/new?topicId={TopicId}")">Nowe ćwiczenie</a>
+                    }
+                    <button class="btn btn-outline-secondary" @onclick="() => editing = !editing">@(editing ? "Anuluj" : "Edytuj")</button>
+                    <button class="btn btn-outline-secondary" @onclick="ToggleArchiveAsync">@(topic.IsArchived ? "Przywróć" : "Archiwizuj")</button>
+                </Actions>
+            </PageHeader>
+
+            @if (editing && form is not null)
+            {
+                <Section Title="Edycja tematu">
                     <TopicForm Model="form" Error="Error" />
                     <button class="btn btn-primary mt-3" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="row g-4 mb-4">
-                <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Opis</div><Markdown Value="@topic.DescriptionMarkdown" /></div></div></div>
-                <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Cele edukacyjne</div><Markdown Value="@topic.LearningObjectivesMarkdown" /></div></div></div>
-            </div>
-        }
+                </Section>
+            }
+            else
+            {
+                <SplitView>
+                    <Main>
+                        <Section Title="Opis"><Markdown Value="@topic.DescriptionMarkdown" /></Section>
+                    </Main>
+                    <Side>
+                        <Section Title="Cele edukacyjne"><Markdown Value="@topic.LearningObjectivesMarkdown" /></Section>
+                    </Side>
+                </SplitView>
+            }
 
-        <h2 class="h5">Ćwiczenia</h2>
-        @if (topic.Exercises.Count == 0)
-        {
-            <EmptyState Title="Brak ćwiczeń">Utwórz ćwiczenie ręcznie lub wygeneruj szkic z pomocą AI.</EmptyState>
+            <Section Title="Ćwiczenia" Flush="@(topic.Exercises.Count > 0)">
+                <Aside>@topic.Exercises.Count</Aside>
+                <ChildContent>
+                    @if (topic.Exercises.Count == 0)
+                    {
+                        <EmptyState Icon="file-plus" Title="Brak ćwiczeń">Utwórz ćwiczenie ręcznie lub wygeneruj szkic z pomocą AI.</EmptyState>
+                    }
+                    <DataList>
+                        @foreach (var e in topic.Exercises)
+                        {
+                            <DataRow Href="@($"mentor/exercises/{e.ExerciseId}/edit")" Title="@e.Title"
+                                     Meta="@($"{Labels.Of(e.Type)} · {(e.Source == ExerciseSource.AI ? "szkic AI" : "ręczne")} · {Labels.Day(e.CreatedAtUtc)}")">
+                                <Aside><Badge Value="e.Status" /></Aside>
+                            </DataRow>
+                        }
+                    </DataList>
+                </ChildContent>
+            </Section>
         }
-        else
-        {
-            <div class="card">
-                @foreach (var e in topic.Exercises)
-                {
-                    <div class="list-row">
-                        <div>
-                            <a href="@($"mentor/exercises/{e.ExerciseId}/edit")" class="fw-semibold">@e.Title</a>
-                            <div class="small text-secondary">@Labels.Of(e.Type) · @(e.Source == ExerciseSource.AI ? "szkic AI" : "ręczne") · @Labels.Day(e.CreatedAtUtc)</div>
-                        </div>
-                        <Badge Value="e.Status" />
-                    </div>
-                }
-            </div>
-        }
-    }
-</PageState>
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid TopicId { get; set; }

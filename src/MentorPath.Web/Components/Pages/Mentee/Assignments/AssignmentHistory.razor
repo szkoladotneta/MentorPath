@@ -8,23 +8,16 @@
 
 <PageTitle>Historia prób — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (history is not null)
-    {
-        <div class="page-header">
-            <div>
-                <a href="@($"app/assignments/{AssignmentId}")" class="small">← Zadanie</a>
-                <h1>Historia prób: @history.ExerciseTitle</h1>
-                <div class="subtitle">Przesłane próby i feedback są niezmienne.</div>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-body">
-                <SubmissionHistoryView History="history" AllowReflection="true" OnChanged="LoadAsync" />
-            </div>
-        </div>
-    }
-</PageState>
+<Page Width="reading">
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (history is not null)
+        {
+            <PageHeader Title="@($"Historia prób: {history.ExerciseTitle}")" Subtitle="Przesłane próby i feedback są niezmienne."
+                        Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Zadanie", $"app/assignments/{AssignmentId}"), new("Historia prób") })" />
+            <SubmissionHistoryView History="history" AllowReflection="true" OnChanged="LoadAsync" />
+        }
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid AssignmentId { get; set; }
