@@ -211,3 +211,35 @@ a.mp-datarow--link:hover { background: var(--mp-ground); }
 .mp-criterion { padding: var(--mp-space-3) 0; border-bottom: 1px solid var(--mp-line); }
 .mp-criterion:last-of-type { border-bottom: 0; }
 .mp-criterion--inactive { opacity: .75; }
+
+/* Vertical rhythm for stacked blocks inside a tab panel */
+.mp-stack { display: grid; gap: var(--mp-space-5); }
+
+/* Roadmap map (SVG, server-rendered): state is conveyed by glyph and word, colour reinforces it */
+.mp-map { overflow-x: auto; border: 1px solid var(--mp-line); border-radius: var(--mp-radius); background: var(--mp-surface); padding: var(--mp-space-2); }
+.mp-map svg { display: block; }
+.map-node { cursor: pointer; outline: none; }
+.map-node rect.node-box { fill: var(--mp-surface); stroke: var(--mp-line-strong); stroke-width: 1.5; rx: 10; }
+.map-node text { fill: var(--mp-ink); font-size: 13px; font-family: inherit; }
+.map-node text.node-sub { fill: var(--mp-ink-muted); font-size: 11.5px; }
+.map-node text.node-icon { font-size: 15px; font-weight: 700; }
+.map-node:hover rect.node-box, .map-node:focus-visible rect.node-box { stroke: var(--mp-primary); stroke-width: 2.5; }
+.map-node:focus-visible rect.node-box { stroke: var(--mp-focus); stroke-width: 3; }
+.map-node.selected rect.node-box { stroke: var(--mp-primary); stroke-width: 3; }
+.map-node.state-Completed rect.node-box { fill: var(--mp-success-soft); stroke: var(--mp-success); }
+.map-node.state-Completed text.node-icon { fill: var(--mp-success); }
+.map-node.state-InProgress rect.node-box { fill: var(--mp-info-soft); stroke: var(--mp-info); }
+.map-node.state-InProgress text.node-icon { fill: var(--mp-info); }
+.map-node.state-PendingReview rect.node-box { fill: var(--mp-warning-soft); stroke: var(--mp-warning); stroke-dasharray: 5 3; }
+.map-node.state-PendingReview text.node-icon { fill: var(--mp-warning); }
+.map-node.state-NeedsRevision rect.node-box { fill: var(--mp-danger-soft); stroke: var(--mp-danger); }
+.map-node.state-NeedsRevision text.node-icon { fill: var(--mp-danger); }
+.map-node.state-Withdrawn rect.node-box { fill: var(--mp-neutral-soft); stroke: var(--mp-neutral); stroke-dasharray: 2 3; }
+.map-node.state-Withdrawn text { fill: var(--mp-neutral); }
+.map-edge { fill: none; stroke: var(--mp-line-strong); stroke-width: 2; }
+.map-edge.done { stroke: var(--mp-success); }
+.map-edge.branch { stroke-dasharray: 4 3; }
+.map-here rect { fill: var(--mp-primary); rx: 6; }
+.map-here text { fill: var(--mp-primary-ink); font-size: 11px; font-weight: 600; }
+.map-legend { display: flex; flex-wrap: wrap; gap: var(--mp-space-2) var(--mp-space-4); font-size: var(--mp-text-sm); color: var(--mp-ink-muted); }
+.map-legend .legend-icon { display: inline-block; width: 1.3rem; text-align: center; font-weight: 700; }

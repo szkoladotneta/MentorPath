@@ -5,6 +5,7 @@
 @using MentorPath.Application.Catalog.Contracts
 @using MentorPath.Application.Mentorships.Contracts
 @using MentorPath.Application.Roadmaps.Contracts
+@using MentorPath.Web.Components.Modules.Roadmaps
 @inject IRoadmapService Roadmaps
 @inject ITopicService Topics
 @inject IExerciseAuthoringService Exercises
@@ -49,6 +50,16 @@
         }
         else
         {
+            <Tabs Items="viewTabs" Selected="@(showMap ? "map" : "editor")" SelectedChanged="SetView" IdPrefix="rm" Label="Widok roadmapy" />
+            @if (showMap)
+            {
+                <div role="tabpanel" id="rm-panel-map" aria-labelledby="rm-tab-map">
+                    <RoadmapMap MentorshipId="MentorshipId" MentorView="true" />
+                </div>
+            }
+            else
+            {
+            <div role="tabpanel" id="rm-panel-editor" aria-labelledby="rm-tab-editor" class="mp-stack">
             <Section Title="Cel">
                 <Markdown Value="@roadmap.ObjectiveMarkdown" />
             </Section>
@@ -161,6 +172,8 @@
                     </div>
                 }
             </Section>
+            </div>
+            }
         }
     </PageState>
 </Page>
@@ -179,6 +192,9 @@
     private string newObjective = "";
     private Guid addTopicId;
     private string? addNote;
+    private bool showMap;
+    private static readonly IReadOnlyList<TabItem> viewTabs = [new("editor", "Edytor"), new("map", "Mapa")];
+    private void SetView(string view) => showMap = view == "map";
     private bool busy;
     private string? message;
 

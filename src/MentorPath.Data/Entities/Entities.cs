@@ -54,6 +54,7 @@ public sealed class Topic : IWorkspaceScoped
 {
     public Guid Id { get; set; }
     public Guid WorkspaceId { get; set; }
+    public Guid? ParentTopicId { get; set; }
     public string Slug { get; set; } = "";
     public string Title { get; set; } = "";
     public string Category { get; set; } = "";

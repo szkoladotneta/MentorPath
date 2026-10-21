@@ -14,7 +14,7 @@ applyTo: "src/MentorPath.Web/Components/**,src/MentorPath.Web/wwwroot/*.css"
 
 ## Layout and design system
 
-`DESIGN.md` is the source of truth (tokens, typography, shell, craft floor; decision D-44). Read it before building or changing any page. Do not re-decide layout per page; compose these pieces.
+`DESIGN.md` is the source of truth (tokens, typography, shell, craft floor; decision D-46). Read it before building or changing any page. Do not re-decide layout per page; compose these pieces.
 
 **Page skeleton.** Every page is `<PageTitle>` → `<Page Width="wide|reading|narrow">` → `<PageHeader Title Subtitle Crumbs Actions>` → `<PageState Loading NotFound>` → content. Copy `Pages/Mentor/Reviews/ReviewQueue.razor` as the reference.
 

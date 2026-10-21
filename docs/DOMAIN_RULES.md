@@ -50,7 +50,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Workspaces | unique `OwnerUserId` |
 | Mentorships | unique `(WorkspaceId, MenteeUserId)`; AK `(WorkspaceId, Id)` |
 | Invitations | unique `TokenHash`; index `(WorkspaceId, NormalizedEmail)` |
-| Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)` |
+| Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)`; nullable `ParentTopicId` — FK `(WorkspaceId, ParentTopicId)` → Topics AK (Restrict); check `ParentTopicId <> Id`; index `(WorkspaceId, ParentTopicId)`; cykle i głębokość ≤ 3 pilnuje serwis (D-45) |
 | Exercises | FK `(WorkspaceId, TopicId)` → Topics AK; AK `(WorkspaceId, Id)` |
 | QuizOptions | FK `ExerciseId` Cascade; partial unique `(ExerciseId) WHERE "IsCorrect"` |
 | Roadmaps | unique `MentorshipId`; FK `(WorkspaceId, MentorshipId)` |

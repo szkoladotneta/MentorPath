@@ -4,6 +4,7 @@
 @inherits AppComponentBase
 @using MentorPath.Application.Roadmaps.Contracts
 @using MentorPath.Web.Components.Modules.Progress
+@using MentorPath.Web.Components.Modules.Roadmaps
 @inject IRoadmapService Roadmaps
 
 <PageTitle>Roadmapa — MentorPath</PageTitle>
@@ -23,6 +24,16 @@
             </PageHeader>
             <SplitView>
                 <Main>
+                    <Tabs Items="viewTabs" Selected="@(showMap ? "map" : "list")" SelectedChanged="SetView" IdPrefix="rm" Label="Widok roadmapy" />
+                    @if (showMap)
+                    {
+                        <div role="tabpanel" id="rm-panel-map" aria-labelledby="rm-tab-map">
+                            <RoadmapMap MentorshipId="MentorshipId" />
+                        </div>
+                    }
+                    else
+                    {
+                    <div role="tabpanel" id="rm-panel-list" aria-labelledby="rm-tab-list" class="mp-stack">
                     @foreach (var item in roadmap.Items)
                     {
                         <Section Title="@($"{item.Position + 1}. {item.TopicTitle}")">
@@ -43,6 +54,8 @@
                             </DataList>
                         </Section>
                     }
+                    </div>
+                    }
                 </Main>
                 <Side>
                     <Section Title="Cel">
@@ -61,6 +74,9 @@
     [Parameter] public Guid MentorshipId { get; set; }
 
     private MenteeRoadmapDto? roadmap;
+    private bool showMap = true;
+    private void SetView(string view) => showMap = view == "map";
+    private static readonly IReadOnlyList<TabItem> viewTabs = [new("map", "Mapa"), new("list", "Lista")];
 
     private static string AssignmentMeta(ExerciseType type, bool required, DateTime? dueAtUtc, int attemptCount) =>
         $"{Labels.Of(type)} · {(required ? "wymagane" : "opcjonalne")}"

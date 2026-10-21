@@ -1,6 +1,6 @@
 # MentorPath — Design
 
-Companion to `PRODUCT.md`. Source of truth for tokens: `src/MentorPath.Web/wwwroot/tokens.css`; shell: `shell.css`; components: `components.css`. Decision record: D-44 in `docs/DECISIONS.md`.
+Companion to `PRODUCT.md`. Source of truth for tokens: `src/MentorPath.Web/wwwroot/tokens.css`; shell: `shell.css`; components: `components.css`. Decision record: D-46 in `docs/DECISIONS.md`.
 
 ## Direction
 

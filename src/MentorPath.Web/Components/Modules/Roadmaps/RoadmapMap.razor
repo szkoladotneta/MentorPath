@@ -1,0 +1,149 @@
+@inherits AppComponentBase
+@using MentorPath.Application.Progress
+@using MentorPath.Application.Progress.Contracts
+@inject IRoadmapMapService MapService
+
+@if (Loading)
+{
+    <div class="small text-secondary" role="status">Ładowanie mapy…</div>
+}
+else if (NotFound)
+{
+    <EmptyState Title="Nie znaleziono">Mapa roadmapy jest niedostępna.</EmptyState>
+}
+else if (Error is not null)
+{
+    <ErrorAlert Error="Error" />
+}
+else if (map is null || !map.HasRoadmap || map.Nodes.Count == 0)
+{
+    <EmptyState Title="Mapa jest pusta">@(MentorView ? "Dodaj tematy do roadmapy, aby zobaczyć mapę." : "Mentor nie dodał jeszcze tematów do roadmapy.")</EmptyState>
+}
+else
+{
+  <div class="mp-stack">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="map-legend" aria-label="Legenda mapy">
+            @foreach (var s in LegendStates)
+            {
+                <span><span class="legend-icon">@Labels.Icon(s)</span>@Labels.Of(s)</span>
+            }
+        </div>
+        <div class="small">Ukończone: <strong>@map.CompletedTopics / @map.CountedTopics</strong> (@map.PercentComplete%)</div>
+    </div>
+
+    <div class="mp-map">
+        <svg width="@Num(layout.Width)" height="@Num(layout.Height)" viewBox="0 0 @Num(layout.Width) @Num(layout.Height)"
+             role="group" aria-label="Mapa roadmapy: @map.RoadmapTitle">
+            @foreach (var edge in layout.Edges)
+            {
+                var done = !edge.IsBranch && byId[edge.FromKey].State == MapNodeState.Completed;
+                <path class="map-edge @(edge.IsBranch ? "branch" : "") @(done ? "done" : "")" d="@edge.Path" />
+            }
+            @foreach (var p in layout.Nodes)
+            {
+                var node = byId[p.Key];
+                <g class="map-node state-@node.State @(selectedId == node.RoadmapItemId ? "selected" : "")" tabindex="0" role="button"
+                   aria-pressed="@(selectedId == node.RoadmapItemId ? "true" : "false")"
+                   aria-label="@NodeLabel(node)"
+                   transform="translate(@Num(p.X) @Num(p.Y))"
+                   @onclick="() => Select(node)" @onkeydown="e => OnKey(e, node)">
+                    <title>@node.Title</title>
+                    <rect class="node-box" width="@Num(RoadmapMapLayout.NodeWidth)" height="@Num(RoadmapMapLayout.NodeHeight)" />
+                    <text class="node-icon" x="14" y="26">@Labels.Icon(node.State)</text>
+                    <text x="34" y="26">@Truncate(node.Title, 22)</text>
+                    <text class="node-sub" x="14" y="48">@SubLabel(node)</text>
+                    @if (node.IsCurrent)
+                    {
+                        <g class="map-here" transform="translate(12 -22)">
+                            <rect width="@(MentorView ? 118 : 82)" height="20" />
+                            <text x="8" y="14">@(MentorView ? "Następny do zaliczenia" : "Tu jesteś")</text>
+                        </g>
+                    }
+                </g>
+            }
+        </svg>
+    </div>
+
+    @if (selected is not null)
+    {
+        <div class="card" aria-live="polite">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>@selected.Title</span>
+                <span class="small text-secondary">@Labels.Of(selected.State)</span>
+            </div>
+            <div class="card-body">
+                @if (selected.Assignments.Count == 0)
+                {
+                    <div class="small text-secondary">Brak przypisanych ćwiczeń.</div>
+                }
+                @foreach (var a in selected.Assignments)
+                {
+                    <div class="list-row px-0">
+                        <div>
+                            @if (MentorView)
+                            {
+                                <span class="fw-semibold">@a.ExerciseTitle</span>
+                            }
+                            else
+                            {
+                                <a href="@($"app/assignments/{a.AssignmentId}")" class="fw-semibold">@a.ExerciseTitle</a>
+                            }
+                            <div class="small text-secondary">@(a.IsRequired ? "wymagane" : "opcjonalne")</div>
+                        </div>
+                        <Badge Value="a.Status" />
+                    </div>
+                }
+            </div>
+        </div>
+    }
+  </div>
+}
+
+@code {
+    private static readonly MapNodeState[] LegendStates =
+        [MapNodeState.Completed, MapNodeState.InProgress, MapNodeState.PendingReview, MapNodeState.NeedsRevision, MapNodeState.NotStarted, MapNodeState.Withdrawn];
+
+    [Parameter, EditorRequired] public Guid MentorshipId { get; set; }
+    [Parameter] public bool MentorView { get; set; }
+
+    private RoadmapMapDto? map;
+    private MapLayout layout = new(0, 0, [], []);
+    private Dictionary<Guid, RoadmapMapNodeDto> byId = [];
+    private Guid? selectedId;
+    private RoadmapMapNodeDto? selected => selectedId is { } id && byId.TryGetValue(id, out var n) ? n : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = await GetUserIdAsync();
+        var result = MentorView
+            ? await MapService.GetMapForMentorAsync(user, MentorshipId, Ct)
+            : await MapService.GetMapForMenteeAsync(user, MentorshipId, Ct);
+        if (Handle(result))
+        {
+            map = result.Value;
+            byId = map!.Nodes.ToDictionary(n => n.RoadmapItemId);
+            layout = RoadmapMapLayout.Compute(map.Nodes.Select(n => new MapLayoutInput(n.RoadmapItemId, null)).ToList());
+            selectedId = map.Nodes.FirstOrDefault(n => n.IsCurrent)?.RoadmapItemId;
+        }
+        Loading = false;
+    }
+
+    private void Select(RoadmapMapNodeDto node) => selectedId = node.RoadmapItemId;
+
+    private void OnKey(KeyboardEventArgs e, RoadmapMapNodeDto node)
+    {
+        if (e.Key is "Enter" or " ") Select(node);
+    }
+
+    private static string Num(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Truncate(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+
+    private static string SubLabel(RoadmapMapNodeDto n) => n.State == MapNodeState.Withdrawn
+        ? "wycofany"
+        : n.TotalRequired == 0 ? Labels.Of(n.State) : $"{Labels.Of(n.State)} · {n.CompletedRequired}/{n.TotalRequired} wymaganych";
+
+    private static string NodeLabel(RoadmapMapNodeDto n) =>
+        $"{n.Title}, {Labels.Of(n.State)}{(n.IsCurrent ? ", bieżący temat" : "")}";
+}
