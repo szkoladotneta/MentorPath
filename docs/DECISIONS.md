@@ -348,11 +348,13 @@ Doprecyzowanie (PR schematu):
 - Migracja `AddTopicParent` jest addytywna: nullable kolumna (istniejące tematy zostają korzeniami), złożony FK `(WorkspaceId, ParentTopicId)` → AK `(WorkspaceId, Id)` z `Restrict`, check `ParentTopicId <> Id`, indeks `(WorkspaceId, ParentTopicId)`. Cykle (wielokrokowe) i głębokość ≤ 3 nie są wyrażalne w bazie — waliduje je `TopicService` w PR z serwisami.
 - Kontrakty: opcjonalne parametry końcowe `ParentTopicId` w `UpsertTopicRequest`, `TopicListItem`, `TopicDetail` (kompatybilne wstecz). Do czasu PR z serwisami serwis ignoruje to pole.
 
+Doprecyzowanie (PR kontraktu mapy):
+- `RoadmapMapContracts`: `MapNodeState.NotInPlan` (dopisany na końcu enuma) oraz opcjonalne parametry końcowe `TopicId`, `ParentTopicId` w `RoadmapMapNodeDto` (`ParentTopicId` = najbliższy przodek widoczny na mapie). Zmiana wyłącznie addytywna; serwis i UI wypełniają je w osobnym PR (wcześniej `TopicId` = `default`, `ParentTopicId` = null).
+
 Doprecyzowanie (PR serwisów i UI):
 - `TopicService` przy tworzeniu/edycji z rodzicem: nieznany lub obcy rodzic → `NotFound`; rodzic zarchiwizowany, cykl (także własny rodzic) lub głębokość > 3 (liczona z wysokością przenoszonego poddrzewa) → walidacja `catalog.invalid_parent` (pole `ParentTopicId`). Niezmieniony rodzic nie jest ponownie sprawdzany (istniejące dzieci zarchiwizowanego tematu działają dalej). `ParentTopicId = null` w `UpsertTopicRequest` oznacza korzeń. Sprawdzenie odbywa się w transakcji pod advisory lockiem workspace'u, więc równoległe edycje nie złożą cyklu.
 - Mapa: duchy („poza planem”) to niezarchiwizowane potomki aktywnych tematów planu, których nie ma w roadmapie (przechodzimy też przez zaplanowane aktywne poddrzewa). Duch ma tylko tytuł (`RoadmapItemId = Guid.Empty`, brak przydziałów), nie wlicza się do postępu. Temat planu, którego rodzic nie jest na mapie, jest węzłem najwyższego poziomu — nie ma węzłów „kontekstowych”, więc nic spoza planu nie wycieka. Agregacja postępu rodzica nie jest pokazywana.
 - Mentor dodaje ducha do roadmapy przyciskiem „Dodaj do roadmapy” (istniejące `IRoadmapService.AddTopicAsync`); mentee nie ma tej akcji.
-- Kontrakt `RoadmapMapContracts`: `MapNodeState.NotInPlan` oraz opcjonalne parametry końcowe `TopicId`, `ParentTopicId` w `RoadmapMapNodeDto` (dodatki wsteczne kompatybilne; wyjątek jak przy D-43 — zmiana kontraktu w PR funkcjonalnym).
 
 ---
 
