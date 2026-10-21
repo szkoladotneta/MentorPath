@@ -21,7 +21,8 @@ else if (map is null || !map.HasRoadmap || map.Nodes.Count == 0)
 }
 else
 {
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <div class="mp-stack">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="map-legend" aria-label="Legenda mapy">
             @foreach (var s in LegendStates)
             {
@@ -31,7 +32,7 @@ else
         <div class="small">Ukończone: <strong>@map.CompletedTopics / @map.CountedTopics</strong> (@map.PercentComplete%)</div>
     </div>
 
-    <div class="roadmap-map">
+    <div class="mp-map">
         <svg width="@Num(layout.Width)" height="@Num(layout.Height)" viewBox="0 0 @Num(layout.Width) @Num(layout.Height)"
              role="group" aria-label="Mapa roadmapy: @map.RoadmapTitle">
             @foreach (var edge in layout.Edges)
@@ -66,7 +67,7 @@ else
 
     @if (selected is not null)
     {
-        <div class="card mt-3" aria-live="polite">
+        <div class="card" aria-live="polite">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>@selected.Title</span>
                 <span class="small text-secondary">@Labels.Of(selected.State)</span>
@@ -96,6 +97,7 @@ else
             </div>
         </div>
     }
+  </div>
 }
 
 @code {

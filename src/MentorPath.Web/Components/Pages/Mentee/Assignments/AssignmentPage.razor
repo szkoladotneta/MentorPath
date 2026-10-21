@@ -9,83 +9,80 @@
 
 <PageTitle>Zadanie — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (model is not null)
-    {
-        var ex = model.Exercise;
-        <div class="page-header">
-            <div>
-                <a href="@($"app/roadmap/{model.MentorshipId}")" class="small">← Roadmapa · @model.TopicTitle</a>
-                <h1>@ex.Title</h1>
-                <div class="subtitle d-flex flex-wrap gap-2 align-items-center">
-                    <Badge Value="ex.Type" />
-                    <span>@(model.IsRequired ? "wymagane" : "opcjonalne")</span>
-                    @if (model.DueAtUtc is not null) { <span>· termin @Labels.Day(model.DueAtUtc)</span> }
-                    @if (ex.EstimatedMinutes is not null) { <span>· ok. @ex.EstimatedMinutes min</span> }
-                </div>
-            </div>
-            @if (model.AttemptCount > 0)
-            {
-                <a class="btn btn-outline-primary" href="@($"app/assignments/{AssignmentId}/history")">Historia prób (@model.AttemptCount)</a>
-            }
-        </div>
-        <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="section-title">@(ex.Type == ExerciseType.PracticalTask ? "Opis zadania" : "Scenariusz")</div>
+<Page Width="wide">
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (model is not null)
+        {
+            var ex = model.Exercise;
+            var answerTitle = model.AttemptCount > 0 ? $"Twoja odpowiedź (próba #{model.AttemptCount + 1})" : "Twoja odpowiedź";
+            <PageHeader Title="@ex.Title" Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Roadmapa", $"app/roadmap/{model.MentorshipId}"), new(model.TopicTitle) })">
+                <ChildContent>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-2 text-secondary">
+                        <Badge Value="ex.Type" />
+                        <span>@(model.IsRequired ? "wymagane" : "opcjonalne")</span>
+                        @if (model.DueAtUtc is not null) { <span>· termin @Labels.Day(model.DueAtUtc)</span> }
+                        @if (ex.EstimatedMinutes is not null) { <span>· ok. @ex.EstimatedMinutes min</span> }
+                    </div>
+                </ChildContent>
+                <Actions>
+                    @if (model.AttemptCount > 0)
+                    {
+                        <a class="btn btn-outline-primary" href="@($"app/assignments/{AssignmentId}/history")">Historia prób (@model.AttemptCount)</a>
+                    }
+                </Actions>
+            </PageHeader>
+            <SplitView WideSide="true">
+                <Main>
+                    <Section Title="@(ex.Type == ExerciseType.PracticalTask ? "Opis zadania" : "Scenariusz")">
                         <Markdown Value="@ex.ScenarioMarkdown" />
                         @if (ex.InstructionsMarkdown is not null)
                         {
-                            <div class="section-title mt-3">Wymagania</div>
+                            <div class="section-title">Wymagania</div>
                             <Markdown Value="@ex.InstructionsMarkdown" />
                         }
                         @if (ex.ExpectedOutcomeMarkdown is not null)
                         {
-                            <div class="section-title mt-3">Oczekiwany rezultat</div>
+                            <div class="section-title">Oczekiwany rezultat</div>
                             <Markdown Value="@ex.ExpectedOutcomeMarkdown" />
                         }
                         @if (ex.RubricMarkdown is not null)
                         {
-                            <div class="section-title mt-3">Kryteria oceny</div>
+                            <div class="section-title">Kryteria oceny</div>
                             <Markdown Value="@ex.RubricMarkdown" />
                         }
                         @if (ex.DiscussionQuestionsMarkdown is not null)
                         {
-                            <div class="section-title mt-3">Pytania do przemyślenia</div>
+                            <div class="section-title">Pytania do przemyślenia</div>
                             <Markdown Value="@ex.DiscussionQuestionsMarkdown" />
                         }
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                @if (quizOutcome is not null)
-                {
-                    <div class="alert @(quizOutcome.IsCorrect ? "alert-success" : "alert-warning")">
-                        <strong>@(quizOutcome.IsCorrect ? "Poprawna odpowiedź!" : "To nie jest najlepsza odpowiedź.")</strong>
-                        <Markdown Value="@quizOutcome.SelectedOptionExplanationMarkdown" Class="mt-1" />
-                        @if (quizOutcome.ExerciseExplanationMarkdown is not null)
-                        {
-                            <div class="section-title mt-2">Wyjaśnienie</div>
-                            <Markdown Value="@quizOutcome.ExerciseExplanationMarkdown" />
-                        }
-                        @if (!quizOutcome.IsCorrect) { <div class="small mt-1">Możesz spróbować ponownie.</div> }
-                    </div>
-                }
-                @if (successMessage is not null) { <div class="alert alert-success">@successMessage</div> }
+                    </Section>
+                </Main>
+                <Side>
+                    @if (quizOutcome is not null)
+                    {
+                        <div class="alert @(quizOutcome.IsCorrect ? "alert-success" : "alert-warning") mb-0">
+                            <strong>@(quizOutcome.IsCorrect ? "Poprawna odpowiedź!" : "To nie jest najlepsza odpowiedź.")</strong>
+                            <Markdown Value="@quizOutcome.SelectedOptionExplanationMarkdown" Class="mt-1" />
+                            @if (quizOutcome.ExerciseExplanationMarkdown is not null)
+                            {
+                                <div class="section-title">Wyjaśnienie</div>
+                                <Markdown Value="@quizOutcome.ExerciseExplanationMarkdown" />
+                            }
+                            @if (!quizOutcome.IsCorrect) { <div class="small mt-1">Możesz spróbować ponownie.</div> }
+                        </div>
+                    }
+                    @if (successMessage is not null) { <div class="alert alert-success mb-0">@successMessage</div> }
 
-                @if (model.SubmitBlockReason != SubmitBlockReason.None)
-                {
-                    <div class="alert alert-info">
-                        @BlockText(model.SubmitBlockReason)
-                        @if (model.AttemptCount > 0) { <div><a href="@($"app/assignments/{AssignmentId}/history")">Zobacz historię i feedback</a></div> }
-                    </div>
-                }
-                else
-                {
-                    <div class="card">
-                        <div class="card-header">Twoja odpowiedź @(model.AttemptCount > 0 ? $"(próba #{model.AttemptCount + 1})" : "")</div>
-                        <div class="card-body">
+                    @if (model.SubmitBlockReason != SubmitBlockReason.None)
+                    {
+                        <div class="alert alert-info mb-0">
+                            @BlockText(model.SubmitBlockReason)
+                            @if (model.AttemptCount > 0) { <div><a href="@($"app/assignments/{AssignmentId}/history")">Zobacz historię i feedback</a></div> }
+                        </div>
+                    }
+                    else
+                    {
+                        <Section Title="@answerTitle">
                             <ErrorAlert Error="Error" ShowFieldList="false" />
                             @switch (ex.Type)
                             {
@@ -139,13 +136,13 @@
                                 @if (busy) { <span class="spinner-border spinner-border-sm me-1"></span> }
                                 Wyślij
                             </button>
-                        </div>
-                    </div>
-                }
-            </div>
-        </div>
-    }
-</PageState>
+                        </Section>
+                    }
+                </Side>
+            </SplitView>
+        }
+    </PageState>
+</Page>
 
 @code {
     private static readonly (string Field, string Label, string Hint)[] DecisionFields =

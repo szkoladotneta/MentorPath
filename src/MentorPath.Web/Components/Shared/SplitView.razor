@@ -1,0 +1,13 @@
+<div class="mp-split @(Sticky ? "mp-split--sticky" : null) @(WideSide ? "mp-split--side-wide" : null) @Class">
+    <div class="mp-split__main">@Main</div>
+    <aside class="mp-split__side">@Side</aside>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment Main { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment Side { get; set; } = default!;
+    /// <summary>Keeps the side column in reach while the main column scrolls (wide screens only).</summary>
+    [Parameter] public bool Sticky { get; set; }
+    [Parameter] public bool WideSide { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

@@ -1,0 +1,25 @@
+<section class="card mp-section @Class">
+    @if (!string.IsNullOrEmpty(Title) || Aside is not null)
+    {
+        <header class="card-header">
+            <h2 class="mp-section__title">@Title</h2>
+            @if (Aside is not null)
+            {
+                <div class="mp-section__aside">@Aside</div>
+            }
+        </header>
+    }
+    <div class="card-body @(Flush ? "p-0" : null)">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    /// <summary>Right side of the header: counts, a badge or a small action.</summary>
+    [Parameter] public RenderFragment? Aside { get; set; }
+    /// <summary>Removes body padding so a <see cref="DataList"/> runs edge to edge.</summary>
+    [Parameter] public bool Flush { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

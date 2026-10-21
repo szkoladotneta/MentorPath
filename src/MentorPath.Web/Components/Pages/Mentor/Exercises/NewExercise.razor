@@ -10,97 +10,90 @@
 
 <PageTitle>Nowe ćwiczenie — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Nowe ćwiczenie</h1>
-        <div class="subtitle">Wygeneruj szkic z pomocą AI albo utwórz ćwiczenie ręcznie. Każda treść zaczyna jako szkic.</div>
-    </div>
-</div>
+<Page>
+    <PageHeader Title="Nowe ćwiczenie" Subtitle="Wygeneruj szkic z pomocą AI albo utwórz ćwiczenie ręcznie. Każda treść zaczyna jako szkic." />
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (topics.Count == 0)
-    {
-        <EmptyState Title="Najpierw utwórz temat"><a href="mentor/catalog/topics">Przejdź do katalogu</a></EmptyState>
-    }
-    else
-    {
-        <div class="row g-4">
-            <div class="col-lg-5">
-                <div class="card">
-                    <div class="card-header">Parametry</div>
-                    <div class="card-body">
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (topics.Count == 0)
+        {
+            <EmptyState Icon="library" Title="Najpierw utwórz temat"><a href="mentor/catalog/topics">Przejdź do katalogu</a></EmptyState>
+        }
+        else
+        {
+            <SplitView Sticky="true">
+                <Main>
+                    <Section Title="Parametry">
                         <div class="mb-3">
-                            <label class="form-label">Temat</label>
-                            <select class="form-select" @bind="topicId">
+                            <label class="form-label" for="ex-topic">Temat</label>
+                            <select id="ex-topic" class="form-select" @bind="topicId">
                                 @foreach (var t in topics)
                                 {
                                     <option value="@t.TopicId">@t.Title</option>
                                 }
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Typ ćwiczenia</label>
-                            <select class="form-select" @bind="type">
-                                @foreach (var t in Enum.GetValues<ExerciseType>())
-                                {
-                                    <option value="@t">@Labels.Of(t)</option>
-                                }
-                            </select>
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label" for="ex-type">Typ ćwiczenia</label>
+                                <select id="ex-type" class="form-select" @bind="type">
+                                    @foreach (var t in Enum.GetValues<ExerciseType>())
+                                    {
+                                        <option value="@t">@Labels.Of(t)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label" for="ex-difficulty">Poziom trudności</label>
+                                <select id="ex-difficulty" class="form-select" @bind="difficulty">
+                                    @foreach (var d in Enum.GetValues<Difficulty>())
+                                    {
+                                        <option value="@d">@Labels.Of(d)</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Poziom trudności</label>
-                            <select class="form-select" @bind="difficulty">
-                                @foreach (var d in Enum.GetValues<Difficulty>())
-                                {
-                                    <option value="@d">@Labels.Of(d)</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Cele edukacyjne</label>
-                            <textarea class="form-control" rows="3" @bind="objectives"></textarea>
+                            <label class="form-label" for="ex-objectives">Cele edukacyjne</label>
+                            <textarea id="ex-objectives" class="form-control" rows="3" @bind="objectives"></textarea>
                             <FieldError Error="Error" Field="LearningObjectives" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Kontekst lub ograniczenia</label>
-                            <textarea class="form-control" rows="3" @bind="context"></textarea>
+                            <label class="form-label" for="ex-context">Kontekst lub ograniczenia</label>
+                            <textarea id="ex-context" class="form-control" rows="3" @bind="context"></textarea>
                             <div class="form-text">Nie wpisuj danych osobowych mentees — ta treść trafia do dostawcy AI.</div>
                         </div>
-                        <div class="mb-3" style="max-width:200px">
-                            <label class="form-label">Szacowany czas (min)</label>
-                            <input type="number" class="form-control" @bind="minutes" />
+                        <div class="mb-4 field-narrow">
+                            <label class="form-label" for="ex-minutes">Szacowany czas (min)</label>
+                            <input id="ex-minutes" type="number" class="form-control" @bind="minutes" />
                         </div>
                         <ErrorAlert Error="Error" ShowFieldList="false" />
                         <div class="d-flex flex-wrap gap-2">
                             <button class="btn btn-primary" @onclick="GenerateAsync" disabled="@busy">
-                                @if (generating) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                @if (generating) { <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> }
                                 Generate with AI
                             </button>
                             <button class="btn btn-outline-primary" @onclick="CreateManualAsync" disabled="@busy">Utwórz ręcznie</button>
                         </div>
                         @if (quota is not null)
                         {
-                            <div class="small text-secondary mt-2">Limit AI: @quota.Used / @quota.Limit w tym miesiącu.</div>
+                            <div class="small text-secondary mt-3">Limit AI: @quota.Used / @quota.Limit w tym miesiącu.</div>
                         }
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-7">
-                <div class="card">
-                    <div class="card-body">
-                        <h2 class="h6">Jak to działa</h2>
-                        <ol class="small mb-0">
+                    </Section>
+                </Main>
+                <Side>
+                    <Section Title="Jak to działa">
+                        <ol class="small mb-0 ps-3">
                             <li>AI tworzy szkic: scenariusz, instrukcje, kryteria oceny, prywatny mentor guide i — dla quizu — opcje odpowiedzi.</li>
                             <li>Odpowiedź AI jest walidowana (schemat, reguły domenowe, brak HTML) i zapisywana jako <strong>szkic</strong>.</li>
                             <li>Przejrzyj i popraw treść w edytorze. AI może się mylić — odpowiadasz za merytorykę.</li>
                             <li>Opublikuj ćwiczenie jawną akcją. Dopiero opublikowane ćwiczenie można przypisać na roadmapie.</li>
                         </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-</PageState>
+                    </Section>
+                </Side>
+            </SplitView>
+        }
+    </PageState>
+</Page>
 
 @code {
     [SupplyParameterFromQuery(Name = "topicId")] public Guid? InitialTopicId { get; set; }

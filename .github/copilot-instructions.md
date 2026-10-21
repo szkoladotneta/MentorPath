@@ -55,5 +55,6 @@ GitHub Copilot projects do not support arbitrary repo-defined slash commands lik
 - Product behavior comes from `docs/MVP_SPEC.md`; do not add P1 features. Record every implicit decision in `docs/DECISIONS.md`.
 - Schema changes and `Contracts/` changes go in a separate PR labelled `schema-change`.
 - UI text is in Polish; code, comments and commit messages are in English.
+- UI layout and styling follow `DESIGN.md` and the "Layout and design system" rules in `.github/instructions/razor-ui.instructions.md`: every page uses `Page` + `PageHeader` + `Section`/`DataList` from `Components/Shared`, design tokens only, no inline layout styles.
 - End every final answer with a `## Next step` section: one concrete action for the human in the MentorPath workflow (see `AGENTS.md`).
 - A task is done only when `dotnet build MentorPath.slnx` has 0 warnings and the relevant tests pass.

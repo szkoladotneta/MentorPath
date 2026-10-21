@@ -1,0 +1,44 @@
+@* Tab strip for interactive pages. The page renders the matching panel itself (use PanelId/TabId for the ARIA wiring). *@
+<div class="mp-tabs" role="tablist" aria-label="@Label" @onkeydown="OnKeyDown">
+    @foreach (var tab in Items)
+    {
+        var selected = tab.Id == Selected;
+        <button type="button" role="tab" class="mp-tab" id="@TabId(tab.Id)" aria-selected="@(selected ? "true" : "false")"
+                aria-controls="@PanelId(tab.Id)" tabindex="@(selected ? 0 : -1)"
+                @ref="refs[tab.Id]" @onclick="() => Select(tab.Id)">@tab.Label</button>
+    }
+</div>
+
+@code {
+    private readonly Dictionary<string, ElementReference> refs = [];
+
+    [Parameter, EditorRequired] public IReadOnlyList<TabItem> Items { get; set; } = [];
+    [Parameter] public string? Selected { get; set; }
+    [Parameter] public EventCallback<string> SelectedChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Sekcje";
+    [Parameter] public string IdPrefix { get; set; } = "tabs";
+
+    public string TabId(string id) => $"{IdPrefix}-tab-{id}";
+    public string PanelId(string id) => $"{IdPrefix}-panel-{id}";
+
+    private Task Select(string id) => SelectedChanged.InvokeAsync(id);
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (Items.Count == 0) return;
+        var index = 0;
+        for (var i = 0; i < Items.Count; i++) if (Items[i].Id == Selected) index = i;
+        var next = e.Key switch
+        {
+            "ArrowRight" => (index + 1) % Items.Count,
+            "ArrowLeft" => (index - 1 + Items.Count) % Items.Count,
+            "Home" => 0,
+            "End" => Items.Count - 1,
+            _ => -1,
+        };
+        if (next < 0) return;
+        var id = Items[next].Id;
+        await Select(id);
+        if (refs.TryGetValue(id, out var el)) await el.FocusAsync();
+    }
+}

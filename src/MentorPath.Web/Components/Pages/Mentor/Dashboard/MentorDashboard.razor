@@ -7,86 +7,96 @@
 
 <PageTitle>Dashboard mentora — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Dashboard</h1>
-        <div class="subtitle">Twoi mentees, oczekujące review i ostatnia aktywność.</div>
-    </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="mentor/catalog/topics">Katalog</a>
-        <a class="btn btn-primary" href="mentor/exercises/new">Nowe ćwiczenie</a>
-    </div>
-</div>
+<Page>
+    <PageHeader Title="Dashboard" Subtitle="Twoi mentees, oczekujące review i ostatnia aktywność.">
+        <Actions>
+            <a class="btn btn-outline-primary" href="mentor/catalog/topics">Katalog</a>
+            <a class="btn btn-primary" href="mentor/exercises/new">Nowe ćwiczenie</a>
+        </Actions>
+    </PageHeader>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (data is not null)
-    {
-        <div class="row g-4">
-            <div class="col-lg-7">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between"><span>Mentees i postęp</span><a href="mentor/mentees" class="small">Zarządzaj</a></div>
-                    @if (data.Mentees.Count == 0)
-                    {
-                        <div class="card-body"><EmptyState Title="Brak mentees"><a href="mentor/mentees">Zaproś pierwszą osobę</a></EmptyState></div>
-                    }
-                    @foreach (var m in data.Mentees)
-                    {
-                        var percent = m.CountedTopics == 0 ? 0 : 100 * m.CompletedTopics / m.CountedTopics;
-                        <div class="list-row">
-                            <div style="min-width:0;flex:1">
-                                <a href="@($"mentor/mentees/{m.MentorshipId}")" class="fw-semibold">@m.MenteeDisplayName</a>
-                                <div class="small text-secondary">
-                                    @(m.HasPublishedRoadmap ? $"{m.CompletedTopics}/{m.CountedTopics} tematów" : "brak opublikowanej roadmapy")
-                                    · ostatnia próba: @Labels.Date(m.LastSubmissionAtUtc)
-                                </div>
-                                @if (m.HasPublishedRoadmap)
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (data is not null)
+        {
+            <div class="mp-stats">
+                <StatTile Label="Mentees" Value="@data.Mentees.Count.ToString()" />
+                <StatTile Label="Czeka na ocenę" Value="@data.PendingReviews.Count.ToString()" Attention="@(data.PendingReviews.Count > 0)" />
+                <StatTile Label="Aktywność (30 dni)" Value="@data.RecentActivity.Count.ToString()" />
+            </div>
+
+            <SplitView Sticky="true">
+                <Main>
+                    <Section Title="Mentees i postęp" Flush="true">
+                        <Aside><a href="mentor/mentees">Zarządzaj</a></Aside>
+                        <ChildContent>
+                            @if (data.Mentees.Count == 0)
+                            {
+                                <EmptyState Icon="users" Title="Brak mentees"><a href="mentor/mentees">Zaproś pierwszą osobę</a></EmptyState>
+                            }
+                            <DataList>
+                                @foreach (var m in data.Mentees)
                                 {
-                                    <div class="progress mt-1" style="max-width:280px"><div class="progress-bar" style="width:@(percent)%"></div></div>
+                                    var percent = m.CountedTopics == 0 ? 0 : 100 * m.CompletedTopics / m.CountedTopics;
+                                    <DataRow>
+                                        <ChildContent>
+                                            <a href="@($"mentor/mentees/{m.MentorshipId}")" class="mp-datarow__title">@m.MenteeDisplayName</a>
+                                            <div class="mp-datarow__meta">
+                                                @(m.HasPublishedRoadmap ? $"{m.CompletedTopics}/{m.CountedTopics} tematów" : "brak opublikowanej roadmapy")
+                                                · ostatnia próba: @Labels.Date(m.LastSubmissionAtUtc)
+                                            </div>
+                                            @if (m.HasPublishedRoadmap)
+                                            {
+                                                <div class="progress mt-2 mp-max-sm" role="progressbar" aria-label="Postęp: @(percent)%" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@(percent)%"></div></div>
+                                            }
+                                        </ChildContent>
+                                        <Aside>
+                                            @if (m.PendingReviewCount > 0) { <Badge Tone="info" Label="@($"{m.PendingReviewCount} do oceny")" /> }
+                                            <Badge Value="m.Status" />
+                                        </Aside>
+                                    </DataRow>
                                 }
-                            </div>
-                            <div class="d-flex gap-2 align-items-center">
-                                @if (m.PendingReviewCount > 0) { <span class="badge text-bg-info">@m.PendingReviewCount do oceny</span> }
-                                <Badge Value="m.Status" />
-                            </div>
-                        </div>
-                    }
-                </div>
-                <div class="card">
-                    <div class="card-header">Ostatnia aktywność (30 dni)</div>
-                    @if (data.RecentActivity.Count == 0)
-                    {
-                        <div class="card-body small text-secondary">Brak aktywności.</div>
-                    }
-                    @foreach (var a in data.RecentActivity)
-                    {
-                        <div class="list-row small">
-                            <div><strong>@a.MenteeDisplayName</strong> @Labels.Of(a.Kind): @a.ExerciseTitle</div>
-                            <span class="text-secondary text-nowrap">@Labels.Date(a.OccurredAtUtc)</span>
-                        </div>
-                    }
-                </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between"><span>Oczekujące review</span><a href="mentor/reviews" class="small">Kolejka</a></div>
-                    @if (data.PendingReviews.Count == 0)
-                    {
-                        <div class="card-body small text-secondary">Nic nie czeka na ocenę.</div>
-                    }
-                    @foreach (var p in data.PendingReviews.Take(8))
-                    {
-                        <div class="list-row">
-                            <div>
-                                <a href="@($"mentor/reviews/{p.SubmissionId}")" class="fw-semibold">@p.ExerciseTitle</a>
-                                <div class="small text-secondary">@p.MenteeDisplayName · próba #@p.AttemptNumber · @Labels.Date(p.SubmittedAtUtc)</div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    }
-</PageState>
+                            </DataList>
+                        </ChildContent>
+                    </Section>
+
+                    <Section Title="Ostatnia aktywność (30 dni)" Flush="@(data.RecentActivity.Count > 0)">
+                        @if (data.RecentActivity.Count == 0)
+                        {
+                            <p class="small text-secondary mb-0">Brak aktywności.</p>
+                        }
+                        <DataList>
+                            @foreach (var a in data.RecentActivity)
+                            {
+                                <DataRow Class="small">
+                                    <ChildContent><strong>@a.MenteeDisplayName</strong> @Labels.Of(a.Kind): @a.ExerciseTitle</ChildContent>
+                                    <Aside><span class="text-secondary text-nowrap">@Labels.Date(a.OccurredAtUtc)</span></Aside>
+                                </DataRow>
+                            }
+                        </DataList>
+                    </Section>
+                </Main>
+                <Side>
+                    <Section Title="Oczekujące review" Flush="@(data.PendingReviews.Count > 0)">
+                        <Aside><a href="mentor/reviews">Kolejka</a></Aside>
+                        <ChildContent>
+                            @if (data.PendingReviews.Count == 0)
+                            {
+                                <p class="small text-secondary mb-0">Nic nie czeka na ocenę.</p>
+                            }
+                            <DataList>
+                                @foreach (var p in data.PendingReviews.Take(8))
+                                {
+                                    <DataRow Href="@($"mentor/reviews/{p.SubmissionId}")" Title="@p.ExerciseTitle"
+                                             Meta="@($"{p.MenteeDisplayName} · próba #{p.AttemptNumber} · {Labels.Date(p.SubmittedAtUtc)}")" />
+                                }
+                            </DataList>
+                        </ChildContent>
+                    </Section>
+                </Side>
+            </SplitView>
+        }
+    </PageState>
+</Page>
 
 @code {
     private MentorDashboardDto? data;

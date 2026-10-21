@@ -348,6 +348,16 @@ Doprecyzowanie (PR schematu):
 - Migracja `AddTopicParent` jest addytywna: nullable kolumna (istniejące tematy zostają korzeniami), złożony FK `(WorkspaceId, ParentTopicId)` → AK `(WorkspaceId, Id)` z `Restrict`, check `ParentTopicId <> Id`, indeks `(WorkspaceId, ParentTopicId)`. Cykle (wielokrokowe) i głębokość ≤ 3 nie są wyrażalne w bazie — waliduje je `TopicService` w PR z serwisami.
 - Kontrakty: opcjonalne parametry końcowe `ParentTopicId` w `UpsertTopicRequest`, `TopicListItem`, `TopicDetail` (kompatybilne wstecz). Do czasu PR z serwisami serwis ignoruje to pole.
 
+## D-46 — Odświeżenie warstwy wizualnej i układu aplikacji (Impeccable)
+Status: Proposed (2026-10-20; tylko prezentacja, bez zmian schematu i `Contracts/`)
+
+- Zakres: nowy shell aplikacji (zwijana szyna nawigacji zależna od roli, górny pasek z okruszkami i menu użytkownika, przełącznik mentoringu dla mentee, dostępna szuflada na mobile zamiast „checkbox hack”), tokeny CSS (`tokens.css`, `shell.css`, `components.css` zamiast `app.css`), wspólne komponenty (`Page`, `PageHeader`, `Section`, `DataList`/`DataRow`, `StatTile`, `SplitView`, `Tabs`, `Icon`) oraz przeniesienie stron mentora, mentee i konta na nowy układ. Bootstrap 5 zostaje; jego komponenty są przestylowane tokenami.
+- Narzędzie: skill Impeccable (projektowo, `.github/skills/impeccable`) z hookiem detektora anty-wzorców; `PRODUCT.md` i `DESIGN.md` opisują kierunek. Instalacja dotyka `.github/` (CODEOWNERS) i jest w osobnym commicie.
+- Kierunek: chłodne, stonowane tło z odcieniem teal, jeden kolor akcentu, statusy zawsze ze słowem i kropką (nie sam kolor), brak ciemnego motywu w MVP. Czcionki IBM Plex (Sans/Serif/Mono) hostowane lokalnie z `wwwroot/fonts` (licencja OFL w katalogu) — bez CDN i bez nowego pakietu NuGet.
+- Shell jest renderowany statycznie (SSR) — `Routes.razor` nie ma trybu renderowania — więc zwijanie szyny, szuflada i menu to lekki JS oparty o atrybuty `data-*` na `<html>` (stan szyny w `localStorage`, bez danych osobowych).
+- Aktywny mentoring w przełączniku mentee jest wyliczany z adresu URL (`/app/roadmap|progress/{id}` lub `?mentorshipId=`), z domyślnym pierwszym; to wyłącznie stan nawigacji (por. D-08), nie uprawnienie — dostęp nadal sprawdzają serwisy. Ograniczenie: na stronie zadania linki „Roadmapa”/„Postęp” w szynie wskazują pierwszy mentoring.
+- Wszystkie strony zachowują `[Authorize]`, trasy, teksty po polsku i selektory używane przez `tests/e2e/ui-smoke.js`. Komponenty nie używają `AppDbContext`.
+
 ---
 
 ## Change Requests

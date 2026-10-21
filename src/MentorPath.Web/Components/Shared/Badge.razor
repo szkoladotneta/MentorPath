@@ -1,8 +1,13 @@
-<span class="badge rounded-pill text-bg-@Labels.Tone(Value) status-badge">@Text</span>
+<span class="mp-badge mp-badge--@ToneName">@Text</span>
 
 @code {
-    [Parameter, EditorRequired] public object Value { get; set; } = default!;
+    /// <summary>A status enum value (label and tone derive from it). Omit when using <see cref="Tone"/> with <see cref="Label"/>.</summary>
+    [Parameter] public object? Value { get; set; }
     [Parameter] public string? Label { get; set; }
+    /// <summary>success, info, warning, danger, secondary or light. Overrides the tone derived from <see cref="Value"/>.</summary>
+    [Parameter] public string? Tone { get; set; }
+
+    private string ToneName => Tone ?? (Value is null ? "light" : Labels.Tone(Value));
 
     private string Text => Label ?? Value switch
     {
@@ -16,6 +21,6 @@
         MentorPath.Application.Invitations.Contracts.InvitationState v => Labels.Of(v),
         MentorPath.Application.Progress.Contracts.AssignmentProgressStatus v => Labels.Of(v),
         MentorPath.Application.Progress.Contracts.TopicProgressStatus v => Labels.Of(v),
-        _ => Value.ToString() ?? "",
+        _ => Value?.ToString() ?? "",
     };
 }

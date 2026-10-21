@@ -9,23 +9,21 @@
 <PageTitle>Profil — MentorPath</PageTitle>
 
 <StatusMessage />
-<div class="row">
-    <div class="col-xl-6">
-        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
-            <DataAnnotationsValidator />
-            <div class="mb-3">
-                <label class="form-label">E-mail</label>
-                <input type="text" value="@email" class="form-control" disabled />
-            </div>
-            <div class="mb-3">
-                <label for="Input.DisplayName" class="form-label">Imię i nazwisko</label>
-                <InputText @bind-Value="Input.DisplayName" id="Input.DisplayName" class="form-control" />
-                <ValidationMessage For="() => Input.DisplayName" class="text-danger small" />
-            </div>
-            <button type="submit" class="btn btn-primary">Zapisz</button>
-        </EditForm>
-    </div>
-</div>
+<Section Title="Profil">
+    <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label class="form-label" for="Profile.Email">E-mail</label>
+            <input type="text" id="Profile.Email" value="@email" class="form-control" disabled />
+        </div>
+        <div class="mb-3">
+            <label for="Input.DisplayName" class="form-label">Imię i nazwisko</label>
+            <InputText @bind-Value="Input.DisplayName" id="Input.DisplayName" class="form-control" />
+            <ValidationMessage For="() => Input.DisplayName" class="text-danger small" />
+        </div>
+        <button type="submit" class="btn btn-primary">Zapisz</button>
+    </EditForm>
+</Section>
 
 @code {
     private AppUser? user;
