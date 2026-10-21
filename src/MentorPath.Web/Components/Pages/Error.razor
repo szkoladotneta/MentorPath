@@ -3,12 +3,18 @@
 
 <PageTitle>Błąd — MentorPath</PageTitle>
 
-<h1 class="h3 text-danger">Wystąpił błąd</h1>
-<p>Nie udało się przetworzyć żądania. Spróbuj ponownie za chwilę.</p>
-@if (!string.IsNullOrEmpty(RequestId))
-{
-    <p class="small text-secondary">Identyfikator żądania: <code>@RequestId</code></p>
-}
+<Page Width="narrow">
+    <div class="empty-state">
+        <Icon Name="inbox" Size="28" />
+        <h1 class="empty-state__title">Wystąpił błąd</h1>
+        <div class="empty-state__body">Nie udało się przetworzyć żądania. Spróbuj ponownie za chwilę.</div>
+        @if (!string.IsNullOrEmpty(RequestId))
+        {
+            <p class="small text-secondary mb-0">Identyfikator żądania: <code>@RequestId</code></p>
+        }
+        <div class="mt-2"><a href="" class="btn btn-outline-primary">Wróć na stronę główną</a></div>
+    </div>
+</Page>
 
 @code {
     [CascadingParameter]

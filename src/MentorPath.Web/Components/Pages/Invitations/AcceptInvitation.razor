@@ -11,18 +11,18 @@
 
 <PageTitle>Zaproszenie — MentorPath</PageTitle>
 
-<div class="auth-card" style="max-width:520px">
+<div class="auth-card">
     @if (preview is null)
     {
-        <h1 class="h4 text-danger">Zaproszenie nieważne</h1>
-        <p>@(error?.Message ?? "Zaproszenie jest nieprawidłowe, wygasło lub zostało już wykorzystane.")</p>
+        <h1 class="mb-3">Zaproszenie nieważne</h1>
+        <div class="alert alert-danger" role="alert">@(error?.Message ?? "Zaproszenie jest nieprawidłowe, wygasło lub zostało już wykorzystane.")</div>
         <p class="small text-secondary mb-0">Poproś mentora o nowy link.</p>
     }
     else
     {
-        <h1 class="h4">Zaproszenie do mentoringu</h1>
-        <p><strong>@preview.MentorDisplayName</strong> zaprasza Cię do przestrzeni <strong>@preview.WorkspaceName</strong>.</p>
-        <p class="small text-secondary">Zaproszenie dla: <span class="mono-break">@preview.MaskedEmail</span></p>
+        <h1 class="mb-2">Zaproszenie do mentoringu</h1>
+        <p class="mb-2"><strong>@preview.MentorDisplayName</strong> zaprasza Cię do przestrzeni <strong>@preview.WorkspaceName</strong>.</p>
+        <p class="small text-secondary mb-3">Zaproszenie dla: <span class="mono-break">@preview.MaskedEmail</span></p>
         <ErrorAlert Error="error" />
 
         @if (isAuthenticated)
@@ -40,7 +40,7 @@
         }
         else
         {
-            <h2 class="h6 mt-3">Utwórz konto</h2>
+            <h2 class="h6 mt-4 mb-3">Utwórz konto</h2>
             <EditForm Model="Register" FormName="register-invitation" OnValidSubmit="RegisterAsync" method="post">
                 <DataAnnotationsValidator />
                 <div class="mb-3">

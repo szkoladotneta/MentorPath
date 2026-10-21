@@ -2,18 +2,15 @@
 @using MentorPath.Application.Reviews.Contracts
 @inject IReflectionService Reflections
 
-<div class="card border-primary-subtle mt-2">
-    <div class="card-body">
-        <div class="section-title">Refleksja po ocenie</div>
-        <ErrorAlert Error="Error" ShowFieldList="false" />
-        <ConfidenceInput @bind-Value="confidence" Label="Jak pewnie czujesz się teraz?" />
-        <FieldError Error="Error" Field="ConfidenceAfter" />
-        <label class="form-label mt-2">Najważniejszy wniosek</label>
-        <InputTextArea class="form-control" rows="3" @bind-Value="takeaway" />
-        <FieldError Error="Error" Field="TakeawayMarkdown" />
-        <button class="btn btn-primary btn-sm mt-2" @onclick="SaveAsync" disabled="@busy">Zapisz refleksję</button>
-    </div>
-</div>
+<Section Title="Refleksja po ocenie" Class="mt-2">
+    <ErrorAlert Error="Error" ShowFieldList="false" />
+    <ConfidenceInput @bind-Value="confidence" Label="Jak pewnie czujesz się teraz?" />
+    <FieldError Error="Error" Field="ConfidenceAfter" />
+    <label class="form-label mt-3">Najważniejszy wniosek</label>
+    <InputTextArea class="form-control" rows="3" @bind-Value="takeaway" />
+    <FieldError Error="Error" Field="TakeawayMarkdown" />
+    <button class="btn btn-primary btn-sm mt-3" @onclick="SaveAsync" disabled="@busy">Zapisz refleksję</button>
+</Section>
 
 @code {
     [Parameter, EditorRequired] public Guid SubmissionId { get; set; }

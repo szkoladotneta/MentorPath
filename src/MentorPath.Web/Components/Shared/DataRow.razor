@@ -1,0 +1,39 @@
+@if (Href is not null)
+{
+    <a class="list-row mp-datarow--link @Class" href="@Href">@Content</a>
+}
+else
+{
+    <div class="list-row @Class">@Content</div>
+}
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Meta { get; set; }
+    /// <summary>Makes the whole row a link.</summary>
+    [Parameter] public string? Href { get; set; }
+    /// <summary>Right side: badges, status, buttons.</summary>
+    [Parameter] public RenderFragment? Aside { get; set; }
+    /// <summary>Extra main-column content below title and meta.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private RenderFragment Content => __builder =>
+    {
+        <div class="mp-datarow__main">
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <div class="mp-datarow__title">@Title</div>
+            }
+            @if (!string.IsNullOrEmpty(Meta))
+            {
+                <div class="mp-datarow__meta">@Meta</div>
+            }
+            @ChildContent
+        </div>
+        @if (Aside is not null)
+        {
+            <div class="mp-datarow__aside">@Aside</div>
+        }
+    };
+}

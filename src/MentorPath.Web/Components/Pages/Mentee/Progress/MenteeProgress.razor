@@ -7,61 +7,58 @@
 
 <PageTitle>Postęp — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    @if (progress is not null)
-    {
-        <div class="page-header">
-            <div>
-                <a href="@($"app/roadmap/{MentorshipId}")" class="small">← Roadmapa</a>
-                <h1>Postęp</h1>
-                <div class="subtitle">Postęp jest wyliczany z zaliczonych wymaganych zadań. Pewność to Twoja samoocena.</div>
-            </div>
-        </div>
-        @if (!progress.HasPublishedRoadmap)
+<Page Width="wide">
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (progress is not null)
         {
-            <EmptyState Title="Brak opublikowanej roadmapy" />
-        }
-        else
-        {
-            <div class="card mb-4">
-                <div class="card-body">
+            <PageHeader Title="Postęp" Subtitle="Postęp jest wyliczany z zaliczonych wymaganych zadań. Pewność to Twoja samoocena."
+                        Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Roadmapa", $"app/roadmap/{MentorshipId}"), new("Postęp") })" />
+            @if (!progress.HasPublishedRoadmap)
+            {
+                <EmptyState Icon="map" Title="Brak opublikowanej roadmapy">Postęp pojawi się, gdy mentor opublikuje roadmapę.</EmptyState>
+            }
+            else
+            {
+                <Section>
                     <div class="d-flex justify-content-between mb-1">
                         <span>Ukończone tematy: <strong>@progress.CompletedTopics / @progress.CountedTopics</strong></span>
                         <strong>@progress.PercentComplete%</strong>
                     </div>
                     <div class="progress"><div class="progress-bar" style="width:@(progress.PercentComplete)%"></div></div>
-                </div>
-            </div>
-            @foreach (var t in progress.Topics)
-            {
-                <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>@t.TopicTitle <span class="small text-secondary fw-normal">@(t.CountsTowardsProgress ? $"{t.CompletedRequired}/{t.TotalRequired} wymaganych" : "bez wymaganych zadań")</span></span>
-                        <Badge Value="t.Status" />
-                    </div>
-                    @foreach (var a in t.Assignments)
-                    {
-                        <div class="list-row">
-                            <div>
-                                <a href="@($"app/assignments/{a.AssignmentId}")">@a.ExerciseTitle</a>
-                                <div class="small text-secondary">@(a.IsRequired ? "wymagane" : "opcjonalne")
-                                    @if (a.LatestConfidenceBefore is not null) { <span> · pewność przed: @a.LatestConfidenceBefore/5</span> }
-                                    @if (a.LatestConfidenceAfter is not null) { <span> · po: @a.LatestConfidenceAfter/5</span> }
-                                </div>
-                            </div>
-                            <Badge Value="a.Status" />
-                        </div>
-                    }
-                </div>
+                </Section>
+                @foreach (var t in progress.Topics)
+                {
+                    <Section Title="@t.TopicTitle" Flush="true">
+                        <Aside>
+                            <span class="text-secondary">@(t.CountsTowardsProgress ? $"{t.CompletedRequired}/{t.TotalRequired} wymaganych" : "bez wymaganych zadań")</span>
+                            <Badge Value="t.Status" />
+                        </Aside>
+                        <ChildContent>
+                            <DataList>
+                                @foreach (var a in t.Assignments)
+                                {
+                                    <DataRow Href="@($"app/assignments/{a.AssignmentId}")" Title="@a.ExerciseTitle" Meta="@AssignmentMeta(a.IsRequired, a.LatestConfidenceBefore, a.LatestConfidenceAfter)">
+                                        <Aside><Badge Value="a.Status" /></Aside>
+                                    </DataRow>
+                                }
+                            </DataList>
+                        </ChildContent>
+                    </Section>
+                }
             }
         }
-    }
-</PageState>
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid MentorshipId { get; set; }
 
     private RoadmapProgressDto? progress;
+
+    private static string AssignmentMeta(bool required, int? confidenceBefore, int? confidenceAfter) =>
+        (required ? "wymagane" : "opcjonalne")
+        + (confidenceBefore is not null ? $" · pewność przed: {confidenceBefore}/5" : "")
+        + (confidenceAfter is not null ? $" · po: {confidenceAfter}/5" : "");
 
     protected override async Task OnParametersSetAsync()
     {

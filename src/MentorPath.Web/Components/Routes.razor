@@ -5,7 +5,12 @@
             <NotAuthorized>
                 @if (context.User.Identity?.IsAuthenticated == true)
                 {
-                    <div class="alert alert-warning">Brak dostępu do tej strony.</div>
+                    <Page Width="narrow">
+                        <EmptyState Title="Brak dostępu" Icon="key">
+                            <ChildContent>Brak dostępu do tej strony.</ChildContent>
+                            <Action><a href="" class="btn btn-outline-primary">Wróć na stronę główną</a></Action>
+                        </EmptyState>
+                    </Page>
                 }
                 else
                 {

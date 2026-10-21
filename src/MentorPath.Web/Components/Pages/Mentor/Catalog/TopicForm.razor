@@ -1,23 +1,23 @@
 @using MentorPath.Application.Catalog
 <div class="row g-3">
     <div class="col-md-6">
-        <label class="form-label">Tytuł</label>
-        <input class="form-control" value="@Model.Title" @onchange="OnTitleChanged" />
+        <label class="form-label" for="topic-title">Tytuł</label>
+        <input id="topic-title" class="form-control" value="@Model.Title" @onchange="OnTitleChanged" />
         <FieldError Error="Error" Field="Title" />
     </div>
     <div class="col-md-6">
-        <label class="form-label">Slug</label>
-        <InputText class="form-control" @bind-Value="Model.Slug" />
+        <label class="form-label" for="topic-slug">Slug</label>
+        <InputText id="topic-slug" class="form-control" @bind-Value="Model.Slug" />
         <FieldError Error="Error" Field="Slug" />
     </div>
     <div class="col-md-6">
-        <label class="form-label">Kategoria</label>
-        <InputText class="form-control" @bind-Value="Model.Category" placeholder="np. Architektura, Dane, Integracje" />
+        <label class="form-label" for="topic-category">Kategoria</label>
+        <InputText id="topic-category" class="form-control" @bind-Value="Model.Category" placeholder="np. Architektura, Dane, Integracje" />
         <FieldError Error="Error" Field="Category" />
     </div>
     <div class="col-md-6">
-        <label class="form-label">Poziom trudności</label>
-        <InputSelect class="form-select" @bind-Value="Model.Difficulty">
+        <label class="form-label" for="topic-difficulty">Poziom trudności</label>
+        <InputSelect id="topic-difficulty" class="form-select" @bind-Value="Model.Difficulty">
             @foreach (var d in Enum.GetValues<Difficulty>())
             {
                 <option value="@d">@Labels.Of(d)</option>
@@ -37,13 +37,13 @@
         <FieldError Error="Error" Field="ParentTopicId" />
     </div>
     <div class="col-12">
-        <label class="form-label">Opis (Markdown)</label>
-        <InputTextArea class="form-control" rows="4" @bind-Value="Model.DescriptionMarkdown" />
+        <label class="form-label" for="topic-description">Opis (Markdown)</label>
+        <InputTextArea id="topic-description" class="form-control" rows="4" @bind-Value="Model.DescriptionMarkdown" />
         <FieldError Error="Error" Field="DescriptionMarkdown" />
     </div>
     <div class="col-12">
-        <label class="form-label">Cele edukacyjne (Markdown)</label>
-        <InputTextArea class="form-control" rows="4" @bind-Value="Model.LearningObjectivesMarkdown" />
+        <label class="form-label" for="topic-objectives">Cele edukacyjne (Markdown)</label>
+        <InputTextArea id="topic-objectives" class="form-control" rows="4" @bind-Value="Model.LearningObjectivesMarkdown" />
         <FieldError Error="Error" Field="LearningObjectivesMarkdown" />
     </div>
 </div>

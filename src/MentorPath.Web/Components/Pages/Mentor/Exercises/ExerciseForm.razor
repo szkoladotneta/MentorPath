@@ -5,30 +5,30 @@
 }
 <fieldset disabled="@ReadOnly">
     <div class="mb-3">
-        <label class="form-label">Tytuł</label>
-        <InputText class="form-control" @bind-Value="Model.Title" />
+        <label class="form-label" for="ex-title">Tytuł</label>
+        <InputText id="ex-title" class="form-control" @bind-Value="Model.Title" />
         <FieldError Error="Error" Field="Title" />
     </div>
     <div class="mb-3">
-        <label class="form-label">@(isPractical ? "Opis zadania" : isQuiz ? "Scenariusz i pytanie" : "Scenariusz") <span class="text-secondary small">(Markdown, widoczne dla mentee)</span></label>
-        <InputTextArea class="form-control" rows="6" @bind-Value="Model.ScenarioMarkdown" />
+        <label class="form-label" for="ex-scenario">@(isPractical ? "Opis zadania" : isQuiz ? "Scenariusz i pytanie" : "Scenariusz") <span class="text-secondary small">(Markdown, widoczne dla mentee)</span></label>
+        <InputTextArea id="ex-scenario" class="form-control" rows="6" @bind-Value="Model.ScenarioMarkdown" />
         <FieldError Error="Error" Field="ScenarioMarkdown" />
     </div>
     <div class="mb-3">
-        <label class="form-label">@(isQuiz ? "Instrukcje (opcjonalnie)" : isPractical ? "Wymagania" : "Ograniczenia i wymagania")</label>
-        <InputTextArea class="form-control" rows="4" @bind-Value="Model.InstructionsMarkdown" />
+        <label class="form-label" for="ex-instructions">@(isQuiz ? "Instrukcje (opcjonalnie)" : isPractical ? "Wymagania" : "Ograniczenia i wymagania")</label>
+        <InputTextArea id="ex-instructions" class="form-control" rows="4" @bind-Value="Model.InstructionsMarkdown" />
         <FieldError Error="Error" Field="InstructionsMarkdown" />
     </div>
     @if (!isQuiz)
     {
         <div class="mb-3">
-            <label class="form-label">@(isPractical ? "Oczekiwane artefakty" : "Oczekiwane rezultaty")</label>
-            <InputTextArea class="form-control" rows="3" @bind-Value="Model.ExpectedOutcomeMarkdown" />
+            <label class="form-label" for="ex-outcome">@(isPractical ? "Oczekiwane artefakty" : "Oczekiwane rezultaty")</label>
+            <InputTextArea id="ex-outcome" class="form-control" rows="3" @bind-Value="Model.ExpectedOutcomeMarkdown" />
             <FieldError Error="Error" Field="ExpectedOutcomeMarkdown" />
         </div>
         <div class="mb-3">
-            <label class="form-label">Kryteria oceny <span class="text-secondary small">(widoczne dla mentee i podczas review)</span></label>
-            <InputTextArea class="form-control" rows="4" @bind-Value="Model.RubricMarkdown" />
+            <label class="form-label" for="ex-rubric">Kryteria oceny <span class="text-secondary small">(widoczne dla mentee i podczas review)</span></label>
+            <InputTextArea id="ex-rubric" class="form-control" rows="4" @bind-Value="Model.RubricMarkdown" />
             <FieldError Error="Error" Field="RubricMarkdown" />
         </div>
         <div class="mb-3">
@@ -49,8 +49,8 @@
         </div>
     }
     <div class="mb-3">
-        <label class="form-label">@(isPractical ? "Pytania dotyczące decyzji implementacyjnych" : "Pytania pogłębiające (opcjonalnie)")</label>
-        <InputTextArea class="form-control" rows="3" @bind-Value="Model.DiscussionQuestionsMarkdown" />
+        <label class="form-label" for="ex-discussion">@(isPractical ? "Pytania dotyczące decyzji implementacyjnych" : "Pytania pogłębiające (opcjonalnie)")</label>
+        <InputTextArea id="ex-discussion" class="form-control" rows="3" @bind-Value="Model.DiscussionQuestionsMarkdown" />
         <FieldError Error="Error" Field="DiscussionQuestionsMarkdown" />
     </div>
     @if (isQuiz)
@@ -65,12 +65,12 @@
             {
                 var index = i;
                 var option = Model.QuizOptions[index];
-                <div class="card mt-2">
-                    <div class="card-body py-2">
+                <div class="mp-option mt-2">
+                    <div>
                         <div class="d-flex gap-2 align-items-center">
-                            <input type="radio" class="form-check-input mt-0" name="correct-option" checked="@option.IsCorrect" @onchange="() => MarkCorrect(index)" title="Poprawna odpowiedź" />
+                            <input type="radio" class="form-check-input mt-0" name="correct-option" checked="@option.IsCorrect" @onchange="() => MarkCorrect(index)" title="Poprawna odpowiedź" aria-label="@($"Opcja {index + 1} jest poprawna")" />
                             <InputText class="form-control form-control-sm" @bind-Value="option.Text" placeholder="@($"Opcja {index + 1}")" />
-                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Model.QuizOptions.RemoveAt(index)">✕</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" aria-label="@($"Usuń opcję {index + 1}")" @onclick="() => Model.QuizOptions.RemoveAt(index)"><Icon Name="x" Size="16" /></button>
                         </div>
                         <InputText class="form-control form-control-sm mt-1" @bind-Value="option.ExplanationMarkdown" placeholder="Wyjaśnienie tej opcji (pokazywane po wyborze)" />
                         <FieldError Error="Error" Field="@($"QuizOptions[{index}].Text")" />
@@ -79,19 +79,19 @@
             }
         </div>
         <div class="mb-3">
-            <label class="form-label">Wyjaśnienie poprawnej odpowiedzi <span class="text-secondary small">(pokazywane po poprawnej próbie)</span></label>
-            <InputTextArea class="form-control" rows="3" @bind-Value="Model.ExplanationMarkdown" />
+            <label class="form-label" for="ex-explanation">Wyjaśnienie poprawnej odpowiedzi <span class="text-secondary small">(pokazywane po poprawnej próbie)</span></label>
+            <InputTextArea id="ex-explanation" class="form-control" rows="3" @bind-Value="Model.ExplanationMarkdown" />
             <FieldError Error="Error" Field="ExplanationMarkdown" />
         </div>
     }
     <div class="mb-3">
-        <label class="form-label">Mentor guide <span class="badge text-bg-warning">prywatne</span></label>
-        <InputTextArea class="form-control" rows="4" @bind-Value="Model.MentorGuideMarkdown" />
+        <label class="form-label" for="ex-guide">Mentor guide <Badge Tone="warning" Label="prywatne" /></label>
+        <InputTextArea id="ex-guide" class="form-control" rows="4" @bind-Value="Model.MentorGuideMarkdown" />
         <div class="form-text">Nigdy nie jest pokazywany mentee.</div>
     </div>
-    <div class="mb-3" style="max-width:220px">
-        <label class="form-label">Szacowany czas (min)</label>
-        <InputNumber class="form-control" @bind-Value="Model.EstimatedMinutes" />
+    <div class="mb-3 field-narrow">
+        <label class="form-label" for="ex-minutes">Szacowany czas (min)</label>
+        <InputNumber id="ex-minutes" class="form-control" @bind-Value="Model.EstimatedMinutes" />
         <FieldError Error="Error" Field="EstimatedMinutes" />
     </div>
 </fieldset>

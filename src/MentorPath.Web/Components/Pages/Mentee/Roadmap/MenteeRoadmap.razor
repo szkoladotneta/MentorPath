@@ -9,79 +9,79 @@
 
 <PageTitle>Roadmapa — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="false">
-    @if (roadmap is null)
-    {
-        <EmptyState Title="Roadmapa nie jest jeszcze dostępna">Mentor nie opublikował roadmapy dla tego mentoringu. <a href="app">Wróć do dashboardu</a></EmptyState>
-    }
-    else
-    {
-        <div class="page-header">
-            <div>
-                <a href="app" class="small">← Dashboard</a>
-                <h1>@roadmap.Title</h1>
-            </div>
-            <a class="btn btn-outline-primary" href="@($"app/progress/{MentorshipId}")">Postęp</a>
-        </div>
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Widok roadmapy">
-                    <button type="button" class="btn @(showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(showMap ? "true" : "false")" @onclick="() => showMap = true">Mapa</button>
-                    <button type="button" class="btn @(!showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!showMap ? "true" : "false")" @onclick="() => showMap = false">Lista</button>
-                </div>
-                @if (showMap)
-                {
-                    <RoadmapMap MentorshipId="MentorshipId" />
-                }
-                else
-                {
-                @foreach (var item in roadmap.Items)
-                {
-                    <div class="card mb-3">
-                        <div class="card-header"><span class="text-secondary me-1">@(item.Position + 1).</span> @item.TopicTitle</div>
-                        <div class="card-body">
+<Page Width="wide">
+    <PageState Loading="Loading" NotFound="false">
+        @if (roadmap is null)
+        {
+            <EmptyState Icon="map" Title="Roadmapa nie jest jeszcze dostępna">Mentor nie opublikował roadmapy dla tego mentoringu. <a href="app">Wróć do dashboardu</a></EmptyState>
+        }
+        else
+        {
+            <PageHeader Title="@roadmap.Title" Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Roadmapa") })">
+                <Actions>
+                    <a class="btn btn-outline-primary" href="@($"app/progress/{MentorshipId}")">Postęp</a>
+                </Actions>
+            </PageHeader>
+            <SplitView>
+                <Main>
+                    <Tabs Items="viewTabs" Selected="@(showMap ? "map" : "list")" SelectedChanged="SetView" IdPrefix="rm" Label="Widok roadmapy" />
+                    @if (showMap)
+                    {
+                        <div role="tabpanel" id="rm-panel-map" aria-labelledby="rm-tab-map">
+                            <RoadmapMap MentorshipId="MentorshipId" />
+                        </div>
+                    }
+                    else
+                    {
+                    <div role="tabpanel" id="rm-panel-list" aria-labelledby="rm-tab-list" class="mp-stack">
+                    @foreach (var item in roadmap.Items)
+                    {
+                        <Section Title="@($"{item.Position + 1}. {item.TopicTitle}")">
                             <Markdown Value="@item.TopicDescriptionMarkdown" Class="small text-secondary mb-2" />
                             @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))
                             {
-                                <div class="alert alert-light border small py-2"><strong>Notatka mentora:</strong> <Markdown Value="@item.MentorNoteMarkdown" /></div>
+                                <div class="alert alert-light small py-2"><strong>Notatka mentora:</strong> <Markdown Value="@item.MentorNoteMarkdown" /></div>
                             }
-                            @foreach (var a in item.Assignments)
-                            {
-                                <div class="list-row px-0">
-                                    <div>
-                                        <a href="@($"app/assignments/{a.AssignmentId}")" class="fw-semibold">@a.ExerciseTitle</a>
-                                        <div class="small text-secondary">@Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") @(a.DueAtUtc is not null ? $"· termin {Labels.Day(a.DueAtUtc)}" : "") @(a.AttemptCount > 0 ? $"· prób: {a.AttemptCount}" : "")</div>
-                                    </div>
-                                    @if (a.LatestStatus is { } s) { <Badge Value="s" /> } else { <span class="badge text-bg-light">Nierozpoczęte</span> }
-                                </div>
-                            }
-                        </div>
+                            <DataList>
+                                @foreach (var a in item.Assignments)
+                                {
+                                    <DataRow Class="px-0" Href="@($"app/assignments/{a.AssignmentId}")" Title="@a.ExerciseTitle" Meta="@AssignmentMeta(a.Type, a.IsRequired, a.DueAtUtc, a.AttemptCount)">
+                                        <Aside>
+                                            @if (a.LatestStatus is { } s) { <Badge Value="s" /> } else { <Badge Tone="light" Label="Nierozpoczęte" /> }
+                                        </Aside>
+                                    </DataRow>
+                                }
+                            </DataList>
+                        </Section>
+                    }
                     </div>
-                }
-                }
-            </div>
-            <div class="col-lg-4">
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div class="section-title">Cel</div>
+                    }
+                </Main>
+                <Side>
+                    <Section Title="Cel">
                         <Markdown Value="@roadmap.ObjectiveMarkdown" />
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-body">
+                    </Section>
+                    <Section Title="Twój postęp">
                         <RoadmapProgressSummary MentorshipId="MentorshipId" ShowTopics="true" />
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-</PageState>
+                    </Section>
+                </Side>
+            </SplitView>
+        }
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid MentorshipId { get; set; }
 
     private MenteeRoadmapDto? roadmap;
     private bool showMap = true;
+    private void SetView(string view) => showMap = view == "map";
+    private static readonly IReadOnlyList<TabItem> viewTabs = [new("map", "Mapa"), new("list", "Lista")];
+
+    private static string AssignmentMeta(ExerciseType type, bool required, DateTime? dueAtUtc, int attemptCount) =>
+        $"{Labels.Of(type)} · {(required ? "wymagane" : "opcjonalne")}"
+        + (dueAtUtc is not null ? $" · termin {Labels.Day(dueAtUtc)}" : "")
+        + (attemptCount > 0 ? $" · prób: {attemptCount}" : "");
 
     protected override async Task OnParametersSetAsync()
     {

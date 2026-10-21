@@ -1,0 +1,16 @@
+<div class="mp-stat @(Attention ? "mp-stat--attention" : null)">
+    <div class="mp-stat__label">@Label</div>
+    <div class="mp-stat__value">@Value</div>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <div class="mp-stat__hint">@Hint</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? Hint { get; set; }
+    /// <summary>Something waits for the user (e.g. reviews to do).</summary>
+    [Parameter] public bool Attention { get; set; }
+}

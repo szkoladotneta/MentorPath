@@ -13,139 +13,137 @@
 
 <PageTitle>Roadmapa — MentorPath</PageTitle>
 
-<PageState Loading="Loading" NotFound="NotFound">
-    <div class="page-header">
-        <div>
-            <a href="@($"mentor/mentees/{MentorshipId}")" class="small">← @menteeName</a>
-            <h1>Roadmapa @(roadmap is not null ? $"— {roadmap.Title}" : "")</h1>
-            @if (roadmap is not null)
-            {
-                <div class="subtitle"><Badge Value="roadmap.Status" /> @if (roadmap.PublishedAtUtc is not null) { <span>opublikowana @Labels.Date(roadmap.PublishedAtUtc)</span> }</div>
-            }
-        </div>
-        @if (roadmap is not null && roadmap.Status == RoadmapStatus.Draft)
-        {
-            <button class="btn btn-primary" @onclick="PublishAsync" disabled="@busy">Opublikuj roadmapę</button>
-        }
-    </div>
-    <ErrorAlert Error="Error" />
-    @if (message is not null) { <div class="alert alert-success">@message</div> }
-
-    @if (roadmap is null)
-    {
-        <div class="card" style="max-width:720px">
-            <div class="card-header">Utwórz roadmapę</div>
-            <div class="card-body">
-                <label class="form-label">Tytuł</label>
-                <input class="form-control mb-3" @bind="newTitle" />
-                <label class="form-label">Cel roadmapy (Markdown)</label>
-                <textarea class="form-control mb-3" rows="3" @bind="newObjective"></textarea>
-                <button class="btn btn-primary" @onclick="CreateAsync" disabled="@busy">Utwórz</button>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Widok roadmapy">
-            <button type="button" class="btn @(!showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!showMap ? "true" : "false")" @onclick="() => showMap = false">Edytor</button>
-            <button type="button" class="btn @(showMap ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(showMap ? "true" : "false")" @onclick="() => showMap = true">Mapa</button>
-        </div>
-    }
-    @if (roadmap is not null && showMap)
-    {
-        <RoadmapMap MentorshipId="MentorshipId" MentorView="true" RoadmapId="roadmap.RoadmapId" OnTopicAdded="LoadAsync" />
-    }
-    else if (roadmap is not null)
-    {
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="section-title">Cel</div>
-                <Markdown Value="@roadmap.ObjectiveMarkdown" />
-            </div>
-        </div>
-
-        @foreach (var item in roadmap.Items)
-        {
-            <div class="card mb-3 @(item.IsActive ? "" : "opacity-75")">
-                <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
-                    <div>
-                        <span class="text-secondary me-1">@(item.Position + 1).</span> @item.TopicTitle
-                        @if (!item.IsActive) { <span class="badge text-bg-secondary ms-1">wycofany</span> }
+<Page>
+    <PageState Loading="Loading" NotFound="NotFound">
+        <PageHeader Title="@("Roadmapa" + (roadmap is not null ? $" — {roadmap.Title}" : ""))"
+                    Crumbs="@(new[] { new Crumb("Mentee", "mentor/mentees"), new Crumb(menteeName, $"mentor/mentees/{MentorshipId}"), new Crumb("Roadmapa") })">
+            <ChildContent>
+                @if (roadmap is not null)
+                {
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                        <Badge Value="roadmap.Status" />
+                        @if (roadmap.PublishedAtUtc is not null) { <span class="small text-secondary">opublikowana @Labels.Date(roadmap.PublishedAtUtc)</span> }
                     </div>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary" title="W górę" @onclick="() => MoveTopicAsync(item, -1)" disabled="@(item.Position == 0)">↑</button>
-                        <button class="btn btn-outline-secondary" title="W dół" @onclick="() => MoveTopicAsync(item, 1)" disabled="@(item.Position == roadmap.Items.Count - 1)">↓</button>
-                        <button class="btn btn-outline-secondary" @onclick="() => ToggleTopicAsync(item)">@(item.IsActive ? "Wycofaj" : "Przywróć")</button>
-                        @if (!item.HasSubmissions)
+                }
+            </ChildContent>
+            <Actions>
+                @if (roadmap is not null && roadmap.Status == RoadmapStatus.Draft)
+                {
+                    <button class="btn btn-primary" @onclick="PublishAsync" disabled="@busy">Opublikuj roadmapę</button>
+                }
+            </Actions>
+        </PageHeader>
+        <ErrorAlert Error="Error" />
+        @if (message is not null) { <div class="alert alert-success mb-0" role="status">@message</div> }
+
+        @if (roadmap is null)
+        {
+            <div class="mp-max-sm">
+                <Section Title="Utwórz roadmapę">
+                    <label class="form-label" for="rm-title">Tytuł</label>
+                    <input id="rm-title" class="form-control mb-3" @bind="newTitle" />
+                    <label class="form-label" for="rm-objective">Cel roadmapy (Markdown)</label>
+                    <textarea id="rm-objective" class="form-control mb-3" rows="3" @bind="newObjective"></textarea>
+                    <button class="btn btn-primary" @onclick="CreateAsync" disabled="@busy">Utwórz</button>
+                </Section>
+            </div>
+        }
+        else
+        {
+            <Tabs Items="viewTabs" Selected="@(showMap ? "map" : "editor")" SelectedChanged="SetView" IdPrefix="rm" Label="Widok roadmapy" />
+            @if (showMap)
+            {
+                <div role="tabpanel" id="rm-panel-map" aria-labelledby="rm-tab-map">
+                    <RoadmapMap MentorshipId="MentorshipId" MentorView="true" RoadmapId="roadmap.RoadmapId" OnTopicAdded="LoadAsync" />
+                </div>
+            }
+            else
+            {
+            <div role="tabpanel" id="rm-panel-editor" aria-labelledby="rm-tab-editor" class="mp-stack">
+            <Section Title="Cel">
+                <Markdown Value="@roadmap.ObjectiveMarkdown" />
+            </Section>
+
+            @foreach (var item in roadmap.Items)
+            {
+                <section class="card mp-section @(item.IsActive ? "" : "opacity-75")">
+                    <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                        <div>
+                            <span class="text-secondary me-1">@(item.Position + 1).</span> @item.TopicTitle
+                            @if (!item.IsActive) { <Badge Tone="secondary" Label="wycofany" /> }
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" title="W górę" aria-label="Przesuń temat w górę" @onclick="() => MoveTopicAsync(item, -1)" disabled="@(item.Position == 0)"><Icon Name="chevron-down" Size="16" Class="mp-flip" /></button>
+                            <button class="btn btn-outline-secondary" title="W dół" aria-label="Przesuń temat w dół" @onclick="() => MoveTopicAsync(item, 1)" disabled="@(item.Position == roadmap.Items.Count - 1)"><Icon Name="chevron-down" Size="16" /></button>
+                            <button class="btn btn-outline-secondary" @onclick="() => ToggleTopicAsync(item)">@(item.IsActive ? "Wycofaj" : "Przywróć")</button>
+                            @if (!item.HasSubmissions)
+                            {
+                                <button class="btn btn-outline-danger" @onclick="() => RemoveTopicAsync(item)">Usuń</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))
                         {
-                            <button class="btn btn-outline-danger" @onclick="() => RemoveTopicAsync(item)">Usuń</button>
+                            <div class="small mb-2"><span class="section-title">Notatka dla mentee</span><Markdown Value="@item.MentorNoteMarkdown" /></div>
+                        }
+                        @if (item.Assignments.Count == 0)
+                        {
+                            <div class="small text-secondary mb-2">Brak przypisanych ćwiczeń.</div>
+                        }
+                        @foreach (var a in item.Assignments)
+                        {
+                            <div class="list-row px-0 @(a.IsActive ? "" : "opacity-75")">
+                                <div>
+                                    <span class="fw-semibold">@a.ExerciseTitle</span>
+                                    <div class="small text-secondary">@Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") · termin: @Labels.Day(a.DueAtUtc) · prób: @a.SubmissionCount @(a.IsActive ? "" : " · wycofane")</div>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" aria-label="Przesuń ćwiczenie w górę" @onclick="() => MoveAssignmentAsync(item, a, -1)" disabled="@(a.Position == 0)"><Icon Name="chevron-down" Size="16" Class="mp-flip" /></button>
+                                    <button class="btn btn-outline-secondary" aria-label="Przesuń ćwiczenie w dół" @onclick="() => MoveAssignmentAsync(item, a, 1)" disabled="@(a.Position == item.Assignments.Count - 1)"><Icon Name="chevron-down" Size="16" /></button>
+                                    <button class="btn btn-outline-secondary" @onclick="() => ToggleRequiredAsync(a)">@(a.IsRequired ? "Ustaw opcjonalne" : "Ustaw wymagane")</button>
+                                    <button class="btn btn-outline-secondary" @onclick="() => ToggleAssignmentAsync(a)">@(a.IsActive ? "Wycofaj" : "Przywróć")</button>
+                                    @if (a.SubmissionCount == 0)
+                                    {
+                                        <button class="btn btn-outline-danger" @onclick="() => RemoveAssignmentAsync(a)">Usuń</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @{ var available = publishedByTopic.GetValueOrDefault(item.TopicId, []).Where(e => item.Assignments.All(a => a.ExerciseId != e.ExerciseId)).ToList(); }
+                        @if (available.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-2 align-items-end mt-3">
+                                <div>
+                                    <label class="form-label small mb-0" for="@($"asg-{item.RoadmapItemId}")">Przypisz opublikowane ćwiczenie</label>
+                                    <select id="@($"asg-{item.RoadmapItemId}")" class="form-select form-select-sm" @bind="assignExercise[item.RoadmapItemId]">
+                                        <option value="@Guid.Empty">— wybierz —</option>
+                                        @foreach (var e in available)
+                                        {
+                                            <option value="@e.ExerciseId">@e.Title (@Labels.Of(e.Type))</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="@($"req-{item.RoadmapItemId}")" @bind="assignRequired[item.RoadmapItemId]" />
+                                    <label class="form-check-label small" for="@($"req-{item.RoadmapItemId}")">wymagane</label>
+                                </div>
+                                <div>
+                                    <label class="form-label small mb-0" for="@($"due-{item.RoadmapItemId}")">Termin (opcjonalnie)</label>
+                                    <input id="@($"due-{item.RoadmapItemId}")" type="date" class="form-control form-control-sm" @bind="assignDue[item.RoadmapItemId]" />
+                                </div>
+                                <button class="btn btn-sm btn-primary" @onclick="() => AssignAsync(item)" disabled="@busy">Przypisz</button>
+                            </div>
+                        }
+                        else if (!publishedByTopic.ContainsKey(item.TopicId))
+                        {
+                            <div class="small text-secondary mt-2">Ten temat nie ma opublikowanych ćwiczeń. <a href="@($"mentor/exercises/new?topicId={item.TopicId}")">Utwórz ćwiczenie</a></div>
                         }
                     </div>
-                </div>
-                <div class="card-body">
-                    @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))
-                    {
-                        <div class="small mb-2"><span class="section-title">Notatka dla mentee</span><Markdown Value="@item.MentorNoteMarkdown" /></div>
-                    }
-                    @if (item.Assignments.Count == 0)
-                    {
-                        <div class="small text-secondary mb-2">Brak przypisanych ćwiczeń.</div>
-                    }
-                    @foreach (var a in item.Assignments)
-                    {
-                        <div class="list-row px-0 @(a.IsActive ? "" : "opacity-75")">
-                            <div>
-                                <span class="fw-semibold">@a.ExerciseTitle</span>
-                                <div class="small text-secondary">@Labels.Of(a.Type) · @(a.IsRequired ? "wymagane" : "opcjonalne") · termin: @Labels.Day(a.DueAtUtc) · prób: @a.SubmissionCount @(a.IsActive ? "" : " · wycofane")</div>
-                            </div>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-secondary" @onclick="() => MoveAssignmentAsync(item, a, -1)" disabled="@(a.Position == 0)">↑</button>
-                                <button class="btn btn-outline-secondary" @onclick="() => MoveAssignmentAsync(item, a, 1)" disabled="@(a.Position == item.Assignments.Count - 1)">↓</button>
-                                <button class="btn btn-outline-secondary" @onclick="() => ToggleRequiredAsync(a)">@(a.IsRequired ? "Ustaw opcjonalne" : "Ustaw wymagane")</button>
-                                <button class="btn btn-outline-secondary" @onclick="() => ToggleAssignmentAsync(a)">@(a.IsActive ? "Wycofaj" : "Przywróć")</button>
-                                @if (a.SubmissionCount == 0)
-                                {
-                                    <button class="btn btn-outline-danger" @onclick="() => RemoveAssignmentAsync(a)">Usuń</button>
-                                }
-                            </div>
-                        </div>
-                    }
-                    @{ var available = publishedByTopic.GetValueOrDefault(item.TopicId, []).Where(e => item.Assignments.All(a => a.ExerciseId != e.ExerciseId)).ToList(); }
-                    @if (available.Count > 0)
-                    {
-                        <div class="d-flex flex-wrap gap-2 align-items-end mt-3">
-                            <div>
-                                <label class="form-label small mb-0">Przypisz opublikowane ćwiczenie</label>
-                                <select class="form-select form-select-sm" @bind="assignExercise[item.RoadmapItemId]">
-                                    <option value="@Guid.Empty">— wybierz —</option>
-                                    @foreach (var e in available)
-                                    {
-                                        <option value="@e.ExerciseId">@e.Title (@Labels.Of(e.Type))</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="@($"req-{item.RoadmapItemId}")" @bind="assignRequired[item.RoadmapItemId]" />
-                                <label class="form-check-label small" for="@($"req-{item.RoadmapItemId}")">wymagane</label>
-                            </div>
-                            <div>
-                                <label class="form-label small mb-0">Termin (opcjonalnie)</label>
-                                <input type="date" class="form-control form-control-sm" @bind="assignDue[item.RoadmapItemId]" />
-                            </div>
-                            <button class="btn btn-sm btn-primary" @onclick="() => AssignAsync(item)" disabled="@busy">Przypisz</button>
-                        </div>
-                    }
-                    else if (!publishedByTopic.ContainsKey(item.TopicId))
-                    {
-                        <div class="small text-secondary mt-2">Ten temat nie ma opublikowanych ćwiczeń. <a href="@($"mentor/exercises/new?topicId={item.TopicId}")">Utwórz ćwiczenie</a></div>
-                    }
-                </div>
-            </div>
-        }
+                </section>
+            }
 
-        <div class="card">
-            <div class="card-header">Dodaj temat</div>
-            <div class="card-body">
+            <Section Title="Dodaj temat">
                 @{ var topicsToAdd = topics.Where(t => roadmap.Items.All(i => i.TopicId != t.TopicId)).ToList(); }
                 @if (topicsToAdd.Count == 0)
                 {
@@ -155,8 +153,8 @@
                 {
                     <div class="row g-2 align-items-end">
                         <div class="col-md-4">
-                            <label class="form-label small">Temat</label>
-                            <select class="form-select" @bind="addTopicId">
+                            <label class="form-label small" for="add-topic">Temat</label>
+                            <select id="add-topic" class="form-select" @bind="addTopicId">
                                 <option value="@Guid.Empty">— wybierz —</option>
                                 @foreach (var t in topicsToAdd)
                                 {
@@ -165,18 +163,20 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small">Notatka dla mentee (opcjonalnie)</label>
-                            <input class="form-control" @bind="addNote" />
+                            <label class="form-label small" for="add-note">Notatka dla mentee (opcjonalnie)</label>
+                            <input id="add-note" class="form-control" @bind="addNote" />
                         </div>
                         <div class="col-md-2">
                             <button class="btn btn-primary w-100" @onclick="AddTopicAsync" disabled="@(busy || addTopicId == Guid.Empty)">Dodaj</button>
                         </div>
                     </div>
                 }
+            </Section>
             </div>
-        </div>
-    }
-</PageState>
+            }
+        }
+    </PageState>
+</Page>
 
 @code {
     [Parameter] public Guid MentorshipId { get; set; }
@@ -193,6 +193,8 @@
     private Guid addTopicId;
     private string? addNote;
     private bool showMap;
+    private static readonly IReadOnlyList<TabItem> viewTabs = [new("editor", "Edytor"), new("map", "Mapa")];
+    private void SetView(string view) => showMap = view == "map";
     private bool busy;
     private string? message;
 

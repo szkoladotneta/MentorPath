@@ -1,12 +1,21 @@
-<div class="empty-state">
-    <h2 class="h6 mb-1">@Title</h2>
+<div class="empty-state @Class">
+    <Icon Name="@Icon" Size="28" />
+    <h2 class="empty-state__title">@Title</h2>
     @if (ChildContent is not null)
     {
-        <div class="text-secondary small">@ChildContent</div>
+        <div class="empty-state__body">@ChildContent</div>
+    }
+    @if (Action is not null)
+    {
+        <div class="mt-2">@Action</div>
     }
 </div>
 
 @code {
     [Parameter] public string Title { get; set; } = "Brak danych";
+    [Parameter] public string Icon { get; set; } = "inbox";
+    [Parameter] public string? Class { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Optional next step, e.g. a button.</summary>
+    [Parameter] public RenderFragment? Action { get; set; }
 }

@@ -36,6 +36,7 @@ Integration tests use real PostgreSQL via Testcontainers. Never replace the data
 3. `docs/DOMAIN_RULES.md` — access rules, constraints, state machine, concurrency patterns, write ownership.
 4. `docs/ARCHITECTURE.md` — structure and technical rules.
 5. The code. Entities are in `src/MentorPath.Data/Entities`, DTOs and service interfaces in `src/MentorPath.Application/*/Contracts`. The code is authoritative for shapes; the docs are for rules and intent.
+6. UI only: `PRODUCT.md` (users and tone) and `DESIGN.md` (tokens, layout templates, craft floor). Rules for agents are in `.github/instructions/razor-ui.instructions.md`.
 
 If the docs do not answer a question, do not guess: add a `Proposed` entry to `docs/DECISIONS.md` and flag it in the PR. `docs/archive/` is history only; never use it as a requirement.
 

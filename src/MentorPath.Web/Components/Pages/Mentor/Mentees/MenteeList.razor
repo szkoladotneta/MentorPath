@@ -10,44 +10,43 @@
 
 <PageTitle>Mentees — MentorPath</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1>Mentees</h1>
-        <div class="subtitle">Relacje mentoringowe w Twoim workspace.</div>
-    </div>
-</div>
+<Page>
+    <PageHeader Title="Mentees" Subtitle="Relacje mentoringowe w Twoim workspace." />
 
-<div class="row g-4">
-    <div class="col-lg-7">
-        <PageState Loading="Loading" NotFound="NotFound">
-            @if (mentees.Count == 0)
-            {
-                <EmptyState Title="Nie masz jeszcze mentees">Zaproś pierwszą osobę formularzem obok.</EmptyState>
-            }
-            else
-            {
-                <div class="card">
-                    @foreach (var m in mentees)
-                    {
-                        <div class="list-row">
-                            <div>
-                                <a href="@($"mentor/mentees/{m.MentorshipId}")" class="fw-semibold">@m.MenteeDisplayName</a>
-                                <div class="small text-secondary">@m.MenteeEmail · od @Labels.Day(m.CreatedAtUtc)</div>
-                            </div>
-                            <div class="d-flex gap-2 align-items-center">
-                                @if (!m.OnboardingCompleted) { <span class="badge text-bg-light">Bez onboardingu</span> }
-                                <Badge Value="m.Status" />
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </PageState>
-    </div>
-    <div class="col-lg-5">
-        <div class="card mb-4">
-            <div class="card-header">Zaproś mentee</div>
-            <div class="card-body">
+    <SplitView Sticky="true">
+        <Main>
+            <PageState Loading="Loading" NotFound="NotFound">
+                @if (mentees.Count == 0)
+                {
+                    <EmptyState Icon="users" Title="Nie masz jeszcze mentees">Zaproś pierwszą osobę formularzem obok.</EmptyState>
+                }
+                else
+                {
+                    <Section Title="Twoi mentees" Flush="true">
+                        <Aside>@mentees.Count</Aside>
+                        <ChildContent>
+                            <DataList>
+                                @foreach (var m in mentees)
+                                {
+                                    <DataRow>
+                                        <ChildContent>
+                                            <a href="@($"mentor/mentees/{m.MentorshipId}")" class="mp-datarow__title">@m.MenteeDisplayName</a>
+                                            <div class="mp-datarow__meta">@m.MenteeEmail · od @Labels.Day(m.CreatedAtUtc)</div>
+                                        </ChildContent>
+                                        <Aside>
+                                            @if (!m.OnboardingCompleted) { <Badge Tone="light" Label="Bez onboardingu" /> }
+                                            <Badge Value="m.Status" />
+                                        </Aside>
+                                    </DataRow>
+                                }
+                            </DataList>
+                        </ChildContent>
+                    </Section>
+                }
+            </PageState>
+        </Main>
+        <Side>
+            <Section Title="Zaproś mentee">
                 <EditForm Model="invite" OnValidSubmit="InviteAsync" FormName="invite">
                     <label class="form-label" for="invite-email">Adres e-mail</label>
                     <InputText id="invite-email" class="form-control" @bind-Value="invite.Email" placeholder="osoba@firma.pl" />
@@ -58,32 +57,33 @@
                 @if (created is not null)
                 {
                     <div class="alert alert-success mt-3 mb-0">
-                        <div class="small mb-1">Link ważny do @Labels.Date(created.ExpiresAtUtc). Skopiuj i przekaż mentee — link jest pokazywany tylko raz.</div>
-                        <input class="form-control form-control-sm mono-break" readonly value="@created.AcceptUrl" />
+                        <div class="small mb-2">Link ważny do @Labels.Date(created.ExpiresAtUtc). Skopiuj i przekaż mentee — link jest pokazywany tylko raz.</div>
+                        <input class="form-control form-control-sm mono-break" readonly value="@created.AcceptUrl" aria-label="Link do zaproszenia" />
                         <button class="btn btn-sm btn-outline-primary mt-2" @onclick="CopyAsync">@(copied ? "Skopiowano" : "Kopiuj link")</button>
                     </div>
                 }
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header">Zaproszenia</div>
-            @if (invitations.Count == 0)
-            {
-                <div class="card-body small text-secondary">Brak zaproszeń.</div>
-            }
-            @foreach (var i in invitations)
-            {
-                <div class="list-row small">
-                    <div>
-                        <div class="mono-break">@i.Email</div>
-                        <div class="text-secondary">utworzone @Labels.Date(i.CreatedAtUtc)</div>
-                    </div>
-                    <Badge Value="i.State" />
-                </div>
-            }
-        </div>
-    </div>
-</div>
+            </Section>
+            <Section Title="Zaproszenia" Flush="@(invitations.Count > 0)">
+                @if (invitations.Count == 0)
+                {
+                    <p class="small text-secondary mb-0">Brak zaproszeń.</p>
+                }
+                <DataList>
+                    @foreach (var i in invitations)
+                    {
+                        <DataRow Class="small">
+                            <ChildContent>
+                                <div class="mono-break">@i.Email</div>
+                                <div class="mp-datarow__meta">utworzone @Labels.Date(i.CreatedAtUtc)</div>
+                            </ChildContent>
+                            <Aside><Badge Value="i.State" /></Aside>
+                        </DataRow>
+                    }
+                </DataList>
+            </Section>
+        </Side>
+    </SplitView>
+</Page>
 
 @code {
     private List<MentorMenteeListItem> mentees = [];
