@@ -348,6 +348,9 @@ Doprecyzowanie (PR schematu):
 - Migracja `AddTopicParent` jest addytywna: nullable kolumna (istniejące tematy zostają korzeniami), złożony FK `(WorkspaceId, ParentTopicId)` → AK `(WorkspaceId, Id)` z `Restrict`, check `ParentTopicId <> Id`, indeks `(WorkspaceId, ParentTopicId)`. Cykle (wielokrokowe) i głębokość ≤ 3 nie są wyrażalne w bazie — waliduje je `TopicService` w PR z serwisami.
 - Kontrakty: opcjonalne parametry końcowe `ParentTopicId` w `UpsertTopicRequest`, `TopicListItem`, `TopicDetail` (kompatybilne wstecz). Do czasu PR z serwisami serwis ignoruje to pole.
 
+Doprecyzowanie (PR kontraktu mapy):
+- `RoadmapMapContracts`: `MapNodeState.NotInPlan` (dopisany na końcu enuma) oraz opcjonalne parametry końcowe `TopicId`, `ParentTopicId` w `RoadmapMapNodeDto` (`ParentTopicId` = najbliższy przodek widoczny na mapie). Zmiana wyłącznie addytywna; serwis i UI wypełniają je w osobnym PR (wcześniej `TopicId` = `default`, `ParentTopicId` = null).
+
 ## D-46 — Odświeżenie warstwy wizualnej i układu aplikacji (Impeccable)
 Status: Proposed (2026-10-20; tylko prezentacja, bez zmian schematu i `Contracts/`)
 
