@@ -49,7 +49,13 @@ internal sealed class TopicConfiguration : IEntityTypeConfiguration<Topic>
         e.Property(x => x.Category).HasMaxLength(80).IsRequired();
         e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
         e.HasIndex(x => new { x.WorkspaceId, x.Slug }).IsUnique();
+        e.HasIndex(x => new { x.WorkspaceId, x.ParentTopicId });
         e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Topic>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.ParentTopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_Topics_NotOwnParent", "\"ParentTopicId\" IS NULL OR \"ParentTopicId\" <> \"Id\""));
     }
 }
 
