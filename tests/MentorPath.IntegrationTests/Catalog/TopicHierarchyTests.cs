@@ -146,4 +146,25 @@ public sealed class TopicHierarchyTests(PostgresFixture db) : IntegrationTestBas
         var map = (await App.Get<IRoadmapMapService>().GetMapForMenteeAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
         map.Nodes.ShouldHaveSingleItem().TopicId.ShouldBe(planned.TopicId);
     }
+
+    [Fact]
+    public async Task Withdrawn_child_and_its_unplanned_subtree_are_not_shown_to_the_mentee_as_ghosts()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var root = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var withdrawn = await CreateAsync(mentor, "Wycofany", root.TopicId);
+        var below = await CreateAsync(mentor, "Pod wycofanym", withdrawn);
+        var roadmaps = App.Get<IRoadmapService>();
+        var itemId = (await roadmaps.AddTopicAsync(mentor.UserId, new(root.RoadmapId, withdrawn, null), default)).ShouldSucceed();
+        (await roadmaps.SetTopicActiveAsync(mentor.UserId, itemId, false, default)).ShouldSucceed();
+        var maps = App.Get<IRoadmapMapService>();
+
+        var forMentee = (await maps.GetMapForMenteeAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        forMentee.Nodes.ShouldHaveSingleItem().TopicId.ShouldBe(root.TopicId);
+
+        var forMentor = (await maps.GetMapForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        forMentor.Nodes.Select(n => n.TopicId).ShouldBe([root.TopicId, withdrawn]);
+        forMentor.Nodes.Select(n => n.TopicId).ShouldNotContain(below);
+    }
 }

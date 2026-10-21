@@ -70,7 +70,10 @@ internal sealed class RoadmapMapService(IDbContextFactory<AppDbContext> dbFactor
         var parentOf = catalog.ToDictionary(t => t.Id, t => t.ParentId);
         var activeTopics = items.Where(i => i.IsActive).Select(i => i.TopicId).ToHashSet();
         var planTopics = items.Select(i => i.TopicId).ToHashSet();
-        var ghosts = RoadmapMapRules.UnplannedDescendants(activeTopics, planTopics, catalog);
+        // Withdrawn topics stay plan members even when hidden from the mentee, so they and their subtrees never turn into ghosts.
+        var memberTopics = await db.RoadmapItems.AsNoTracking()
+            .Where(i => i.WorkspaceId == acc.WorkspaceId && i.RoadmapId == roadmap.Id).Select(i => i.TopicId).ToListAsync(ct);
+        var ghosts = RoadmapMapRules.UnplannedDescendants(activeTopics, memberTopics.ToHashSet(), catalog);
         var onMap = planTopics.Concat(ghosts.Select(g => g.Id)).ToHashSet();
 
         var nodes = drafts.Select(d => new RoadmapMapNodeDto(d.Id, d.Title, d.Position, d.State, d.Id == current, d.Done, d.Total, d.Rows,
