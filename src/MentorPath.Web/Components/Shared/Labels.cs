@@ -91,6 +91,26 @@ public static class Labels
         _ => "dodał(a) refleksję",
     };
 
+    public static string Of(MapNodeState v) => v switch
+    {
+        MapNodeState.NotStarted => "Nierozpoczęty",
+        MapNodeState.InProgress => "W trakcie",
+        MapNodeState.PendingReview => "Czeka na ocenę",
+        MapNodeState.NeedsRevision => "Do poprawy",
+        MapNodeState.Completed => "Ukończony",
+        _ => "Wycofany",
+    };
+
+    public static string Icon(MapNodeState v) => v switch
+    {
+        MapNodeState.NotStarted => "○",
+        MapNodeState.InProgress => "◐",
+        MapNodeState.PendingReview => "…",
+        MapNodeState.NeedsRevision => "!",
+        MapNodeState.Completed => "✓",
+        _ => "–",
+    };
+
     public static string Tone(object v) => v switch
     {
         SubmissionStatus.Correct or SubmissionStatus.Accepted or AssignmentProgressStatus.Completed or TopicProgressStatus.Completed
