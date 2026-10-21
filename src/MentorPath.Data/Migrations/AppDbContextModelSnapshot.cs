@@ -816,6 +816,9 @@ namespace MentorPath.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("ParentTopicId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -831,10 +834,15 @@ namespace MentorPath.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("WorkspaceId", "ParentTopicId");
+
                     b.HasIndex("WorkspaceId", "Slug")
                         .IsUnique();
 
-                    b.ToTable("Topics");
+                    b.ToTable("Topics", t =>
+                        {
+                            t.HasCheckConstraint("CK_Topics_NotOwnParent", "\"ParentTopicId\" IS NULL OR \"ParentTopicId\" <> \"Id\"");
+                        });
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Workspace", b =>
@@ -1302,6 +1310,12 @@ namespace MentorPath.Data.Migrations
                         .HasForeignKey("WorkspaceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "ParentTopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Workspace", b =>

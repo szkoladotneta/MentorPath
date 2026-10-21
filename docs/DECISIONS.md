@@ -344,6 +344,10 @@ Decyzja (do realizacji w osobnych PR-ach: schemat, serwisy/UI):
 - Podtemat trafia do roadmapy mentee wyłącznie jawnie (mentor dodaje go jak każdy temat). Postęp (D-16) nie zmienia się; ewentualna agregacja rodzica jest tylko wyświetlana.
 - Podtemat spoza planu mentee jest na mapie szary („poza planem”), tylko tytuł, i tylko pod tematem, który jest na roadmapie — bez ujawniania treści katalogu.
 
+Doprecyzowanie (PR schematu):
+- Migracja `AddTopicParent` jest addytywna: nullable kolumna (istniejące tematy zostają korzeniami), złożony FK `(WorkspaceId, ParentTopicId)` → AK `(WorkspaceId, Id)` z `Restrict`, check `ParentTopicId <> Id`, indeks `(WorkspaceId, ParentTopicId)`. Cykle (wielokrokowe) i głębokość ≤ 3 nie są wyrażalne w bazie — waliduje je `TopicService` w PR z serwisami.
+- Kontrakty: opcjonalne parametry końcowe `ParentTopicId` w `UpsertTopicRequest`, `TopicListItem`, `TopicDetail` (kompatybilne wstecz). Do czasu PR z serwisami serwis ignoruje to pole.
+
 ---
 
 ## Change Requests
