@@ -11,7 +11,7 @@
     <PageState Loading="Loading" NotFound="NotFound">
         @if (topic is not null)
         {
-            <PageHeader Title="@topic.Title" Crumbs="@(new[] { new Crumb("Katalog", "mentor/catalog/topics"), new Crumb(topic.Title) })">
+            <PageHeader Title="@topic.Title" Crumbs="@Crumbs">
                 <ChildContent>
                     <p class="mp-page-header__subtitle">
                         @if (topic.IsArchived) { <Badge Tone="secondary" Label="Zarchiwizowany" /> }
@@ -31,7 +31,7 @@
             @if (editing && form is not null)
             {
                 <Section Title="Edycja tematu">
-                    <TopicForm Model="form" Error="Error" />
+                    <TopicForm Model="form" Error="Error" ParentOptions="TopicTreeView.ParentOptions(allTopics, TopicId)" />
                     <button class="btn btn-primary mt-3" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
                 </Section>
             }
@@ -45,6 +45,25 @@
                         <Section Title="Cele edukacyjne"><Markdown Value="@topic.LearningObjectivesMarkdown" /></Section>
                     </Side>
                 </SplitView>
+            }
+
+            @if (Children.Any())
+            {
+                <Section Title="Podtematy" Flush="true">
+                    <Aside>@Children.Count()</Aside>
+                    <ChildContent>
+                        <DataList>
+                            @foreach (var c in Children)
+                            {
+                                <DataRow Href="@($"mentor/catalog/topics/{c.TopicId}")" Title="@c.Title" Meta="@($"{c.Category} · {Labels.Of(c.Difficulty)} · {c.ExerciseCount} ćw.")">
+                                    <Aside>
+                                        @if (c.IsArchived) { <Badge Tone="secondary" Label="Zarchiwizowany" /> }
+                                    </Aside>
+                                </DataRow>
+                            }
+                        </DataList>
+                    </ChildContent>
+                </Section>
             }
 
             <Section Title="Ćwiczenia" Flush="@(topic.Exercises.Count > 0)">
@@ -74,18 +93,28 @@
 
     private TopicDetail? topic;
     private TopicFormModel? form;
+    private List<TopicListItem> allTopics = [];
     private bool editing;
     private bool busy;
+
+    private TopicListItem? Parent => topic?.ParentTopicId is { } p ? allTopics.FirstOrDefault(t => t.TopicId == p) : null;
+    private Crumb[] Crumbs => Parent is null
+        ? [new("Katalog", "mentor/catalog/topics"), new(topic!.Title)]
+        : [new("Katalog", "mentor/catalog/topics"), new(Parent.Title, $"mentor/catalog/topics/{Parent.TopicId}"), new(topic!.Title)];
+    private IEnumerable<TopicListItem> Children => allTopics.Where(t => t.ParentTopicId == TopicId);
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        var result = await Topics.GetAsync(await GetUserIdAsync(), TopicId, Ct);
+        var user = await GetUserIdAsync();
+        var result = await Topics.GetAsync(user, TopicId, Ct);
         if (Handle(result))
         {
             topic = result.Value;
             form = TopicFormModel.From(topic!);
+            var list = await Topics.ListAsync(user, true, Ct);
+            if (list.IsSuccess) allTopics = list.Value!.ToList();
         }
         Loading = false;
     }

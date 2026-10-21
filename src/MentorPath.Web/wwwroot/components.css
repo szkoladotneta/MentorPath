@@ -67,6 +67,9 @@ fieldset { min-width: 0; }
 .mp-datarow__title { font-weight: 500; }
 .mp-datarow__meta { font-size: var(--mp-text-sm); color: var(--mp-ink-muted); margin-top: 2px; }
 .mp-datarow__aside { display: flex; align-items: center; gap: var(--mp-space-2); flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.mp-tree-d1 { padding-left: calc(var(--mp-space-4) + 1.75rem); }
+.mp-tree-d2 { padding-left: calc(var(--mp-space-4) + 3.5rem); }
+.mp-tree-d3 { padding-left: calc(var(--mp-space-4) + 5.25rem); }
 a.mp-datarow--link { color: inherit; text-decoration: none; }
 a.mp-datarow--link:hover { background: var(--mp-ground); }
 .list-row.px-0 { padding-left: 0; padding-right: 0; }
@@ -236,6 +239,9 @@ a.mp-datarow--link:hover { background: var(--mp-ground); }
 .map-node.state-NeedsRevision text.node-icon { fill: var(--mp-danger); }
 .map-node.state-Withdrawn rect.node-box { fill: var(--mp-neutral-soft); stroke: var(--mp-neutral); stroke-dasharray: 2 3; }
 .map-node.state-Withdrawn text { fill: var(--mp-neutral); }
+.map-node.state-NotInPlan { opacity: .75; }
+.map-node.state-NotInPlan rect.node-box { fill: var(--mp-surface); stroke: var(--mp-line-strong); stroke-dasharray: 3 3; }
+.map-node.state-NotInPlan text { fill: var(--mp-ink-muted); }
 .map-edge { fill: none; stroke: var(--mp-line-strong); stroke-width: 2; }
 .map-edge.done { stroke: var(--mp-success); }
 .map-edge.branch { stroke-dasharray: 4 3; }

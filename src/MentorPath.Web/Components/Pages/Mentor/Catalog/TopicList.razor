@@ -22,7 +22,7 @@
     @if (showForm)
     {
         <Section Title="Nowy temat">
-            <TopicForm Model="form" Error="Error" />
+            <TopicForm Model="form" Error="Error" ParentOptions="TopicTreeView.ParentOptions(topics, null)" />
             <button class="btn btn-primary mt-3" @onclick="CreateAsync" disabled="@busy">Utwórz temat</button>
         </Section>
     }
@@ -35,9 +35,9 @@
         else
         {
             <DataList Bordered="true">
-                @foreach (var t in topics)
+                @foreach (var (t, depth) in TopicTreeView.Flatten(topics))
                 {
-                    <DataRow Href="@($"mentor/catalog/topics/{t.TopicId}")" Title="@t.Title" Meta="@($"{t.Category} · {Labels.Of(t.Difficulty)} · {t.ExerciseCount} ćw.")">
+                    <DataRow Href="@($"mentor/catalog/topics/{t.TopicId}")" Title="@((depth > 0 ? "└ " : "") + t.Title)" Class="@($"mp-tree-d{depth}")" Meta="@($"{t.Category} · {Labels.Of(t.Difficulty)} · {t.ExerciseCount} ćw.")">
                         <Aside>
                             @if (t.IsArchived) { <Badge Tone="secondary" Label="Zarchiwizowany" /> }
                         </Aside>

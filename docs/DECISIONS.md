@@ -351,6 +351,13 @@ Doprecyzowanie (PR schematu):
 Doprecyzowanie (PR kontraktu mapy):
 - `RoadmapMapContracts`: `MapNodeState.NotInPlan` (dopisany na końcu enuma) oraz opcjonalne parametry końcowe `TopicId`, `ParentTopicId` w `RoadmapMapNodeDto` (`ParentTopicId` = najbliższy przodek widoczny na mapie). Zmiana wyłącznie addytywna; serwis i UI wypełniają je w osobnym PR (wcześniej `TopicId` = `default`, `ParentTopicId` = null).
 
+Doprecyzowanie (PR serwisów i UI):
+- `TopicService` przy tworzeniu/edycji z rodzicem: nieznany lub obcy rodzic → `NotFound`; rodzic zarchiwizowany, cykl (także własny rodzic) lub głębokość > 3 (liczona z wysokością przenoszonego poddrzewa) → walidacja `catalog.invalid_parent` (pole `ParentTopicId`). Niezmieniony rodzic nie jest ponownie sprawdzany (istniejące dzieci zarchiwizowanego tematu działają dalej). `ParentTopicId = null` w `UpsertTopicRequest` oznacza korzeń. Sprawdzenie odbywa się w transakcji pod advisory lockiem workspace'u, więc równoległe edycje nie złożą cyklu.
+- Mapa: duchy („poza planem”) to niezarchiwizowane potomki aktywnych tematów planu, których nie ma w roadmapie (przechodzimy też przez zaplanowane aktywne poddrzewa). Duch ma tylko tytuł (`RoadmapItemId = Guid.Empty`, brak przydziałów), nie wlicza się do postępu. Temat planu, którego rodzic nie jest na mapie, jest węzłem najwyższego poziomu — nie ma węzłów „kontekstowych”, więc nic spoza planu nie wycieka. Agregacja postępu rodzica nie jest pokazywana.
+- Mentor dodaje ducha do roadmapy przyciskiem „Dodaj do roadmapy” (istniejące `IRoadmapService.AddTopicAsync`); mentee nie ma tej akcji.
+
+---
+
 ## D-46 — Odświeżenie warstwy wizualnej i układu aplikacji (Impeccable)
 Status: Proposed (2026-10-20; tylko prezentacja, bez zmian schematu i `Contracts/`)
 

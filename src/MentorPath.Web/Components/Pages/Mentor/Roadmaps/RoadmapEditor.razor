@@ -54,7 +54,7 @@
             @if (showMap)
             {
                 <div role="tabpanel" id="rm-panel-map" aria-labelledby="rm-tab-map">
-                    <RoadmapMap MentorshipId="MentorshipId" MentorView="true" />
+                    <RoadmapMap MentorshipId="MentorshipId" MentorView="true" RoadmapId="roadmap.RoadmapId" OnTopicAdded="LoadAsync" />
                 </div>
             }
             else
