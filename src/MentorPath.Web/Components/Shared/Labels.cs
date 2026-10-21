@@ -98,6 +98,7 @@ public static class Labels
         MapNodeState.PendingReview => "Czeka na ocenę",
         MapNodeState.NeedsRevision => "Do poprawy",
         MapNodeState.Completed => "Ukończony",
+        MapNodeState.NotInPlan => "Poza planem",
         _ => "Wycofany",
     };
 
@@ -108,6 +109,7 @@ public static class Labels
         MapNodeState.PendingReview => "…",
         MapNodeState.NeedsRevision => "!",
         MapNodeState.Completed => "✓",
+        MapNodeState.NotInPlan => "+",
         _ => "–",
     };
 

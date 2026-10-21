@@ -13,6 +13,10 @@
         <div class="page-header">
             <div>
                 <a href="mentor/catalog/topics" class="small">← Katalog</a>
+                @if (Parent is not null)
+                {
+                    <div class="small text-secondary">Podtemat: <a href="@($"mentor/catalog/topics/{Parent.TopicId}")">@Parent.Title</a></div>
+                }
                 <h1>@topic.Title @if (topic.IsArchived) { <span class="badge text-bg-secondary align-middle fs-6">Zarchiwizowany</span> }</h1>
                 <div class="subtitle">@topic.Category · @Labels.Of(topic.Difficulty) · <code>@topic.Slug</code></div>
             </div>
@@ -30,7 +34,7 @@
         {
             <div class="card mb-4">
                 <div class="card-body">
-                    <TopicForm Model="form" Error="Error" />
+                    <TopicForm Model="form" Error="Error" ParentOptions="TopicTreeView.ParentOptions(allTopics, TopicId)" />
                     <button class="btn btn-primary mt-3" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
                 </div>
             </div>
@@ -40,6 +44,23 @@
             <div class="row g-4 mb-4">
                 <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Opis</div><Markdown Value="@topic.DescriptionMarkdown" /></div></div></div>
                 <div class="col-md-6"><div class="card h-100"><div class="card-body"><div class="section-title">Cele edukacyjne</div><Markdown Value="@topic.LearningObjectivesMarkdown" /></div></div></div>
+            </div>
+        }
+
+        @if (Children.Any())
+        {
+            <h2 class="h5">Podtematy</h2>
+            <div class="card mb-4">
+                @foreach (var c in Children)
+                {
+                    <div class="list-row">
+                        <div>
+                            <a href="@($"mentor/catalog/topics/{c.TopicId}")" class="fw-semibold">@c.Title</a>
+                            <div class="small text-secondary">@c.Category · @Labels.Of(c.Difficulty) · @c.ExerciseCount ćw.</div>
+                        </div>
+                        @if (c.IsArchived) { <span class="badge text-bg-secondary">Zarchiwizowany</span> }
+                    </div>
+                }
             </div>
         }
 
@@ -71,18 +92,25 @@
 
     private TopicDetail? topic;
     private TopicFormModel? form;
+    private List<TopicListItem> allTopics = [];
     private bool editing;
     private bool busy;
+
+    private TopicListItem? Parent => topic?.ParentTopicId is { } p ? allTopics.FirstOrDefault(t => t.TopicId == p) : null;
+    private IEnumerable<TopicListItem> Children => allTopics.Where(t => t.ParentTopicId == TopicId);
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        var result = await Topics.GetAsync(await GetUserIdAsync(), TopicId, Ct);
+        var user = await GetUserIdAsync();
+        var result = await Topics.GetAsync(user, TopicId, Ct);
         if (Handle(result))
         {
             topic = result.Value;
             form = TopicFormModel.From(topic!);
+            var list = await Topics.ListAsync(user, true, Ct);
+            if (list.IsSuccess) allTopics = list.Value!.ToList();
         }
         Loading = false;
     }

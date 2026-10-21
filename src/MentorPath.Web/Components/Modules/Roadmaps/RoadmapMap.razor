@@ -1,7 +1,9 @@
 @inherits AppComponentBase
 @using MentorPath.Application.Progress
 @using MentorPath.Application.Progress.Contracts
+@using MentorPath.Application.Roadmaps.Contracts
 @inject IRoadmapMapService MapService
+@inject IRoadmapService Roadmaps
 
 @if (Loading)
 {
@@ -42,8 +44,8 @@ else
             @foreach (var p in layout.Nodes)
             {
                 var node = byId[p.Key];
-                <g class="map-node state-@node.State @(selectedId == node.RoadmapItemId ? "selected" : "")" tabindex="0" role="button"
-                   aria-pressed="@(selectedId == node.RoadmapItemId ? "true" : "false")"
+                <g class="map-node state-@node.State @(selectedId == node.TopicId ? "selected" : "")" tabindex="0" role="button"
+                   aria-pressed="@(selectedId == node.TopicId ? "true" : "false")"
                    aria-label="@NodeLabel(node)"
                    transform="translate(@Num(p.X) @Num(p.Y))"
                    @onclick="() => Select(node)" @onkeydown="e => OnKey(e, node)">
@@ -72,7 +74,18 @@ else
                 <span class="small text-secondary">@Labels.Of(selected.State)</span>
             </div>
             <div class="card-body">
-                @if (selected.Assignments.Count == 0)
+                @if (selected.State == MapNodeState.NotInPlan)
+                {
+                    <div class="small text-secondary mb-2">
+                        @(MentorView ? "Ten podtemat jest w katalogu, ale nie ma go w roadmapie mentee." : "Ten podtemat nie jest w Twoim planie.")
+                    </div>
+                    @if (MentorView && RoadmapId is not null)
+                    {
+                        <button class="btn btn-sm btn-primary" @onclick="() => AddToRoadmapAsync(selected)" disabled="@busy">Dodaj do roadmapy</button>
+                        <ErrorAlert Error="addError" />
+                    }
+                }
+                else if (selected.Assignments.Count == 0)
                 {
                     <div class="small text-secondary">Brak przypisanych ćwiczeń.</div>
                 }
@@ -100,18 +113,24 @@ else
 
 @code {
     private static readonly MapNodeState[] LegendStates =
-        [MapNodeState.Completed, MapNodeState.InProgress, MapNodeState.PendingReview, MapNodeState.NeedsRevision, MapNodeState.NotStarted, MapNodeState.Withdrawn];
+        [MapNodeState.Completed, MapNodeState.InProgress, MapNodeState.PendingReview, MapNodeState.NeedsRevision, MapNodeState.NotStarted, MapNodeState.Withdrawn, MapNodeState.NotInPlan];
 
     [Parameter, EditorRequired] public Guid MentorshipId { get; set; }
     [Parameter] public bool MentorView { get; set; }
+    [Parameter] public Guid? RoadmapId { get; set; }
+    [Parameter] public EventCallback OnTopicAdded { get; set; }
 
     private RoadmapMapDto? map;
     private MapLayout layout = new(0, 0, [], []);
     private Dictionary<Guid, RoadmapMapNodeDto> byId = [];
     private Guid? selectedId;
+    private bool busy;
+    private AppError? addError;
     private RoadmapMapNodeDto? selected => selectedId is { } id && byId.TryGetValue(id, out var n) ? n : null;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await LoadAsync(keepSelection: map is not null);
+
+    private async Task LoadAsync(bool keepSelection)
     {
         var user = await GetUserIdAsync();
         var result = MentorView
@@ -119,16 +138,38 @@ else
             : await MapService.GetMapForMenteeAsync(user, MentorshipId, Ct);
         if (Handle(result))
         {
+            var previous = selectedId;
             map = result.Value;
-            byId = map!.Nodes.ToDictionary(n => n.RoadmapItemId);
-            layout = RoadmapMapLayout.Compute(map.Nodes.Select(n => new MapLayoutInput(n.RoadmapItemId, null)).ToList());
-            selectedId = map.Nodes.FirstOrDefault(n => n.IsCurrent)?.RoadmapItemId;
+            byId = map!.Nodes.ToDictionary(n => n.TopicId);
+            layout = RoadmapMapLayout.Compute(map.Nodes.Select(n => new MapLayoutInput(n.TopicId, n.ParentTopicId)).ToList());
+            selectedId = keepSelection && previous is { } p && byId.ContainsKey(p) ? p : map.Nodes.FirstOrDefault(n => n.IsCurrent)?.TopicId;
         }
         Loading = false;
     }
 
-    private void Select(RoadmapMapNodeDto node) => selectedId = node.RoadmapItemId;
+    private void Select(RoadmapMapNodeDto node)
+    {
+        selectedId = node.TopicId;
+        addError = null;
+    }
 
+    private async Task AddToRoadmapAsync(RoadmapMapNodeDto node)
+    {
+        if (RoadmapId is not { } roadmapId) return;
+        busy = true;
+        var result = await Roadmaps.AddTopicAsync(await GetUserIdAsync(), new AddRoadmapTopicRequest(roadmapId, node.TopicId, null), Ct);
+        if (result.IsSuccess)
+        {
+            addError = null;
+            await LoadAsync(keepSelection: true);
+            await OnTopicAdded.InvokeAsync();
+        }
+        else
+        {
+            addError = result.Error;
+        }
+        busy = false;
+    }
     private void OnKey(KeyboardEventArgs e, RoadmapMapNodeDto node)
     {
         if (e.Key is "Enter" or " ") Select(node);
@@ -138,9 +179,12 @@ else
 
     private static string Truncate(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
 
-    private static string SubLabel(RoadmapMapNodeDto n) => n.State == MapNodeState.Withdrawn
-        ? "wycofany"
-        : n.TotalRequired == 0 ? Labels.Of(n.State) : $"{Labels.Of(n.State)} · {n.CompletedRequired}/{n.TotalRequired} wymaganych";
+    private static string SubLabel(RoadmapMapNodeDto n) => n.State switch
+    {
+        MapNodeState.Withdrawn => "wycofany",
+        MapNodeState.NotInPlan => "poza planem",
+        _ => n.TotalRequired == 0 ? Labels.Of(n.State) : $"{Labels.Of(n.State)} · {n.CompletedRequired}/{n.TotalRequired} wymaganych",
+    };
 
     private static string NodeLabel(RoadmapMapNodeDto n) =>
         $"{n.Title}, {Labels.Of(n.State)}{(n.IsCurrent ? ", bieżący temat" : "")}";

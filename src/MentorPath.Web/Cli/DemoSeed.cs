@@ -67,6 +67,17 @@ internal static class DemoSeed
         var tIdempotency = Ok(await topics.CreateAsync(mentorA.UserId, new("Idempotencja API", "idempotencja-api", "Niezawodność",
             Difficulty.Advanced, "Bezpieczne ponawianie żądań i deduplikacja.", "- Klucze idempotencji\n- Ochrona przed wyścigami"), ct));
 
+        // Sub-topics (not on Ola's roadmap) show up as greyed branches on the map.
+        var tOutbox = Ok(await topics.CreateAsync(mentorA.UserId, new("Wzorzec outbox", "wzorzec-outbox", "Dane",
+            Difficulty.Advanced, "Niezawodna publikacja zdarzeń razem z zapisem do bazy.", "- Zapis zdarzenia w tej samej transakcji\n- Publikacja z ponowieniami",
+            tConsistency), ct));
+        Ok(await topics.CreateAsync(mentorA.UserId, new("Saga i kompensacje", "saga-i-kompensacje", "Dane",
+            Difficulty.Advanced, "Koordynacja kroków rozproszonego procesu.", "- Kiedy saga ma sens\n- Projektowanie kompensacji",
+            tOutbox), ct));
+        Ok(await topics.CreateAsync(mentorA.UserId, new("Kontrakty modułów", "kontrakty-modulow", "Architektura",
+            Difficulty.Intermediate, "Publiczne interfejsy i DTO między modułami.", "- Co jest kontraktem, a co szczegółem\n- Wersjonowanie",
+            tModular), ct));
+
         var exDecision = await PublishedAsync(exercises, mentorA.UserId, new(tModular, ExerciseType.ArchitecturalDecision, new(
             "Podział systemu rezerwacji na moduły",
             "Startup rozwija platformę rezerwacji. Zespół 4 osób, ruch rośnie 20% miesięcznie. CTO proponuje mikroserwisy.",

@@ -39,7 +39,7 @@ internal sealed class RoadmapMapService(IDbContextFactory<AppDbContext> dbFactor
         var items = await db.RoadmapItems.AsNoTracking()
             .Where(i => i.WorkspaceId == acc.WorkspaceId && i.RoadmapId == roadmap.Id && (includeWithdrawn || i.IsActive))
             .OrderBy(i => i.Position)
-            .Select(i => new { i.Id, i.Position, i.IsActive, Title = i.Topic!.Title })
+            .Select(i => new { i.Id, i.Position, i.IsActive, i.TopicId, Title = i.Topic!.Title })
             .ToListAsync(ct);
         var itemIds = items.Select(i => i.Id).ToList();
         var assignments = await db.Assignments.AsNoTracking()
@@ -55,7 +55,7 @@ internal sealed class RoadmapMapService(IDbContextFactory<AppDbContext> dbFactor
                 a.AssignmentId, a.ExerciseTitle, a.IsRequired, ProgressCalculator.ForAssignment(a.Statuses))).ToList();
             var pairs = rows.Select(a => (a.IsRequired, a.Status)).ToList();
             var required = rows.Where(a => a.IsRequired).ToList();
-            return (item.Id, item.Title, item.Position,
+            return (item.Id, item.TopicId, item.Title, item.Position,
                 State: RoadmapMapRules.StateOf(item.IsActive, pairs),
                 Counts: item.IsActive && ProgressCalculator.CountsTowardsProgress(pairs),
                 Done: required.Count(a => a.Status == AssignmentProgressStatus.Completed), Total: required.Count, Rows: rows);
@@ -64,7 +64,20 @@ internal sealed class RoadmapMapService(IDbContextFactory<AppDbContext> dbFactor
         var current = RoadmapMapRules.CurrentNode(drafts.Select(d => (d.Id, d.State, d.Counts)).ToList());
         var counted = drafts.Count(d => d.Counts);
         var completed = drafts.Count(d => d.Counts && d.State == MapNodeState.Completed);
-        var nodes = drafts.Select(d => new RoadmapMapNodeDto(d.Id, d.Title, d.Position, d.State, d.Id == current, d.Done, d.Total, d.Rows)).ToList();
+
+        var catalog = await db.Topics.AsNoTracking().Where(t => t.WorkspaceId == acc.WorkspaceId)
+            .Select(t => new MapCatalogTopic(t.Id, t.ParentTopicId, t.Title, t.IsArchived)).ToListAsync(ct);
+        var parentOf = catalog.ToDictionary(t => t.Id, t => t.ParentId);
+        var activeTopics = items.Where(i => i.IsActive).Select(i => i.TopicId).ToHashSet();
+        var planTopics = items.Select(i => i.TopicId).ToHashSet();
+        var ghosts = RoadmapMapRules.UnplannedDescendants(activeTopics, planTopics, catalog);
+        var onMap = planTopics.Concat(ghosts.Select(g => g.Id)).ToHashSet();
+
+        var nodes = drafts.Select(d => new RoadmapMapNodeDto(d.Id, d.Title, d.Position, d.State, d.Id == current, d.Done, d.Total, d.Rows,
+                d.TopicId, RoadmapMapRules.NearestAncestorOnMap(d.TopicId, parentOf, onMap)))
+            .Concat(ghosts.Select(g => new RoadmapMapNodeDto(Guid.Empty, g.Title, 0, MapNodeState.NotInPlan, false, 0, 0, [],
+                g.Id, RoadmapMapRules.NearestAncestorOnMap(g.Id, parentOf, onMap))))
+            .ToList();
         return new RoadmapMapDto(acc.MentorshipId, true, roadmap.Title, completed, counted, ProgressCalculator.Percent(completed, counted), nodes);
     }
 }

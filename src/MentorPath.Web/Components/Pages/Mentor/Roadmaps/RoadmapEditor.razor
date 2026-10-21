@@ -53,7 +53,7 @@
     }
     @if (roadmap is not null && showMap)
     {
-        <RoadmapMap MentorshipId="MentorshipId" MentorView="true" />
+        <RoadmapMap MentorshipId="MentorshipId" MentorView="true" RoadmapId="roadmap.RoadmapId" OnTopicAdded="LoadAsync" />
     }
     else if (roadmap is not null)
     {

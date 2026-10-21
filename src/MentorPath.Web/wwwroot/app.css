@@ -85,6 +85,9 @@ html, body {
 .map-node.state-NeedsRevision text.node-icon { fill: #b91c1c; }
 .map-node.state-Withdrawn rect.node-box { fill: #f1f5f9; stroke: #94a3b8; stroke-dasharray: 2 3; }
 .map-node.state-Withdrawn text { fill: #64748b; }
+.map-node.state-NotInPlan { opacity: .75; }
+.map-node.state-NotInPlan rect.node-box { fill: #f8fafc; stroke: #cbd5e1; stroke-dasharray: 3 3; }
+.map-node.state-NotInPlan text { fill: #64748b; }
 .map-edge { fill: none; stroke: #cbd5e1; stroke-width: 2; }
 .map-edge.done { stroke: #16a34a; }
 .map-edge.branch { stroke-dasharray: 4 3; }

@@ -24,6 +24,18 @@
             }
         </InputSelect>
     </div>
+    <div class="col-md-6">
+        <label class="form-label">Temat nadrzędny</label>
+        <InputSelect class="form-select" @bind-Value="Model.ParentTopicId">
+            <option value="">— brak (temat główny) —</option>
+            @foreach (var o in ParentOptions)
+            {
+                <option value="@o.Id">@o.Label</option>
+            }
+        </InputSelect>
+        <div class="form-text">Podtematy tworzą gałąź (maks. @TopicLevels poziomy).</div>
+        <FieldError Error="Error" Field="ParentTopicId" />
+    </div>
     <div class="col-12">
         <label class="form-label">Opis (Markdown)</label>
         <InputTextArea class="form-control" rows="4" @bind-Value="Model.DescriptionMarkdown" />
@@ -40,6 +52,9 @@
 @code {
     [Parameter, EditorRequired] public TopicFormModel Model { get; set; } = default!;
     [Parameter] public AppError? Error { get; set; }
+    [Parameter] public IReadOnlyList<(Guid Id, string Label)> ParentOptions { get; set; } = [];
+
+    private const int TopicLevels = 3;
 
     private void OnTitleChanged(ChangeEventArgs e)
     {

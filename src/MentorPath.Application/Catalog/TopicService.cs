@@ -24,7 +24,7 @@ internal sealed class TopicService(
             .Where(t => t.WorkspaceId == ws && (includeArchived || !t.IsArchived))
             .OrderBy(t => t.Category).ThenBy(t => t.Title)
             .Select(t => new TopicListItem(t.Id, t.Title, t.Slug, t.Category, t.Difficulty, t.IsArchived,
-                db.Exercises.Count(e => e.WorkspaceId == ws && e.TopicId == t.Id)))
+                db.Exercises.Count(e => e.WorkspaceId == ws && e.TopicId == t.Id), t.ParentTopicId))
             .ToListAsync(ct);
         return items;
     }
@@ -42,7 +42,7 @@ internal sealed class TopicService(
             .Select(e => new ExerciseListItem(e.Id, e.TopicId, e.Title, e.Type, e.Status, e.Source, e.CreatedAtUtc))
             .ToListAsync(ct);
         return new TopicDetail(topic.Id, topic.Title, topic.Slug, topic.Category, topic.Difficulty, topic.DescriptionMarkdown,
-            topic.LearningObjectivesMarkdown, topic.IsArchived, exercises);
+            topic.LearningObjectivesMarkdown, topic.IsArchived, exercises, topic.ParentTopicId);
     }
 
     public async Task<Result<Guid>> CreateAsync(Guid actorUserId, UpsertTopicRequest request, CancellationToken ct)
@@ -53,6 +53,12 @@ internal sealed class TopicService(
         if (errors.HasErrors) return errors.ToError("catalog.invalid_topic");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        if (request.ParentTopicId is not null)
+        {
+            var parentError = await CheckParentAsync(db, ws.Value, null, request.ParentTopicId.Value, ct);
+            if (parentError is not null) return parentError;
+        }
         var topic = new Topic
         {
             Id = Guid.CreateVersion7(),
@@ -69,6 +75,7 @@ internal sealed class TopicService(
         {
             return SlugTaken();
         }
+        await tx.CommitAsync(ct);
         return topic.Id;
     }
 
@@ -80,8 +87,14 @@ internal sealed class TopicService(
         if (errors.HasErrors) return errors.ToError("catalog.invalid_topic");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var topic = await db.Topics.FirstOrDefaultAsync(t => t.Id == topicId && t.WorkspaceId == ws, ct);
         if (topic is null) return Errors.NotFound(Module);
+        if (request.ParentTopicId is not null)
+        {
+            var parentError = await CheckParentAsync(db, ws.Value, topic, request.ParentTopicId.Value, ct);
+            if (parentError is not null) return parentError;
+        }
         Apply(topic, request);
         try
         {
@@ -91,8 +104,32 @@ internal sealed class TopicService(
         {
             return SlugTaken();
         }
+        await tx.CommitAsync(ct);
         return Result.Success();
     }
+
+    // Serializes tree changes within the workspace so two concurrent moves cannot form a cycle.
+    private static async Task<AppError?> CheckParentAsync(AppDbContext db, Guid ws, Topic? existing, Guid parentId, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({ws.ToString()}::text, 1::bigint))", ct);
+        var all = await db.Topics.AsNoTracking().Where(t => t.WorkspaceId == ws)
+            .Select(t => new { t.Id, t.ParentTopicId, t.IsArchived }).ToListAsync(ct);
+        var parent = all.FirstOrDefault(t => t.Id == parentId);
+        if (parent is null) return Errors.NotFound(Module);
+
+        if (existing is not null && existing.ParentTopicId == parentId) return null;
+        if (parent.IsArchived) return ParentError("Nie można wybrać zarchiwizowanego tematu nadrzędnego.");
+        var parents = all.ToDictionary(t => t.Id, t => t.ParentTopicId);
+        return TopicTreeRules.Check(parents, existing?.Id, parentId) switch
+        {
+            TopicTreeViolation.Cycle => ParentError("Temat nie może być swoim własnym potomkiem."),
+            TopicTreeViolation.TooDeep => ParentError($"Drzewo tematów może mieć najwyżej {TopicTreeRules.MaxDepth} poziomy."),
+            _ => null,
+        };
+    }
+
+    private static AppError ParentError(string message) => Errors.Validation("catalog.invalid_parent", "Formularz zawiera błędy.",
+        new Dictionary<string, string[]> { [nameof(UpsertTopicRequest.ParentTopicId)] = [message] });
 
     public async Task<Result> SetArchivedAsync(Guid actorUserId, Guid topicId, bool isArchived, CancellationToken ct)
     {
@@ -126,6 +163,7 @@ internal sealed class TopicService(
         t.Difficulty = r.Difficulty;
         t.DescriptionMarkdown = r.DescriptionMarkdown.Trim();
         t.LearningObjectivesMarkdown = r.LearningObjectivesMarkdown.Trim();
+        t.ParentTopicId = r.ParentTopicId;
     }
 
     private static AppError SlugTaken() => Errors.Validation("catalog.slug_taken", "Formularz zawiera błędy.",

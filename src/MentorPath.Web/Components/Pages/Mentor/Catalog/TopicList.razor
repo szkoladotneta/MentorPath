@@ -27,7 +27,7 @@
     <div class="card mb-4">
         <div class="card-header">Nowy temat</div>
         <div class="card-body">
-            <TopicForm Model="form" Error="Error" />
+            <TopicForm Model="form" Error="Error" ParentOptions="TopicTreeView.ParentOptions(topics, null)" />
             <button class="btn btn-primary mt-3" @onclick="CreateAsync" disabled="@busy">Utwórz temat</button>
         </div>
     </div>
@@ -41,10 +41,11 @@
     else
     {
         <div class="card">
-            @foreach (var t in topics)
+            @foreach (var (t, depth) in TopicTreeView.Flatten(topics))
             {
-                <div class="list-row">
+                <div class="list-row" style="padding-left: @(1 + depth * 1.75)rem">
                     <div>
+                        @if (depth > 0) { <span class="text-secondary" aria-hidden="true">└ </span> }
                         <a href="@($"mentor/catalog/topics/{t.TopicId}")" class="fw-semibold">@t.Title</a>
                         <div class="small text-secondary">@t.Category · @Labels.Of(t.Difficulty) · @t.ExerciseCount ćw.</div>
                     </div>
