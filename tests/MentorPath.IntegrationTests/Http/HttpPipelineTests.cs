@@ -44,7 +44,9 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         var page = await client.GetAsync("/Account/Login");
         page.Headers.GetValues("X-Content-Type-Options").ShouldContain("nosniff");
         page.Headers.GetValues("X-Frame-Options").ShouldContain("DENY");
-        page.Headers.GetValues("Content-Security-Policy").ShouldHaveSingleItem().ShouldContain("frame-ancestors 'none'");
+        var contentSecurityPolicy = page.Headers.GetValues("Content-Security-Policy").ShouldHaveSingleItem();
+        contentSecurityPolicy.ShouldContain("frame-ancestors 'none'");
+        contentSecurityPolicy.ShouldContain("frame-src https://www.youtube-nocookie.com https://player.vimeo.com");
     }
 
     [Fact]

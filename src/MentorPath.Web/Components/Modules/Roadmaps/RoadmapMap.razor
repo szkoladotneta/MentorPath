@@ -73,6 +73,11 @@ else
                 <span class="small text-secondary">@Labels.Of(selected.State)</span>
             </div>
             <div class="card-body">
+                @if (!MentorView && selected.RoadmapItemId != Guid.Empty && selected.State != MapNodeState.Withdrawn)
+                {
+                    <a class="btn btn-outline-primary mb-3"
+                       href="@($"app/roadmap/{MentorshipId}/topics/{selected.RoadmapItemId}")">Szczegóły tematu</a>
+                }
                 @if (selected.Assignments.Count == 0)
                 {
                     <div class="small text-secondary">Brak przypisanych ćwiczeń.</div>
