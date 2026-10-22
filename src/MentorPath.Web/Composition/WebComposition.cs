@@ -183,7 +183,7 @@ public static class WebComposition
             h.XContentTypeOptions = "nosniff";
             h["Referrer-Policy"] = "strict-origin-when-cross-origin";
             h["X-Frame-Options"] = "DENY";
-            h.ContentSecurityPolicy = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
+            h.ContentSecurityPolicy = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com";
             h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
             await next();
         });

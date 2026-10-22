@@ -8,6 +8,7 @@ public static class CatalogModule
     public static IServiceCollection AddCatalogModule(this IServiceCollection services)
     {
         services.AddScoped<ITopicService, TopicService>();
+        services.AddScoped<ITopicResourceService, TopicResourceService>();
         services.AddScoped<IRubricService, RubricService>();
         services.AddScoped<ExerciseAuthoringService>();
         services.AddScoped<IExerciseAuthoringService>(sp => sp.GetRequiredService<ExerciseAuthoringService>());

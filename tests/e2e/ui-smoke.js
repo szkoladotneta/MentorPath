@@ -112,6 +112,20 @@ async function expectText(page, text, timeout = 10000) {
     await settle(mentor);
     log(`Topic "${topicTitle}" created`);
 
+    await mentor.click('button:has-text("Dodaj materiał")');
+    await mentor.fill('#resource-title-0', 'Wideo wprowadzające');
+    await mentor.fill('#resource-url-0', 'https://youtu.be/dQw4w9WgXcQ');
+    await mentor.selectOption('#resource-kind-0', 'Video');
+    await mentor.fill('#resource-description-0', 'Krótki materiał do obejrzenia przed ćwiczeniem.');
+    await mentor.click('button:has-text("Dodaj materiał")');
+    await mentor.fill('#resource-title-1', 'Link video zewnętrzny');
+    await mentor.fill('#resource-url-1', 'https://videos.example/watch?id=123');
+    await mentor.selectOption('#resource-kind-1', 'Video');
+    await mentor.fill('#resource-description-1', 'Dostępny wyłącznie u dostawcy.');
+    await mentor.click('button:has-text("Zapisz materiały")');
+    await expectText(mentor, 'Materiały zostały zapisane');
+    log('Mentor saved an ordered YouTube preparation resource');
+
     await mentor.click('main a:has-text("Nowe ćwiczenie")');
     await mentor.waitForURL(/\/mentor\/exercises\/new/);
     await settle(mentor);
@@ -160,6 +174,60 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.click('button:has-text("Opublikuj roadmapę")');
     await expectText(mentor, 'Roadmapa opublikowana');
     log('Roadmap with 2 topics published');
+
+    // Both roadmap views lead to the same contextual topic page. Video requests are click-to-load only.
+    current = mentee;
+    await go(mentee, '/app');
+    const roadmapHref = await mentee.locator('a:has-text("Pełna roadmapa")').first().getAttribute('href');
+    if (!roadmapHref) throw new Error('Published roadmap link was not present on the mentee dashboard');
+    const roadmapPath = new URL(roadmapHref, BASE).pathname;
+    const providerRequests = [];
+    mentee.on('request', request => {
+      if (/youtube-nocookie\.com|youtube\.com|youtu\.be/i.test(request.url())) providerRequests.push(request.url());
+    });
+    await mentee.route('https://www.youtube-nocookie.com/**', route => route.abort());
+    await go(mentee, roadmapPath);
+    const mapTopic = mentee.locator('.map-node').filter({ hasText: topicTitle });
+    await mapTopic.focus();
+    await mapTopic.press('Enter');
+    await mentee.click('a:has-text("Szczegóły tematu")');
+    await mentee.waitForURL(/\/app\/roadmap\/[0-9a-f-]+\/topics\/[0-9a-f-]+$/);
+    await expectText(mentee, 'Wideo wprowadzające');
+    await expectText(mentee, 'Wczytaj odtwarzacz YouTube');
+    if (await mentee.locator('iframe').count() !== 0) throw new Error('Video iframe loaded before the user clicked');
+    if (providerRequests.length !== 0) throw new Error('A provider request occurred before the user clicked');
+    const youtubeResource = mentee.locator('.mp-topic-resource').filter({ hasText: 'Wideo wprowadzające' });
+    const externalVideo = youtubeResource.locator('a:has-text("Otwórz materiał w nowej karcie")');
+    await externalVideo.waitFor();
+    if ((await externalVideo.getAttribute('href')) !== 'https://youtu.be/dQw4w9WgXcQ') throw new Error('External video fallback link is incorrect');
+    const unsupportedResource = mentee.locator('.mp-topic-resource').filter({ hasText: 'Link video zewnętrzny' });
+    await expectText(unsupportedResource, 'Ten serwis lub format nie ma wbudowanego odtwarzacza');
+    if (await unsupportedResource.locator('iframe').count() !== 0) throw new Error('Unsupported video URL created an iframe');
+    const unsupportedExternal = unsupportedResource.locator('a:has-text("Otwórz materiał w nowej karcie")');
+    if ((await unsupportedExternal.getAttribute('href')) !== 'https://videos.example/watch?id=123') throw new Error('Unsupported video did not retain its external URL');
+    const embedRequest = mentee.waitForRequest(request => request.url().startsWith('https://www.youtube-nocookie.com/embed/'));
+    await mentee.click('button:has-text("Wczytaj odtwarzacz YouTube")');
+    const videoFrame = mentee.locator('iframe');
+    await videoFrame.waitFor();
+    await embedRequest;
+    const frameSource = await videoFrame.getAttribute('src');
+    if (frameSource !== 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ') throw new Error(`Unexpected player URL: ${frameSource}`);
+    if (!await videoFrame.getAttribute('title')) throw new Error('Video iframe has no accessible title');
+    if (!(await videoFrame.evaluate(frame => frame.hasAttribute('allowfullscreen')))) throw new Error('Video iframe does not permit fullscreen');
+    if (!providerRequests.some(url => url.startsWith('https://www.youtube-nocookie.com/embed/'))) throw new Error('The iframe did not request the provider after the click');
+    for (const width of [360, 768, 1280]) {
+      await mentee.setViewportSize({ width, height: 900 });
+      const overflow = await mentee.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      if (overflow) throw new Error(`Topic page overflows at ${width}px`);
+    }
+    log('Mentee map link opens a safe click-to-load video page with a working external fallback');
+    await mentee.setViewportSize({ width: 1280, height: 900 });
+    await mentee.click('a:has-text("Wróć do roadmapy")');
+    await mentee.getByRole('tab', { name: 'Lista' }).click();
+    await mentee.locator('.card:has-text("' + topicTitle + '") a:has-text("Szczegóły tematu")').click();
+    await expectText(mentee, 'Wideo wprowadzające');
+    await expectText(mentee, 'Decyzja CQRS');
+    log('Mentee list view opens the same topic page and keeps the assignment link');
 
     // Mentee solves the quiz (wrong, then right) without seeing answers upfront.
     current = mentee;

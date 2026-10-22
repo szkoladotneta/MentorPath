@@ -4,6 +4,7 @@
 @inherits AppComponentBase
 @using MentorPath.Application.Catalog.Contracts
 @inject ITopicService Topics
+@inject ITopicResourceService TopicResources
 
 <PageTitle>Temat — MentorPath</PageTitle>
 
@@ -47,6 +48,70 @@
                 </SplitView>
             }
 
+            <Section Title="Materiały przygotowujące">
+                <ChildContent>
+                    <ErrorAlert Error="resourceError" />
+                    @if (!resourcesLoaded)
+                    {
+                        <p class="text-secondary">Nie udało się wczytać listy. Zapis jest wyłączony, dopóki lista nie zostanie wczytana.</p>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="LoadResourcesAsync"
+                                disabled="@(resourceLoading || !RendererInfo.IsInteractive)">@(resourceLoading ? "Wczytywanie…" : "Ponów wczytywanie")</button>
+                    }
+                    else
+                    {
+                        @if (resourceSaved)
+                        {
+                            <div class="alert alert-success" role="status">Materiały zostały zapisane.</div>
+                        }
+                        @if (resourceForm.Count == 0)
+                        {
+                            <p class="text-secondary">Brak materiałów. Ich dodanie jest opcjonalne.</p>
+                        }
+                        @for (var i = 0; i < resourceForm.Count; i++)
+                        {
+                            var resource = resourceForm[i];
+                            <fieldset class="mp-resource-editor-item">
+                                <legend class="visually-hidden">Materiał @(i + 1)</legend>
+                                <div class="mp-resource-editor-item__fields">
+                                    <div>
+                                        <label class="form-label" for="@($"resource-title-{i}")">Tytuł</label>
+                                        <input id="@($"resource-title-{i}")" class="form-control" maxlength="200" @bind="resource.Title" />
+                                        <FieldError Error="resourceError" Field="@($"Resources[{i}].Title")" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="@($"resource-url-{i}")">Adres HTTPS</label>
+                                        <input id="@($"resource-url-{i}")" class="form-control" type="url" maxlength="2000" @bind="resource.Url" />
+                                        <FieldError Error="resourceError" Field="@($"Resources[{i}].Url")" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="@($"resource-kind-{i}")">Rodzaj</label>
+                                        <select id="@($"resource-kind-{i}")" class="form-select" @bind="resource.Kind">
+                                            <option value="@TopicResourceKind.Article">Artykuł</option>
+                                            <option value="@TopicResourceKind.Video">Wideo</option>
+                                        </select>
+                                        <FieldError Error="resourceError" Field="@($"Resources[{i}].Kind")" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="@($"resource-description-{i}")">Opis (opcjonalnie)</label>
+                                        <textarea id="@($"resource-description-{i}")" class="form-control" rows="2" maxlength="1000" @bind="resource.Description"></textarea>
+                                        <FieldError Error="resourceError" Field="@($"Resources[{i}].Description")" />
+                                    </div>
+                                    <button type="button" class="btn btn-outline-danger" @onclick="() => RemoveResource(i)" disabled="@(busy || !RendererInfo.IsInteractive)">
+                                        Usuń materiał @(i + 1)
+                                    </button>
+                                </div>
+                            </fieldset>
+                        }
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="AddResource" disabled="@(busy || !RendererInfo.IsInteractive)">Dodaj materiał</button>
+                            <button type="button" class="btn btn-primary" @onclick="SaveResourcesAsync" disabled="@(busy || !RendererInfo.IsInteractive)">
+                                @(busy ? "Zapisywanie…" : "Zapisz materiały")
+                            </button>
+                        </div>
+                    }
+                </ChildContent>
+            </Section>
+
             <Section Title="Ćwiczenia" Flush="@(topic.Exercises.Count > 0)">
                 <Aside>@topic.Exercises.Count</Aside>
                 <ChildContent>
@@ -74,8 +139,13 @@
 
     private TopicDetail? topic;
     private TopicFormModel? form;
+    private List<ResourceForm> resourceForm = [];
+    private AppError? resourceError;
     private bool editing;
     private bool busy;
+    private bool resourceSaved;
+    private bool resourcesLoaded;
+    private bool resourceLoading;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -86,8 +156,74 @@
         {
             topic = result.Value;
             form = TopicFormModel.From(topic!);
+            resourcesLoaded = false;
+            resourceForm = [];
+            await LoadResourcesAsync();
         }
         Loading = false;
+    }
+
+    private async Task LoadResourcesAsync()
+    {
+        resourceLoading = true;
+        resourceError = null;
+        var result = await TopicResources.GetAsync(await GetUserIdAsync(), TopicId, Ct);
+        if (result.IsSuccess)
+        {
+            resourceForm = result.Value!.Select(ResourceForm.From).ToList();
+            resourcesLoaded = true;
+        }
+        else
+        {
+            resourceError = result.Error;
+            resourcesLoaded = false;
+            if (result.Error?.Kind == ErrorKind.NotFound) NotFound = true;
+        }
+        resourceLoading = false;
+    }
+
+    private void AddResource()
+    {
+        resourceSaved = false;
+        resourceForm.Add(new ResourceForm());
+    }
+
+    private void RemoveResource(int index)
+    {
+        resourceSaved = false;
+        resourceForm.RemoveAt(index);
+    }
+
+    private async Task SaveResourcesAsync()
+    {
+        busy = true;
+        resourceSaved = false;
+        resourceError = null;
+        var input = resourceForm
+            .Select(r => new TopicResourceInput(r.Title, r.Url, r.Kind, r.Description))
+            .ToList();
+        var result = await TopicResources.ReplaceAsync(await GetUserIdAsync(), TopicId, input, Ct);
+        if (result.IsSuccess)
+        {
+            resourceSaved = true;
+            var reload = await TopicResources.GetAsync(await GetUserIdAsync(), TopicId, Ct);
+            if (reload.IsSuccess)
+            {
+                resourceForm = reload.Value!.Select(ResourceForm.From).ToList();
+            }
+            else
+            {
+                resourceError = reload.Error;
+                resourcesLoaded = false;
+                if (reload.Error?.Kind == ErrorKind.NotFound) NotFound = true;
+            }
+        }
+        else
+        {
+            resourceError = result.Error;
+            if (result.Error?.Kind == ErrorKind.NotFound) NotFound = true;
+        }
+        busy = false;
     }
 
     private async Task SaveAsync()
@@ -104,5 +240,21 @@
     private async Task ToggleArchiveAsync()
     {
         if (Handle(await Topics.SetArchivedAsync(await GetUserIdAsync(), TopicId, !topic!.IsArchived, Ct))) await LoadAsync();
+    }
+
+    private sealed class ResourceForm
+    {
+        public string Title { get; set; } = "";
+        public string Url { get; set; } = "";
+        public TopicResourceKind Kind { get; set; } = TopicResourceKind.Article;
+        public string? Description { get; set; }
+
+        public static ResourceForm From(TopicResourceDto resource) => new()
+        {
+            Title = resource.Title,
+            Url = resource.Url,
+            Kind = resource.Kind,
+            Description = resource.Description,
+        };
     }
 }

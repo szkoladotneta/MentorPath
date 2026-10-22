@@ -1,0 +1,47 @@
+@namespace MentorPath.Web.Components.Shared
+
+<div class="mp-topic-video">
+    @if (embed is null)
+    {
+        <p class="text-secondary">Ten serwis lub format nie ma wbudowanego odtwarzacza. Materiał można otworzyć jako zewnętrzny link.</p>
+    }
+    else if (!playerRequested)
+    {
+        <p class="text-secondary">
+            Odtwarzacz @embed.Provider jest ładowany dopiero po kliknięciu. Po załadowaniu przeglądarka połączy się z tym serwisem;
+            tryby prywatności nie gwarantują braku plików cookie ani śledzenia.
+        </p>
+        <button class="btn btn-outline-primary" type="button" @onclick="LoadPlayer">Wczytaj odtwarzacz @embed.Provider</button>
+    }
+    else
+    {
+        <div class="mp-topic-video__frame">
+            <iframe src="@embed.EmbedUrl"
+                    title="@($"{ResourceTitle} — odtwarzacz {embed.Provider}")"
+                    allow="encrypted-media; picture-in-picture; fullscreen"
+                    allowfullscreen
+                    loading="lazy"
+                    referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        <p class="text-secondary mt-2">
+            Jeśli odtwarzanie jest zablokowane, film może być prywatny lub niedostępny do osadzania. Otwórz materiał bezpośrednio u dostawcy.
+        </p>
+    }
+    <a class="mp-topic-video__external" href="@SourceUrl" target="_blank" rel="noopener noreferrer">Otwórz materiał w nowej karcie</a>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string ResourceTitle { get; set; } = "";
+    [Parameter, EditorRequired] public string SourceUrl { get; set; } = "";
+
+    private TopicVideoEmbed? embed;
+    private bool playerRequested;
+
+    protected override void OnParametersSet()
+    {
+        embed = TopicVideoEmbedParser.Parse(SourceUrl);
+        playerRequested = false;
+    }
+
+    private void LoadPlayer() => playerRequested = true;
+}

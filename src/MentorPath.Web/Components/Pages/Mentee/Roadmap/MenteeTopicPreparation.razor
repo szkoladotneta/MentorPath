@@ -1,0 +1,120 @@
+@page "/app/roadmap/{MentorshipId:guid}/topics/{RoadmapItemId:guid}"
+@attribute [Authorize(Roles = AppRoles.Mentee)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using MentorPath.Application.Roadmaps.Contracts
+@inject ITopicPreparationService Preparation
+
+<PageTitle>Temat — MentorPath</PageTitle>
+
+<Page Width="reading">
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (model is not null)
+        {
+            <PageHeader Title="@model.TopicTitle"
+                        Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Roadmapa", $"app/roadmap/{MentorshipId}"), new(model.TopicTitle) })">
+                <Actions>
+                    <a class="btn btn-outline-primary" href="@($"app/roadmap/{MentorshipId}")">Wróć do roadmapy</a>
+                </Actions>
+            </PageHeader>
+
+            <Section Title="Opis tematu">
+                <Markdown Value="@model.TopicDescriptionMarkdown" />
+            </Section>
+
+            @if (!string.IsNullOrWhiteSpace(model.MentorNoteMarkdown))
+            {
+                <Section Title="Notatka mentora">
+                    <Markdown Value="@model.MentorNoteMarkdown" />
+                </Section>
+            }
+
+            <Section Title="Materiały przygotowujące">
+                <ChildContent>
+                    @if (model.Resources.Count == 0)
+                    {
+                        <EmptyState Icon="file-plus" Title="Brak materiałów">Możesz przejść dalej do ćwiczeń.</EmptyState>
+                    }
+                    else
+                    {
+                        <div class="mp-stack">
+                            @foreach (var resource in model.Resources)
+                            {
+                                <div class="mp-topic-resource">
+                                    <div class="d-flex flex-wrap align-items-baseline gap-2">
+                                        <h2 class="mp-topic-resource__title">@resource.Title</h2>
+                                        <Badge Value="resource.Kind" />
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(resource.Description))
+                                    {
+                                        <p class="mp-topic-resource__description">@resource.Description</p>
+                                    }
+                                    @if (resource.Kind == TopicResourceKind.Video)
+                                    {
+                                        <TopicVideoPlayer ResourceTitle="@resource.Title" SourceUrl="@resource.Url" />
+                                    }
+                                    else
+                                    {
+                                        <a href="@resource.Url" target="_blank" rel="noopener noreferrer">Otwórz artykuł w nowej karcie</a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </ChildContent>
+            </Section>
+
+            <Section Title="Ćwiczenia w tym temacie" Flush="@(model.Assignments.Count > 0)">
+                <ChildContent>
+                    @if (model.Assignments.Count == 0)
+                    {
+                        <EmptyState Icon="file-plus" Title="Brak aktywnych ćwiczeń">Możesz wrócić do roadmapy później.</EmptyState>
+                    }
+                    else
+                    {
+                        <DataList>
+                            @foreach (var assignment in model.Assignments)
+                            {
+                                <DataRow Href="@($"app/assignments/{assignment.AssignmentId}")"
+                                         Title="@assignment.ExerciseTitle"
+                                         Meta="@AssignmentMeta(assignment.Type, assignment.IsRequired, assignment.DueAtUtc, assignment.AttemptCount)">
+                                    <Aside>
+                                        @if (assignment.LatestStatus is { } status) { <Badge Value="status" /> }
+                                        else { <Badge Tone="light" Label="Nierozpoczęte" /> }
+                                    </Aside>
+                                </DataRow>
+                            }
+                        </DataList>
+                    }
+                </ChildContent>
+            </Section>
+        }
+        else if (Error is not null)
+        {
+            <ErrorAlert Error="Error" />
+        }
+    </PageState>
+</Page>
+
+@code {
+    [Parameter] public Guid MentorshipId { get; set; }
+    [Parameter] public Guid RoadmapItemId { get; set; }
+
+    private MenteeTopicPreparationDto? model;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        model = null;
+        NotFound = false;
+        Error = null;
+        Loading = true;
+        var result = await Preparation.GetTopicForMenteeAsync(await GetUserIdAsync(), MentorshipId, RoadmapItemId, Ct);
+        if (Handle(result)) model = result.Value;
+        Loading = false;
+    }
+
+    private static string AssignmentMeta(ExerciseType type, bool required, DateTime? dueAtUtc, int attemptCount) =>
+        $"{Labels.Of(type)} · {(required ? "wymagane" : "opcjonalne")}"
+        + (dueAtUtc is not null ? $" · termin {Labels.Day(dueAtUtc)}" : "")
+        + (attemptCount > 0 ? $" · prób: {attemptCount}" : "");
+}

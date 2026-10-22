@@ -35,7 +35,7 @@ IBM Plex, self-hosted from `wwwroot/fonts` (OFL). Sans for UI and body, Serif fo
 
 ## Components
 
-`Icon` (inline SVG set), `Badge` (tone + word + dot), `PageState` (skeleton / not found), `EmptyState` (icon, title, optional action), `Markdown` (only place user Markdown is rendered). Forms: every control has a `<label for>`; narrow inputs use `field-narrow` / `field-medium`.
+`Icon` (inline SVG set), `Badge` (tone + word + dot), `PageState` (skeleton / not found), `EmptyState` (icon, title, optional action), `Markdown` (only place user Markdown is rendered), and `TopicVideoPlayer` (validated YouTube/Vimeo links with explicit click-to-load). Forms: every control has a `<label for>`; narrow inputs use `field-narrow` / `field-medium`.
 
 ## Accessibility and responsiveness
 
