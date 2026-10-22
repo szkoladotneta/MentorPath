@@ -27,6 +27,8 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet restore MentorPath.slnx
+      - name: Test deployment cleanup
+        run: python3 -m unittest discover -s tests/deployment -v
       - run: dotnet build MentorPath.slnx --no-restore --configuration Release
       - name: Verify EF model matches migrations
         run: |
@@ -242,10 +244,11 @@ jobs:
           echo "- Readiness, liveness, login page and Blazor script: passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove only this run's database firewall rule
+        timeout-minutes: 12
         if: always() && steps.firewall.outputs.attempted == 'true'
         run: |
           set -euo pipefail
-          az rest --method delete --url "$FIREWALL_URL"
+          python3 scripts/azure_firewall.py "$FIREWALL_URL"
 
       - name: Report unsuccessful maintenance
         if: always() && steps.maintenance.outputs.attempted == 'true' && steps.healthy.outcome != 'success'
