@@ -829,6 +829,9 @@ namespace MentorPath.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("WhyItMattersMarkdown")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("WorkspaceId")
                         .HasColumnType("uuid");
 

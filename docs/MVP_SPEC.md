@@ -213,6 +213,7 @@ Pola:
 - Category.
 - Difficulty.
 - Description.
+- Why it matters (optional).
 - Learning Objectives.
 
 Katalog jest prywatny dla workspace'u.
@@ -571,6 +572,7 @@ Nie stosować unikalności samego MenteeUserId — użytkownik może mieć wielu
 - Category: varchar(80)
 - Difficulty: varchar(30)
 - DescriptionMarkdown: text
+- WhyItMattersMarkdown: text nullable
 - LearningObjectivesMarkdown: text
 - IsArchived: boolean
 - CreatedAtUtc: timestamptz

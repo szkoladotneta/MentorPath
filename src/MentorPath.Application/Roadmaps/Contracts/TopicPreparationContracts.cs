@@ -10,4 +10,5 @@ public interface ITopicPreparationService
 
 public sealed record MenteeTopicPreparationDto(Guid MentorshipId, Guid RoadmapItemId, string TopicTitle,
     string TopicDescriptionMarkdown, string? MentorNoteMarkdown, IReadOnlyList<TopicResourceDto> Resources,
-    IReadOnlyList<MenteeAssignmentListItem> Assignments);
+    IReadOnlyList<MenteeAssignmentListItem> Assignments, string? WhyItMattersMarkdown = null,
+    string? LearningObjectivesMarkdown = null);

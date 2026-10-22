@@ -42,7 +42,7 @@ Rozwój dzielimy według **ryzyk, które usuwamy**, a nie liczby funkcji. Faza N
 | **Graf kompetencji z prerequisites**, katalog niezależny od wersji .NET | Płaski katalog tematów | N20 |
 | Exercise = reusable content, wiele kompetencji, biblioteka | Exercise 1:1 z tematem, lista w temacie | N22, N26 |
 | Szablony roadmap (Learning Plan z katalogu) | Roadmapa budowana ręcznie od zera | N21 |
-| Widok tematu: why it matters / you should be able to / zasoby | Opis + cele tematu | N23 |
+| Widok tematu: why it matters / you should be able to / zasoby | Opis + cele tematu + rationale | N23 |
 | Typy ćwiczeń: architecture review, code review, failure, incident, prediction, teach-back… — bez nowych rendererów | 3 typy | N24 |
 | Push → CI → wynik w platformie (bez GitHub Classroom — wycofany 28.08.2026) | Link do repo jako zwykły URL | N32, N33 |
 | Przypomnienia, reguły progresji | Brak | N30, N31, N34 |

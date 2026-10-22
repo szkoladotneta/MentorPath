@@ -13,12 +13,13 @@ public interface ITopicService
 }
 
 public sealed record UpsertTopicRequest(string Title, string Slug, string Category, Difficulty Difficulty,
-    string DescriptionMarkdown, string LearningObjectivesMarkdown, Guid? ParentTopicId = null);
+    string DescriptionMarkdown, string LearningObjectivesMarkdown, Guid? ParentTopicId = null,
+    string? WhyItMattersMarkdown = null);
 public sealed record TopicListItem(Guid TopicId, string Title, string Slug, string Category, Difficulty Difficulty, bool IsArchived, int ExerciseCount,
     Guid? ParentTopicId = null);
 public sealed record TopicDetail(Guid TopicId, string Title, string Slug, string Category, Difficulty Difficulty,
     string DescriptionMarkdown, string LearningObjectivesMarkdown, bool IsArchived, IReadOnlyList<ExerciseListItem> Exercises,
-    Guid? ParentTopicId = null);
+    Guid? ParentTopicId = null, string? WhyItMattersMarkdown = null);
 
 public interface IExerciseAuthoringService
 {
