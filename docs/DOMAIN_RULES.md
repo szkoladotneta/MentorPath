@@ -51,6 +51,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Mentorships | unique `(WorkspaceId, MenteeUserId)`; AK `(WorkspaceId, Id)` |
 | Invitations | unique `TokenHash`; index `(WorkspaceId, NormalizedEmail)` |
 | Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)`; nullable `ParentTopicId` — FK `(WorkspaceId, ParentTopicId)` → Topics AK (Restrict); check `ParentTopicId <> Id`; index `(WorkspaceId, ParentTopicId)`; cykle i głębokość ≤ 3 pilnuje serwis (D-45) |
+| TopicResources | FK `(WorkspaceId, TopicId)` → Topics AK (Restrict); FK `WorkspaceId` → Workspaces (Restrict); indexes `WorkspaceId`, `(WorkspaceId, TopicId, Position)`; CHECK `Position >= 0`; title ≤ 200, URL ≤ 2000, optional plain-text description ≤ 1000; `Kind` as string (`Article`/`Video`, validated by the service), D-51 |
 | Exercises | FK `(WorkspaceId, TopicId)` → Topics AK; AK `(WorkspaceId, Id)` |
 | QuizOptions | FK `ExerciseId` Cascade; partial unique `(ExerciseId) WHERE "IsCorrect"` |
 | Roadmaps | unique `MentorshipId`; FK `(WorkspaceId, MentorshipId)` |
@@ -67,7 +68,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
 - Indeks po `WorkspaceId` na każdej tabeli `IWorkspaceScoped`.
-- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions, oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
+- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions, `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-51), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
 - Enumy zapisywane jako string. Role Identity: `Mentor`, `Mentee`, `PlatformOperator`.
 
 ## 4. `DecisionAnswerJson` (schemat v1)
@@ -88,7 +89,7 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Workspaces | Workspaces |
 | Mentorships | Mentorships |
 | Invitations | Invitations, Mentorships |
-| Catalog | Topics, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
+| Catalog | Topics, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
 | Roadmaps | Roadmaps, RoadmapItems, Assignments |
 | Submissions | Submissions (insert), SubmissionAttachments |
@@ -132,6 +133,16 @@ Wysłanie nowej próby jest dozwolone ⇔ mentee jest autorem relacji **i** `Men
 | Akceptacja zaproszenia | `ExecuteUpdate Invitations SET AcceptedAtUtc=now WHERE Id=@id AND AcceptedAtUtc IS NULL AND ExpiresAtUtc > now` → 0 = `invitation.invalid_or_used`; insert Mentorship (unique). Jedna transakcja z utworzeniem konta. |
 | Publikacja ćwiczenia | `ExecuteUpdate ... WHERE Status='Draft'`. |
 | Limit AI | count-then-insert; dopuszczalne przekroczenie o 1 przy wyścigu (tylko mentor) — znane ryzyko. |
+| Topic resources (D-51, feature PR) | Whole-list replacement in one transaction, serialized on the owning topic row. Server derives workspace and contiguous positions from the input order. Concurrent valid saves replace the complete list in lock order (last save wins), never merge partial lists. |
+
+## 8.1. Topic preparation resources (D-51)
+
+- Resources belong to the workspace's Topic, not to an individual roadmap item. Saved edits are immediately shared by all eligible placements of that topic; no resource publication/versioning or completion state.
+- The Catalog owner manages the list. The Roadmaps contextual read accepts both `mentorshipId` and `roadmapItemId`, checks their relationship and workspace after `IWorkspaceAccessService`, and returns only the participating mentee's active assignments and personal roadmap note.
+- Mentee reads require an Active or Paused mentorship, a Published roadmap and an active item. Closed mentorships, draft/missing roadmaps, inactive/missing items, mixed-context IDs and unauthorized actors return `NotFound`. Assigned archived topics remain readable.
+- Resource input requires a title, absolute HTTPS URL without user credentials, valid Article/Video kind and optional plain-text description, within the limits above. URL validity beyond length and Kind membership are application validations, not database constraints.
+- Resources do not grant catalog access, alter assignment eligibility or contribute to progress. Existing submission restrictions remain unchanged.
+- The schema prerequisite declares contracts only. Access checks, validation, serialized replacement and UI behavior are implemented and isolation-tested in the subsequent feature PR.
 
 ## 9. Scenariusz wypuszczenia MVP
 

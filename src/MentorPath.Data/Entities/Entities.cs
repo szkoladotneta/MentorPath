@@ -65,6 +65,20 @@ public sealed class Topic : IWorkspaceScoped
     public DateTime CreatedAtUtc { get; set; }
 }
 
+public sealed class TopicResource : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid TopicId { get; set; }
+    public string Title { get; set; } = "";
+    public string Url { get; set; } = "";
+    public TopicResourceKind Kind { get; set; }
+    public string? Description { get; set; }
+    public int Position { get; set; }
+
+    public Topic? Topic { get; set; }
+}
+
 public sealed class Exercise : IWorkspaceScoped
 {
     public Guid Id { get; set; }

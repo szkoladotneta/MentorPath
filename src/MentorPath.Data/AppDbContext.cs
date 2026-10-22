@@ -13,6 +13,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Mentorship> Mentorships => Set<Mentorship>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Topic> Topics => Set<Topic>();
+    public DbSet<TopicResource> TopicResources => Set<TopicResource>();
     public DbSet<Exercise> Exercises => Set<Exercise>();
     public DbSet<QuizOption> QuizOptions => Set<QuizOption>();
     public DbSet<Roadmap> Roadmaps => Set<Roadmap>();

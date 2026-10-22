@@ -396,6 +396,23 @@ Status: Adopted (2026-10-22, poprawka braku interaktywności na Azure)
 - Restore wykonany tylko na plikach `.csproj` (warstwa cache) nie dodaje niejawnego pakietu `Microsoft.AspNetCore.App.Internal.Assets`, bo SDK nie widzi jeszcze komponentów Razor. `dotnet publish --no-restore` publikował więc obraz bez `_framework/blazor.web.js` (404), a cała aplikacja na Azure działała bez interaktywności.
 - `dotnet publish` w `Dockerfile` wykonuje restore ponownie po `COPY src/`; wcześniejszy restore zostaje jako cache pakietów.
 
+## D-51 — Shared topic preparation resources, contextual access and external video players (N23 slice)
+Status: Adopted (2026-10-22, approved preparation-resource plan); implementation split into schema/contracts and feature PRs
+
+Context: topic descriptions and personal mentor notes currently appear only in the roadmap list, while the default map leads directly to assignments. The owner approved a focused N23 slice, not new competency content fields or a standalone library.
+
+Decision:
+- Store an ordered `TopicResources` list on the existing Topic: workspace, topic, title (200), absolute HTTPS URL (2000), Article/Video kind, optional plain-text description (1000), and nonnegative position. Catalog owns writes; composite topic/workspace FK and Restrict deletes preserve tenant integrity. Existing topics start with no resources.
+- The owner can atomically replace the list, including removing resources. Derive workspace and contiguous positions server-side; serialize replacements on the topic row so concurrent saves are whole-list last-save-wins, not merged lists. Resource IDs need not survive replacement and are not referenced by other records.
+- Saved edits are immediately visible across eligible roadmap placements of that topic. Personal guidance remains `RoadmapItem.MentorNoteMarkdown`; resources have no draft/publish, versioning, watch/completion state or progress effect.
+- The mentee page is scoped to `/app/roadmap/{mentorshipId}/topics/{roadmapItemId}`, with links from both map and list. Check the exact mentorship/item relationship, Published roadmap, active item and participating mentee; Active and Paused mentorships permit reading, Closed does not. Assigned archived topics stay readable. Return only safe topic/resources, that item's personal note and active assigned exercises, never the catalog exercise list. No new exercise blocking.
+- Declare focused `ITopicResourceService` (Catalog) and `ITopicPreparationService` (Roadmaps) contracts in the schema PR. Do not change existing implemented interfaces or add throwing stubs. Service implementations, DI, access checks, validation and isolation tests arrive only after the prerequisite merges.
+- Video links from YouTube and Vimeo may use a typed, click-to-load iframe component in the feature PR, with validated exact provider hosts/IDs and a permanent external link. Other providers remain links. Do not allow raw HTML in Markdown or arbitrary iframe sources; do not fetch metadata or remote thumbnails.
+- Use YouTube privacy-enhanced embeds and Vimeo DNT, preserving validated unlisted hashes. Load nothing from the provider before the viewer clicks, explain third-party contact, disable autoplay, preserve the origin referrer needed for playback and allow only the two player origins in `frame-src`. Privacy modes do not guarantee zero cookies/tracking. Embedding permissions, privacy and availability are controlled by the provider; playback is not guaranteed.
+- This is external learning-resource presentation, a narrow refinement of the backlog's video exclusion, not a hosted video/course platform. No SDK/API credentials, uploads, playlists, analytics, lessons, full competency redesign or new packages. Dedicated "Why it matters" / "You should be able to" fields remain deferred.
+
+Impact: additive schema and typed contracts first (`schema-change`, human CODEOWNERS merge), then Catalog/Roadmaps services and mentor/mentee UI in a separate feature PR. Markdown sanitization, assignment access and progress rules remain unchanged.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
