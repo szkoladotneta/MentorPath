@@ -845,6 +845,51 @@ namespace MentorPath.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.TopicResource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "TopicId", "Position");
+
+                    b.ToTable("TopicResources", t =>
+                        {
+                            t.HasCheckConstraint("CK_TopicResources_Position", "\"Position\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Workspace", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1316,6 +1361,24 @@ namespace MentorPath.Data.Migrations
                         .HasForeignKey("WorkspaceId", "ParentTopicId")
                         .HasPrincipalKey("WorkspaceId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.TopicResource", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "TopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Workspace", b =>

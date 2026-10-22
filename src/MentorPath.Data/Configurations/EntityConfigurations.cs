@@ -59,6 +59,25 @@ internal sealed class TopicConfiguration : IEntityTypeConfiguration<Topic>
     }
 }
 
+internal sealed class TopicResourceConfiguration : IEntityTypeConfiguration<TopicResource>
+{
+    public void Configure(EntityTypeBuilder<TopicResource> e)
+    {
+        e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+        e.Property(x => x.Url).HasMaxLength(2000).IsRequired();
+        e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20).IsRequired();
+        e.Property(x => x.Description).HasMaxLength(1000);
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasIndex(x => new { x.WorkspaceId, x.TopicId, x.Position });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.Topic).WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.TopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_TopicResources_Position", "\"Position\" >= 0"));
+    }
+}
+
 internal sealed class ExerciseConfiguration : IEntityTypeConfiguration<Exercise>
 {
     public void Configure(EntityTypeBuilder<Exercise> e)
