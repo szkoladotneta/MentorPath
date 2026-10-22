@@ -375,6 +375,15 @@ Status: Adopted (2026-10-22, na życzenie właściciela produktu); zastępuje D-
 - Retencja Blob: soft delete blobów/kontenerów 30 dni, wersjonowanie wyłączone. Włączenie wersjonowania wymaga polityki usuwania poprzednich wersji po 30 dniach. Nie wygaszamy bieżących załączników ani kluczy Identity. Migracja istniejących obiektów S3 jest operacją operatora przed przełączeniem, z zachowaniem kluczy i weryfikacją bajtów; nie usuwamy starego magazynu automatycznie.
 - Instrukcja: `AZURE_DEPLOYMENT.md` (zasoby, role, sekrety Key Vault, build, migracje, pierwszy mentor, backup i rollback). Nie dodajemy płatnych zasobów, automatycznego deployu ani nowego workflow CI przez samą zmianę kodu.
 
+## D-48 — ACS Email przez SMTP: wybór właściciela i ograniczenie cyklu życia
+Status: Proposed (2026-10-22); właściciel wybrał ACS Email, ale ostrzeżenie o wycofaniu wymaga akceptacji przed provisioningiem
+
+- Właściciel chce Azure Communication Services Email, aby utrzymać konfigurację i rozliczenia w Azure. Wariant konfiguracyjny korzysta z istniejącego `SmtpEmailSender`: `smtp.azurecomm.net:587`, STARTTLS, użytkownik SMTP ACS powiązany z dedykowaną aplikacją Entra i jej sekret w Key Vault. Bez nowego SDK, zmian schematu i `Contracts/`.
+- Podczas weryfikacji oficjalnej dokumentacji ujawniono wycofanie ACS Email 30 września 2028. Microsoft odradza nowe integracje; FAQ dopuszcza obecnie nowe wdrożenia, ale ich dostępność może zmienić się w dowolnym momencie. Nie zakładamy, że rejestracja będzie dostępna w danej subskrypcji. Źródło: https://learn.microsoft.com/azure/communication-services/acs-retirement-and-breaking-changes-guide#acs-email.
+- Instrukcja przedstawia żądany wariant wyłącznie jako tymczasowy, z obowiązkiem migracji przed terminem wycofania. Akceptacja właściciela po zapoznaniu się z tą informacją pozostaje otwarta; alternatywą jest wspierany dostawca SMTP na tym samym adapterze.
+- Zasoby: Email Communication Services + Communication Services w tej samej geografii danych, połączona domena (Azure-managed na pilotaż albo własna po weryfikacji DNS), dedykowana rejestracja Entra i uprawnienia ograniczone do zasobu Communication Services. Managed identity aplikacji pobiera sekret z Key Vault, ale nie zastępuje uwierzytelnienia SMTP. Operator odpowiada za rotację i alert przed wygaśnięciem sekretu.
+- Zakres zachowania pozostaje D-11: reset hasła dla istniejących kont; bez automatycznej wysyłki zaproszeń i linków pierwszego ustawienia hasła mentora. Samo potwierdzenie formularza resetu nie dowodzi dostarczenia wiadomości — wymagany test odbioru. Nie utworzono zasobów ani nie wysłano wiadomości podczas zmiany dokumentacji.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.

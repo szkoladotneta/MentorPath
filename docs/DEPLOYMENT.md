@@ -31,7 +31,7 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `Storage__AzureBlob__ContainerName` | domyślnie `mentorpath` | Prywatny kontener załączników |
 | `Storage__AzureBlob__ConnectionString` | lokalnie | Azurite; ma pierwszeństwo przed `ServiceUri`, nie ustawiaj w Azure |
 | `Storage__EnsureContainerOnStartup` | opcjonalne | Domyślnie `true` tylko w Development; w Production kontener tworzy operator; błąd tworzenia przerywa start |
-| `Email__Smtp__Host`, `__Port`, `__User`, `__Password`, `__EnableSsl`, `__From` | tak | SMTP dla resetu hasła |
+| `Email__Smtp__Host`, `__Port`, `__User`, `__Password`, `__EnableSsl`, `__From` | tak | ACS Email: `smtp.azurecomm.net`, `587`, nazwa użytkownika SMTP z ACS, wartość sekretu aplikacji Entra (Key Vault), `true` (STARTTLS), dokładny adres nadawcy zweryfikowanej domeny; konfiguracja i ostrzeżenie o wycofaniu usługi w `AZURE_DEPLOYMENT.md` §3a |
 | `Ai__Provider` | tak | `Fake` (domyślnie) lub `OpenAiCompatible` |
 | `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey` | gdy `OpenAiCompatible` | Endpoint zgodny z OpenAI Chat Completions + structured output |
 | `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | opcjonalne | 60 / 3000 / 50 |
@@ -77,6 +77,8 @@ docker run --rm --env-file prod.env -v /secure/exports:/exports registry.example
 docker run --rm --env-file prod.env registry.example.com/mentorpath:<wersja> anonymize-user --user-id <guid> --confirm
 ```
 Reset hasła mentee/mentora: przez stronę „Nie pamiętasz hasła?” (e-mail SMTP). Zaproszenia mentees tworzy mentor w UI i sam przekazuje link (ważny 7 dni, jednorazowy).
+
+Wybór właściciela: Azure Communication Services Email przez istniejący adapter SMTP (D-48), bez zmian kodu. **Usługa zostanie wycofana 30 września 2028**, a dostępność nowych wdrożeń może się zmienić; Microsoft odradza nowe integracje. Wariant tymczasowy wymaga migracji do innego SMTP przed tą datą. Instrukcja Azure opisuje oba zasoby ACS, domenę, aplikację Entra, role, rotację sekretu i test dostarczenia. Samo managed identity App Service nie uwierzytelnia bieżącego adaptera SMTP.
 
 ## 5. Backup i odtwarzanie
 
