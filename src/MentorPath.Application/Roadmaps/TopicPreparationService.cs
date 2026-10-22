@@ -41,6 +41,8 @@ internal sealed class TopicPreparationService(
                 i.MentorNoteMarkdown,
                 TopicTitle = i.Topic!.Title,
                 TopicDescriptionMarkdown = i.Topic.DescriptionMarkdown,
+                i.Topic.WhyItMattersMarkdown,
+                TopicLearningObjectivesMarkdown = i.Topic.LearningObjectivesMarkdown,
             })
             .SingleOrDefaultAsync(ct);
         if (item is null) return Errors.NotFound(Module);
@@ -73,6 +75,8 @@ internal sealed class TopicPreparationService(
             item.TopicDescriptionMarkdown,
             item.MentorNoteMarkdown,
             resources,
-            assignments);
+            assignments,
+            item.WhyItMattersMarkdown,
+            item.TopicLearningObjectivesMarkdown);
     }
 }

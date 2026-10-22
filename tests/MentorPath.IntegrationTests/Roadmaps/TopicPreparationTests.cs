@@ -5,6 +5,7 @@ using MentorPath.Application.Progress.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.IntegrationTests.Roadmaps;
 
@@ -21,6 +22,10 @@ public sealed class TopicPreparationTests(PostgresFixture db) : IntegrationTestB
         var firstMentee = await Data.MenteeAsync(mentor);
         var secondMentee = await Data.MenteeAsync(mentor);
         var topicId = await Data.TopicAsync(mentor);
+        var topicDefinition = (await App.Get<ITopicService>().GetAsync(mentor.UserId, topicId, default)).ShouldSucceed();
+        (await App.Get<ITopicService>().UpdateAsync(mentor.UserId, topicId,
+            new(topicDefinition.Title, topicDefinition.Slug, topicDefinition.Category, topicDefinition.Difficulty, topicDefinition.DescriptionMarkdown,
+                topicDefinition.LearningObjectivesMarkdown, WhyItMattersMarkdown: "## Dlaczego\n\nTreść rationale."), default)).ShouldSucceed();
         var assignedExerciseId = await Data.PublishedExerciseAsync(mentor, topicId, ExerciseType.ArchitecturalDecision);
         var inactiveExerciseId = await Data.PublishedExerciseAsync(mentor, topicId, ExerciseType.QuizSingleChoice);
         var first = await CreatePlacementAsync(mentor.UserId, firstMentee.MentorshipId, topicId, assignedExerciseId, "Notatka pierwsza");
@@ -35,10 +40,13 @@ public sealed class TopicPreparationTests(PostgresFixture db) : IntegrationTestB
         var firstView = (await Preparation.GetTopicForMenteeAsync(firstMentee.UserId, firstMentee.MentorshipId, first.RoadmapItemId, default)).ShouldSucceed();
         var secondView = (await Preparation.GetTopicForMenteeAsync(secondMentee.UserId, secondMentee.MentorshipId, second.RoadmapItemId, default)).ShouldSucceed();
 
-        var topic = (await App.Get<ITopicService>().GetAsync(mentor.UserId, topicId, default)).ShouldSucceed();
-        firstView.TopicTitle.ShouldBe(topic.Title);
+        firstView.TopicTitle.ShouldBe(topicDefinition.Title);
         firstView.TopicDescriptionMarkdown.ShouldBe("Opis tematu");
+        firstView.WhyItMattersMarkdown.ShouldBe("## Dlaczego\n\nTreść rationale.");
+        firstView.LearningObjectivesMarkdown.ShouldBe("- Cel");
         firstView.MentorNoteMarkdown.ShouldBe("Notatka pierwsza");
+        secondView.WhyItMattersMarkdown.ShouldBe(firstView.WhyItMattersMarkdown);
+        secondView.LearningObjectivesMarkdown.ShouldBe(firstView.LearningObjectivesMarkdown);
         secondView.MentorNoteMarkdown.ShouldBe("Notatka druga");
         firstView.Resources.Select(r => r.Title).ShouldBe(["Przewodnik"]);
         secondView.Resources.Select(r => r.TopicResourceId).ShouldBe(firstView.Resources.Select(r => r.TopicResourceId));
@@ -104,8 +112,24 @@ public sealed class TopicPreparationTests(PostgresFixture db) : IntegrationTestB
         var mentor = await Data.MentorAsync();
         var mentee = await Data.MenteeAsync(mentor);
         var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        await App.Db(ctx => ctx.Topics.Where(t => t.Id == assignment.TopicId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(t => t.WhyItMattersMarkdown, (string?)null)
+                .SetProperty(t => t.LearningObjectivesMarkdown, ""), default));
         var progress = App.Get<IProgressService>();
         var before = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+
+        var emptyContext = (await Preparation.GetTopicForMenteeAsync(mentee.UserId, mentee.MentorshipId, assignment.RoadmapItemId, default)).ShouldSucceed();
+        emptyContext.Resources.ShouldBeEmpty();
+        emptyContext.WhyItMattersMarkdown.ShouldBeNull();
+        emptyContext.LearningObjectivesMarkdown.ShouldBe("");
+
+        await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        var afterSubmission = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        afterSubmission.PercentComplete.ShouldBe(before.PercentComplete);
+        afterSubmission.CompletedTopics.ShouldBe(before.CompletedTopics);
+        afterSubmission.CountedTopics.ShouldBe(before.CountedTopics);
+        afterSubmission.Topics.Single().Status.ShouldBe(TopicProgressStatus.InProgress);
 
         (await Resources.ReplaceAsync(mentor.UserId, assignment.TopicId,
             [new("Materiały niewymagane", "https://example.com/optional", TopicResourceKind.Article, null)], default)).ShouldSucceed();
@@ -113,10 +137,12 @@ public sealed class TopicPreparationTests(PostgresFixture db) : IntegrationTestB
         afterResources.PercentComplete.ShouldBe(before.PercentComplete);
         afterResources.CompletedTopics.ShouldBe(before.CompletedTopics);
         afterResources.CountedTopics.ShouldBe(before.CountedTopics);
-        afterResources.Topics.Select(t => t.Status).ShouldBe(before.Topics.Select(t => t.Status));
+        afterResources.Topics.Select(t => t.Status).ShouldBe(afterSubmission.Topics.Select(t => t.Status));
 
-        await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
         var view = (await Preparation.GetTopicForMenteeAsync(mentee.UserId, mentee.MentorshipId, assignment.RoadmapItemId, default)).ShouldSucceed();
+        view.WhyItMattersMarkdown.ShouldBeNull();
+        view.LearningObjectivesMarkdown.ShouldBe("");
+        view.Assignments.Select(a => a.AssignmentId).ShouldBe([assignment.AssignmentId]);
         view.Assignments.Single().LatestStatus.ShouldBe(SubmissionStatus.PendingReview);
         view.Assignments.Single().AttemptCount.ShouldBe(1);
     }

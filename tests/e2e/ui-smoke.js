@@ -107,10 +107,22 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.locator('.card-body input.form-control').nth(2).fill('Architektura');
     await mentor.locator('.card-body textarea').nth(0).fill('Kiedy CQRS ma sens.');
     await mentor.locator('.card-body textarea').nth(1).fill('- Rozpoznawanie kosztów CQRS');
+    await mentor.locator('#topic-why-it-matters').fill('CQRS pomaga oddzielić potrzeby odczytu i zapisu.');
     await mentor.click('button:has-text("Utwórz temat")');
     await mentor.waitForURL(/\/mentor\/catalog\/topics\/[0-9a-f-]+$/, { timeout: 10000 });
     await settle(mentor);
     log(`Topic "${topicTitle}" created`);
+
+    await expectText(mentor, 'Dlaczego to ważne');
+    await expectText(mentor, 'CQRS pomaga oddzielić potrzeby odczytu i zapisu.');
+    await mentor.click('button:has-text("Edytuj")');
+    await expectText(mentor, 'Dlaczego to ważne (Markdown, opcjonalnie)');
+    if ((await mentor.locator('#topic-description').inputValue()) !== 'Kiedy CQRS ma sens.'
+        || (await mentor.locator('#topic-objectives').inputValue()) !== '- Rozpoznawanie kosztów CQRS')
+        throw new Error('Editing the rationale did not preserve the description and learning objectives');
+    await mentor.locator('#topic-why-it-matters').fill('Oddzielenie modeli może uprościć skalowanie odczytów.');
+    await mentor.click('button:has-text("Zapisz")');
+    await expectText(mentor, 'Oddzielenie modeli może uprościć skalowanie odczytów.');
 
     await mentor.click('button:has-text("Dodaj materiał")');
     await mentor.fill('#resource-title-0', 'Wideo wprowadzające');
@@ -193,6 +205,10 @@ async function expectText(page, text, timeout = 10000) {
     await mentee.click('a:has-text("Szczegóły tematu")');
     await mentee.waitForURL(/\/app\/roadmap\/[0-9a-f-]+\/topics\/[0-9a-f-]+$/);
     await expectText(mentee, 'Wideo wprowadzające');
+    await expectText(mentee, 'Dlaczego to ważne');
+    await expectText(mentee, 'Oddzielenie modeli może uprościć skalowanie odczytów.');
+    await expectText(mentee, 'Po tym temacie będziesz potrafić');
+    await expectText(mentee, 'Rozpoznawanie kosztów CQRS');
     await expectText(mentee, 'Wczytaj odtwarzacz YouTube');
     if (await mentee.locator('iframe').count() !== 0) throw new Error('Video iframe loaded before the user clicked');
     if (providerRequests.length !== 0) throw new Error('A provider request occurred before the user clicked');
@@ -227,6 +243,14 @@ async function expectText(page, text, timeout = 10000) {
     await mentee.locator('.card:has-text("' + topicTitle + '") a:has-text("Szczegóły tematu")').click();
     await expectText(mentee, 'Wideo wprowadzające');
     await expectText(mentee, 'Decyzja CQRS');
+    await mentee.click('a:has-text("Wróć do roadmapy")');
+    await mentee.getByRole('tab', { name: 'Lista' }).click();
+    const emptyContextCard = mentee.locator('.card:has-text("Spójność danych i transakcje")');
+    await emptyContextCard.locator('a:has-text("Szczegóły tematu")').click();
+    await expectText(mentee, 'Opis tematu');
+    if (await mentee.getByRole('heading', { name: 'Dlaczego to ważne', exact: true }).count() !== 0)
+      throw new Error('Empty rationale section should not be rendered');
+    log('Mentee sees rationale and learning objectives when present, with empty rationale omitted');
     log('Mentee list view opens the same topic page and keeps the assignment link');
 
     // Mentee solves the quiz (wrong, then right) without seeing answers upfront.

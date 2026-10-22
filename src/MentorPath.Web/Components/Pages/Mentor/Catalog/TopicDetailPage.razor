@@ -43,6 +43,10 @@
                         <Section Title="Opis"><Markdown Value="@topic.DescriptionMarkdown" /></Section>
                     </Main>
                     <Side>
+                        @if (!string.IsNullOrWhiteSpace(topic.WhyItMattersMarkdown))
+                        {
+                            <Section Title="Dlaczego to ważne"><Markdown Value="@topic.WhyItMattersMarkdown" /></Section>
+                        }
                         <Section Title="Cele edukacyjne"><Markdown Value="@topic.LearningObjectivesMarkdown" /></Section>
                     </Side>
                 </SplitView>
