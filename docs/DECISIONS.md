@@ -425,3 +425,17 @@ Impact: additive schema and typed contracts first (`schema-change`, human CODEOW
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
+
+## D-53 — Optional rationale in mentee topic context (N23)
+Status: Adopted (2026-10-22, approved N23 follow-up plan)
+
+Context: the topic already has a general `DescriptionMarkdown` and `LearningObjectivesMarkdown`. N23 calls for a distinct “Why it matters” rationale and a mentee-facing “You should be able to” section without replacing the general description.
+
+Decision:
+- Add optional `Topic.WhyItMattersMarkdown` as a separate Markdown field. Existing topics remain valid with no rationale, and the mentor may leave it blank.
+- Keep `DescriptionMarkdown` as the general description. Reuse `LearningObjectivesMarkdown` as “You should be able to”; do not add a duplicate field.
+- On the contextual mentee topic page, show the general description and learning objectives, and show the rationale only when it is non-empty. Render each value with the shared Markdown component.
+- These fields do not change topic access, assignment eligibility, submission rules, progress, or the D-52 resource/player behavior.
+
+Impact: the rationale column and optional trailing contract properties are added in a separate `schema-change` PR. Mentor form persistence and mentee projection/rendering follow only after that prerequisite is merged.
+This decision supersedes D-52's deferral for these two context fields only; the resource/player slice and other exclusions remain unchanged.

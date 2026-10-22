@@ -60,6 +60,7 @@ public sealed class Topic : IWorkspaceScoped
     public string Category { get; set; } = "";
     public Difficulty Difficulty { get; set; }
     public string DescriptionMarkdown { get; set; } = "";
+    public string? WhyItMattersMarkdown { get; set; }
     public string LearningObjectivesMarkdown { get; set; } = "";
     public bool IsArchived { get; set; }
     public DateTime CreatedAtUtc { get; set; }
