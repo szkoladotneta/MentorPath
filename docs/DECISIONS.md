@@ -384,7 +384,19 @@ Status: Proposed (2026-10-22); właściciel wybrał ACS Email, ale ostrzeżenie 
 - Zasoby: Email Communication Services + Communication Services w tej samej geografii danych, połączona domena (Azure-managed na pilotaż albo własna po weryfikacji DNS), dedykowana rejestracja Entra i uprawnienia ograniczone do zasobu Communication Services. Managed identity aplikacji pobiera sekret z Key Vault, ale nie zastępuje uwierzytelnienia SMTP. Operator odpowiada za rotację i alert przed wygaśnięciem sekretu.
 - Zakres zachowania pozostaje D-11: reset hasła dla istniejących kont; bez automatycznej wysyłki zaproszeń i linków pierwszego ustawienia hasła mentora. Samo potwierdzenie formularza resetu nie dowodzi dostarczenia wiadomości — wymagany test odbioru. Nie utworzono zasobów ani nie wysłano wiadomości podczas zmiany dokumentacji.
 
-## D-49 — Ręcznie uruchamiane wydania Azure przez GitHub Actions
+## D-49 — Formularze na stronach InteractiveServer są wyłącznie interaktywne
+Status: Adopted (2026-10-22, poprawka błędu zaproszenia mentee)
+
+- Strony `InteractiveServer` są prerenderowane. `EditForm` z `FormName` renderuje zwykły `<form method="post">`; wysłany przed podłączeniem obwodu Blazor (lub przy zerwanym obwodzie) robi natywny POST bez `[SupplyParameterFromForm]`, więc serwer waliduje pusty model („Podaj e-mail”).
+- Nie obsługujemy ścieżki SSR dla takich formularzy: nowa instancja komponentu po podłączeniu obwodu zgubiłaby jednorazowo pokazywane dane (np. link zaproszenia). Zamiast tego: bez `FormName`, przycisk submit wyłączony do `RendererInfo.IsInteractive`.
+
+## D-50 — Obraz Dockera: publish z ponownym restore
+Status: Adopted (2026-10-22, poprawka braku interaktywności na Azure)
+
+- Restore wykonany tylko na plikach `.csproj` (warstwa cache) nie dodaje niejawnego pakietu `Microsoft.AspNetCore.App.Internal.Assets`, bo SDK nie widzi jeszcze komponentów Razor. `dotnet publish --no-restore` publikował więc obraz bez `_framework/blazor.web.js` (404), a cała aplikacja na Azure działała bez interaktywności.
+- `dotnet publish` w `Dockerfile` wykonuje restore ponownie po `COPY src/`; wcześniejszy restore zostaje jako cache pakietów.
+
+## D-51 — Ręcznie uruchamiane wydania Azure przez GitHub Actions
 Status: Proposed (2026-10-22); workflow wymaga review CODEOWNERS
 
 - Na życzenie właściciela dodajemy `workflow_dispatch` dla istniejącej instalacji Azure. Bez automatycznego wdrożenia po pushu, provisioningu zasobów ani zmian schematu/kontraktów w tym PR. Tylko `main`, środowisko GitHub `production` z ograniczeniem gałęzi; serializacja wydań bez anulowania migracji.
