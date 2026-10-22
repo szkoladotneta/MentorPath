@@ -338,12 +338,17 @@ TENANT_ID="$(az account show --query tenantId -o tsv)"
 DEPLOY_CLIENT_ID="$(az ad app create --display-name mentorpath-github-production --query appId -o tsv)"
 DEPLOY_PRINCIPAL_ID="$(az ad sp create --id "$DEPLOY_CLIENT_ID" --query id -o tsv)"
 # Role assignment can require a short wait for Entra propagation.
+# Read GitHub's configured subject prefix; newer repositories include immutable IDs.
+OIDC_SUBJECT_PREFIX="$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty')"
+if [[ -z "$OIDC_SUBJECT_PREFIX" ]]; then
+  OIDC_SUBJECT_PREFIX="repo:$REPO"
+fi
 FEDERATED_FILE="$(mktemp)"
 cat > "$FEDERATED_FILE" <<JSON
 {
   "name": "github-production",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:$REPO:environment:production",
+  "subject": "$OIDC_SUBJECT_PREFIX:environment:production",
   "audiences": ["api://AzureADTokenExchange"]
 }
 JSON
@@ -360,6 +365,8 @@ VAULT_ID="$(az keyvault show -g "$RG" -n "$VAULT" --query id -o tsv)"
 STORAGE_ID="$(az storage account show -g "$RG" -n "$STORAGE" --query id -o tsv)"
 az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
   --role AcrPush --scope "$ACR_ID" --output none
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role Reader --scope "$ACR_ID" --output none
 az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
   --role "Website Contributor" --scope "$APP_ID" --output none
 az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
@@ -396,6 +403,8 @@ az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee
 
 These are one-time creation commands, not an idempotent provisioning script. Keep the app/client ID for later maintenance; do not create a new identity on every release. The firewall role can manage **all rules on this one server** because Azure RBAC cannot constrain creation by a rule-name prefix; the workflow itself only deletes `github-<run-id>-<attempt>`. Never assign subscription Contributor/Owner to the workflow. The application keeps its own managed identity and `AcrPull` permission; do not enable registry admin credentials. The deployment identity has no Blob attachment/key-ring or SMTP-secret access.
 
+Registry-scoped `Reader` permits the Azure CLI to read registry metadata; `AcrPush` alone does not grant `Microsoft.ContainerRegistry/registries/read`. If login reports `AADSTS700213`, compare the presented subject in the failed Azure login step against the Entra federated credential. With immutable GitHub subjects, expect `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:production`, not the older name-only subject. Keep the GitHub environment's main-only branch policy; do not loosen federation to fix a mismatch.
+
 4. The workflow reads the **existing** Key Vault secrets `db-connection` and `pg-app-password`. Initial provisioning in section 3 saves only the connection secret; if the password secret does not exist, store the **same app password**, never a new/generated password:
 
 ```bash
@@ -430,6 +439,8 @@ After the backup, the workflow stops the app, waits for `Stopped`, applies `migr
 **Failure/recovery:** consult the run summary for the previous image and backup object. After maintenance starts, **there is no automatic rollback or restart of the old image**: a partial migration may already have changed the schema. Inspect migration output and app state; use section 8's compatibility/restore procedure. A failed post-start check can leave the new app running but unhealthy. After fixing it, bring the target back to a known healthy `Running` state before dispatching again. Never rerun against an unexplained stopped app.
 
 The `always()` cleanup removes only this run's PostgreSQL rule and its local backup; Azure login also cleans up its session. Forced termination or runner loss can bypass cleanup. In that case remove the exact `github-<run-id>-<attempt>` rule manually, inspect whether the app is stopped, and follow the same recovery procedure. Deployment success is not proof of attachment authorization, SMTP delivery, WebSockets or token continuity; retain the functional checks from section 7 after material application changes.
+
+The workflow uses versioned ARM REST calls for temporary firewall creation/deletion. Azure CLI releases differ in whether `--name` identifies the server or the firewall rule; do not replace these calls with unpinned CLI examples from another version.
 
 ## 9. Backups, retention and administrative operations
 

@@ -146,10 +146,13 @@ jobs:
           set -euo pipefail
           RUNNER_IP="$(curl --fail --silent --show-error --retry 3 https://api.ipify.org)"
           python3 -c 'import ipaddress,sys; assert ipaddress.ip_address(sys.argv[1]).version == 4' "$RUNNER_IP"
+          SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+          FIREWALL_URL="https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.DBforPostgreSQL/flexibleServers/$PG/firewallRules/$FIREWALL_RULE?api-version=2024-08-01"
+          echo "FIREWALL_URL=$FIREWALL_URL" >> "$GITHUB_ENV"
           # Mark the attempt before creation so cleanup also covers a CLI timeout.
           echo "attempted=true" >> "$GITHUB_OUTPUT"
-          az postgres flexible-server firewall-rule create -g "$RG" -n "$PG" \
-            --rule-name "$FIREWALL_RULE" --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP"
+          az rest --method put --url "$FIREWALL_URL" \
+            --body "{\"properties\":{\"startIpAddress\":\"$RUNNER_IP\",\"endIpAddress\":\"$RUNNER_IP\"}}"
           docker pull postgres:17
 
       - name: Save a private pre-migration database backup
@@ -242,8 +245,7 @@ jobs:
         if: always() && steps.firewall.outputs.attempted == 'true'
         run: |
           set -euo pipefail
-          az postgres flexible-server firewall-rule delete -g "$RG" -n "$PG" \
-            --rule-name "$FIREWALL_RULE" --yes
+          az rest --method delete --url "$FIREWALL_URL"
 
       - name: Report unsuccessful maintenance
         if: always() && steps.maintenance.outputs.attempted == 'true' && steps.healthy.outcome != 'success'
