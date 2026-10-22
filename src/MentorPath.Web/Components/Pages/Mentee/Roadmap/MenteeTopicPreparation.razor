@@ -22,6 +22,20 @@
                 <Markdown Value="@model.TopicDescriptionMarkdown" />
             </Section>
 
+            @if (!string.IsNullOrWhiteSpace(model.WhyItMattersMarkdown))
+            {
+                <Section Title="Dlaczego to ważne">
+                    <Markdown Value="@model.WhyItMattersMarkdown" />
+                </Section>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(model.LearningObjectivesMarkdown))
+            {
+                <Section Title="Po tym temacie będziesz potrafić">
+                    <Markdown Value="@model.LearningObjectivesMarkdown" />
+                </Section>
+            }
+
             @if (!string.IsNullOrWhiteSpace(model.MentorNoteMarkdown))
             {
                 <Section Title="Notatka mentora">

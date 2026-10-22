@@ -437,5 +437,5 @@ Decision:
 - On the contextual mentee topic page, show the general description and learning objectives, and show the rationale only when it is non-empty. Render each value with the shared Markdown component.
 - These fields do not change topic access, assignment eligibility, submission rules, progress, or the D-52 resource/player behavior.
 
-Impact: the rationale column and optional trailing contract properties are added in a separate `schema-change` PR. Mentor form persistence and mentee projection/rendering follow only after that prerequisite is merged.
+Impact: the rationale column and optional trailing contract properties were merged in schema-change PR #70. This feature change implements mentor form persistence and mentee projection/rendering.
 This decision supersedes D-52's deferral for these two context fields only; the resource/player slice and other exclusions remain unchanged.

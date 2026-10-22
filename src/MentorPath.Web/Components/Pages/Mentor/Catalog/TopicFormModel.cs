@@ -11,12 +11,15 @@ public sealed class TopicFormModel
     public Difficulty Difficulty { get; set; } = Difficulty.Intermediate;
     public string DescriptionMarkdown { get; set; } = "";
     public string LearningObjectivesMarkdown { get; set; } = "";
+    public string? WhyItMattersMarkdown { get; set; }
 
-    public UpsertTopicRequest ToRequest() => new(Title, Slug, Category, Difficulty, DescriptionMarkdown, LearningObjectivesMarkdown);
+    public UpsertTopicRequest ToRequest() => new(Title, Slug, Category, Difficulty, DescriptionMarkdown, LearningObjectivesMarkdown,
+        WhyItMattersMarkdown: WhyItMattersMarkdown);
 
     public static TopicFormModel From(TopicDetail t) => new()
     {
         Title = t.Title, Slug = t.Slug, Category = t.Category, Difficulty = t.Difficulty,
         DescriptionMarkdown = t.DescriptionMarkdown, LearningObjectivesMarkdown = t.LearningObjectivesMarkdown,
+        WhyItMattersMarkdown = t.WhyItMattersMarkdown,
     };
 }

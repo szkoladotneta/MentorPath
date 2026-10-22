@@ -21,6 +21,80 @@ public sealed class CatalogTests(PostgresFixture db) : IntegrationTestBase(db)
         (await App.Get<ITopicService>().CreateAsync(b.UserId, request, default)).ShouldSucceed();
     }
 
+    [Fact]
+    public async Task Topic_rationale_round_trips_and_blank_is_normalized()
+    {
+        var mentor = await Data.MentorAsync();
+        var existingTopicId = await Data.TopicAsync(mentor);
+        (await Topics.GetAsync(mentor.UserId, existingTopicId, default)).ShouldSucceed().WhyItMattersMarkdown.ShouldBeNull();
+
+        var blankTopicId = (await Topics.CreateAsync(mentor.UserId,
+            new("Temat z pustym rationale", "temat-z-pustym-rationale", "Architektura", Difficulty.Beginner, "Opis", "Cele",
+                WhyItMattersMarkdown: " \t "), default)).ShouldSucceed();
+        (await Topics.GetAsync(mentor.UserId, blankTopicId, default)).ShouldSucceed().WhyItMattersMarkdown.ShouldBeNull();
+
+        var topicId = (await Topics.CreateAsync(mentor.UserId,
+            new("Temat z rationale", "temat-z-rationale", "Architektura", Difficulty.Advanced, "Opis ogólny", "- Cele",
+                WhyItMattersMarkdown: "## Dlaczego\n\nPrzygotowuje do decyzji."), default)).ShouldSucceed();
+
+        var created = (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed();
+        created.DescriptionMarkdown.ShouldBe("Opis ogólny");
+        created.LearningObjectivesMarkdown.ShouldBe("- Cele");
+        created.WhyItMattersMarkdown.ShouldBe("## Dlaczego\n\nPrzygotowuje do decyzji.");
+
+        (await Topics.UpdateAsync(mentor.UserId, topicId,
+            new(created.Title, created.Slug, created.Category, created.Difficulty, created.DescriptionMarkdown,
+                created.LearningObjectivesMarkdown, WhyItMattersMarkdown: "Zaktualizowane uzasadnienie."), default)).ShouldSucceed();
+        var updated = (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed();
+        updated.DescriptionMarkdown.ShouldBe("Opis ogólny");
+        updated.LearningObjectivesMarkdown.ShouldBe("- Cele");
+        updated.WhyItMattersMarkdown.ShouldBe("Zaktualizowane uzasadnienie.");
+
+        (await Topics.UpdateAsync(mentor.UserId, topicId,
+            new(updated.Title, updated.Slug, updated.Category, updated.Difficulty, updated.DescriptionMarkdown,
+                updated.LearningObjectivesMarkdown, WhyItMattersMarkdown: "  \n\t "), default)).ShouldSucceed();
+        (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed().WhyItMattersMarkdown.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Topic_rationale_create_accepts_the_limit_and_rejects_oversized_values()
+    {
+        var mentor = await Data.MentorAsync();
+        var maximum = new string('r', InputLimits.Markdown);
+        var valid = new UpsertTopicRequest("Temat graniczny", "temat-graniczny", "Architektura", Difficulty.Beginner,
+            "Opis", "Cele", WhyItMattersMarkdown: maximum);
+
+        var topicId = (await Topics.CreateAsync(mentor.UserId, valid, default)).ShouldSucceed();
+        (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed().WhyItMattersMarkdown.ShouldBe(maximum);
+
+        var excessive = valid with { Title = "Temat za długi", Slug = "temat-za-dlugi", WhyItMattersMarkdown = maximum + "r" };
+        var error = (await Topics.CreateAsync(mentor.UserId, excessive, default))
+            .ShouldFail(ErrorKind.Validation, "catalog.invalid_topic");
+        error.FieldErrors!.ShouldContainKey(nameof(UpsertTopicRequest.WhyItMattersMarkdown));
+        (await Topics.ListAsync(mentor.UserId, true, default)).ShouldSucceed().ShouldNotContain(t => t.Slug == excessive.Slug);
+    }
+
+    [Fact]
+    public async Task Topic_rationale_accepts_markdown_limit_and_rejects_excess_without_overwriting()
+    {
+        var mentor = await Data.MentorAsync();
+        var topicId = await Data.TopicAsync(mentor);
+        var topic = (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed();
+        var maximum = new string('x', InputLimits.Markdown);
+
+        (await Topics.UpdateAsync(mentor.UserId, topicId,
+            new(topic.Title, topic.Slug, topic.Category, topic.Difficulty, topic.DescriptionMarkdown,
+                topic.LearningObjectivesMarkdown, WhyItMattersMarkdown: maximum), default)).ShouldSucceed();
+
+        var excessive = maximum + "x";
+        var error = (await Topics.UpdateAsync(mentor.UserId, topicId,
+            new(topic.Title, topic.Slug, topic.Category, topic.Difficulty, topic.DescriptionMarkdown,
+                topic.LearningObjectivesMarkdown, WhyItMattersMarkdown: excessive), default))
+            .ShouldFail(ErrorKind.Validation, "catalog.invalid_topic");
+        error.FieldErrors!.ShouldContainKey(nameof(UpsertTopicRequest.WhyItMattersMarkdown));
+        (await Topics.GetAsync(mentor.UserId, topicId, default)).ShouldSucceed().WhyItMattersMarkdown.ShouldBe(maximum);
+    }
+
     [Theory]
     [InlineData(ExerciseType.QuizSingleChoice)]
     [InlineData(ExerciseType.ArchitecturalDecision)]
@@ -114,15 +188,30 @@ public sealed class CatalogTests(PostgresFixture db) : IntegrationTestBase(db)
     {
         var a = await Data.MentorAsync();
         var b = await Data.MentorAsync();
+        var sameWorkspaceMentee = await Data.MenteeAsync(a);
+        var foreignMentee = await Data.MenteeAsync(b);
         var topic = await Data.TopicAsync(a);
         var draftId = (await Exercises.CreateDraftAsync(a.UserId, new(topic, ExerciseType.ArchitecturalDecision, TestDataBuilder.ValidContent(ExerciseType.ArchitecturalDecision)), default)).ShouldSucceed();
         var published = await Data.PublishedExerciseAsync(a, topic, ExerciseType.QuizSingleChoice);
         var svc = App.Get<IExerciseAuthoringService>();
         var topics = App.Get<ITopicService>();
+        var unknown = Guid.NewGuid();
+        var invalidUpdate = new UpsertTopicRequest("x", "x", "x", Difficulty.Beginner, "x", "x",
+            WhyItMattersMarkdown: "Private rationale");
 
         (await topics.ListAsync(b.UserId, true, default)).ShouldSucceed().ShouldBeEmpty();
         (await topics.GetAsync(b.UserId, topic, default)).ShouldBeNotFound();
-        (await topics.UpdateAsync(b.UserId, topic, new("x", "x", "x", Difficulty.Beginner, "x", "x"), default)).ShouldBeNotFound();
+        (await topics.GetAsync(sameWorkspaceMentee.UserId, topic, default)).ShouldBeNotFound();
+        (await topics.GetAsync(foreignMentee.UserId, topic, default)).ShouldBeNotFound();
+        (await topics.GetAsync(unknown, topic, default)).ShouldBeNotFound();
+        (await topics.UpdateAsync(b.UserId, topic, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.UpdateAsync(sameWorkspaceMentee.UserId, topic, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.UpdateAsync(foreignMentee.UserId, topic, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.UpdateAsync(unknown, topic, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.UpdateAsync(a.UserId, Guid.NewGuid(), invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.CreateAsync(sameWorkspaceMentee.UserId, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.CreateAsync(foreignMentee.UserId, invalidUpdate, default)).ShouldBeNotFound();
+        (await topics.CreateAsync(unknown, invalidUpdate, default)).ShouldBeNotFound();
         (await topics.SetArchivedAsync(b.UserId, topic, true, default)).ShouldBeNotFound();
         (await svc.GetMentorExerciseAsync(b.UserId, draftId, default)).ShouldBeNotFound();
         (await svc.UpdateDraftAsync(b.UserId, draftId, TestDataBuilder.ValidContent(ExerciseType.ArchitecturalDecision), default)).ShouldBeNotFound();

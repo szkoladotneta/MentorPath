@@ -42,7 +42,7 @@ internal sealed class TopicService(
             .Select(e => new ExerciseListItem(e.Id, e.TopicId, e.Title, e.Type, e.Status, e.Source, e.CreatedAtUtc))
             .ToListAsync(ct);
         return new TopicDetail(topic.Id, topic.Title, topic.Slug, topic.Category, topic.Difficulty, topic.DescriptionMarkdown,
-            topic.LearningObjectivesMarkdown, topic.IsArchived, exercises);
+            topic.LearningObjectivesMarkdown, topic.IsArchived, exercises, WhyItMattersMarkdown: topic.WhyItMattersMarkdown);
     }
 
     public async Task<Result<Guid>> CreateAsync(Guid actorUserId, UpsertTopicRequest request, CancellationToken ct)
@@ -115,6 +115,7 @@ internal sealed class TopicService(
         if (!Enum.IsDefined(r.Difficulty)) e.Add(nameof(r.Difficulty), "Wybierz poziom trudności.");
         e.Required(nameof(r.DescriptionMarkdown), r.DescriptionMarkdown, InputLimits.Markdown, "Opis");
         e.Required(nameof(r.LearningObjectivesMarkdown), r.LearningObjectivesMarkdown, InputLimits.Markdown, "Cele edukacyjne");
+        e.Optional(nameof(r.WhyItMattersMarkdown), r.WhyItMattersMarkdown, InputLimits.Markdown, "Dlaczego to ważne");
         return e;
     }
 
@@ -126,6 +127,7 @@ internal sealed class TopicService(
         t.Difficulty = r.Difficulty;
         t.DescriptionMarkdown = r.DescriptionMarkdown.Trim();
         t.LearningObjectivesMarkdown = r.LearningObjectivesMarkdown.Trim();
+        t.WhyItMattersMarkdown = Text.NullIfBlank(r.WhyItMattersMarkdown);
     }
 
     private static AppError SlugTaken() => Errors.Validation("catalog.slug_taken", "Formularz zawiera błędy.",

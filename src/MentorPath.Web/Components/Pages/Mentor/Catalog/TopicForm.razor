@@ -34,6 +34,11 @@
         <InputTextArea id="topic-objectives" class="form-control" rows="4" @bind-Value="Model.LearningObjectivesMarkdown" />
         <FieldError Error="Error" Field="LearningObjectivesMarkdown" />
     </div>
+    <div class="col-12">
+        <label class="form-label" for="topic-why-it-matters">Dlaczego to ważne (Markdown, opcjonalnie)</label>
+        <InputTextArea id="topic-why-it-matters" class="form-control" rows="4" maxlength="20000" @bind-Value="Model.WhyItMattersMarkdown" />
+        <FieldError Error="Error" Field="WhyItMattersMarkdown" />
+    </div>
 </div>
 <ErrorAlert Error="Error" ShowFieldList="false" />
 
