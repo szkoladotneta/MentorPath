@@ -1,5 +1,6 @@
 using System.Reflection;
 using MentorPath.Application.Catalog.Contracts;
+using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Data;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,11 @@ public sealed class ArchitectureTests
     public void Mentee_dto_types_do_not_expose_private_mentor_data_or_answers()
     {
         string[] forbidden = ["IsCorrect", "MentorGuide", "MentorPrivateNotes", "ExplanationMarkdown"];
-        foreach (var type in new[] { typeof(MenteeExerciseDto), typeof(MenteeQuizOptionDto) })
+        foreach (var type in new[]
+        {
+            typeof(MenteeExerciseDto), typeof(MenteeQuizOptionDto), typeof(MenteeTopicPreparationDto),
+            typeof(TopicResourceDto), typeof(MenteeAssignmentListItem),
+        })
         {
             type.GetProperties().Select(p => p.Name).ShouldNotContain(n => forbidden.Any(f => n.Contains(f)), type.Name);
         }

@@ -6,6 +6,8 @@ public enum ExerciseStatus { Draft, Published, Archived }
 
 public enum ExerciseSource { Manual, AI }
 
+public enum TopicResourceKind { Article, Video }
+
 public enum RoadmapStatus { Draft, Published }
 
 public enum SubmissionStatus { Correct, Incorrect, PendingReview, Accepted, NeedsRevision }

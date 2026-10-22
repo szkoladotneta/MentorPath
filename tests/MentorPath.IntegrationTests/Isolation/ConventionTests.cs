@@ -48,7 +48,7 @@ public sealed class ConventionTests
         ["Workspaces"] = ["Workspaces"],
         ["Mentorships"] = ["Mentorships"],
         ["Invitations"] = ["Invitations", "Mentorships"],
-        ["Catalog"] = ["Topics", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
+        ["Catalog"] = ["Topics", "TopicResources", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
         ["AiAuthoring"] = ["AiGenerationRequests"],
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments"],
