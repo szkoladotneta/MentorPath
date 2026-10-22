@@ -47,11 +47,11 @@
         </Main>
         <Side>
             <Section Title="Zaproś mentee">
-                <EditForm Model="invite" OnValidSubmit="InviteAsync" FormName="invite">
+                <EditForm Model="invite" OnValidSubmit="InviteAsync">
                     <label class="form-label" for="invite-email">Adres e-mail</label>
                     <InputText id="invite-email" class="form-control" @bind-Value="invite.Email" placeholder="osoba@firma.pl" />
                     <FieldError Error="inviteError" Field="Email" />
-                    <button type="submit" class="btn btn-primary mt-3" disabled="@busy">Utwórz zaproszenie</button>
+                    <button type="submit" class="btn btn-primary mt-3" disabled="@(busy || !RendererInfo.IsInteractive)">Utwórz zaproszenie</button>
                 </EditForm>
                 <ErrorAlert Error="inviteError" ShowFieldList="false" />
                 @if (created is not null)

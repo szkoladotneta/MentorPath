@@ -384,6 +384,12 @@ Status: Proposed (2026-10-22); właściciel wybrał ACS Email, ale ostrzeżenie 
 - Zasoby: Email Communication Services + Communication Services w tej samej geografii danych, połączona domena (Azure-managed na pilotaż albo własna po weryfikacji DNS), dedykowana rejestracja Entra i uprawnienia ograniczone do zasobu Communication Services. Managed identity aplikacji pobiera sekret z Key Vault, ale nie zastępuje uwierzytelnienia SMTP. Operator odpowiada za rotację i alert przed wygaśnięciem sekretu.
 - Zakres zachowania pozostaje D-11: reset hasła dla istniejących kont; bez automatycznej wysyłki zaproszeń i linków pierwszego ustawienia hasła mentora. Samo potwierdzenie formularza resetu nie dowodzi dostarczenia wiadomości — wymagany test odbioru. Nie utworzono zasobów ani nie wysłano wiadomości podczas zmiany dokumentacji.
 
+## D-49 — Formularze na stronach InteractiveServer są wyłącznie interaktywne
+Status: Adopted (2026-10-22, poprawka błędu zaproszenia mentee)
+
+- Strony `InteractiveServer` są prerenderowane. `EditForm` z `FormName` renderuje zwykły `<form method="post">`; wysłany przed podłączeniem obwodu Blazor (lub przy zerwanym obwodzie) robi natywny POST bez `[SupplyParameterFromForm]`, więc serwer waliduje pusty model („Podaj e-mail”).
+- Nie obsługujemy ścieżki SSR dla takich formularzy: nowa instancja komponentu po podłączeniu obwodu zgubiłaby jednorazowo pokazywane dane (np. link zaproszenia). Zamiast tego: bez `FormName`, przycisk submit wyłączony do `RendererInfo.IsInteractive`.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.

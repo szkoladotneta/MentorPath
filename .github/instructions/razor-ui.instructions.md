@@ -27,7 +27,7 @@ applyTo: "src/MentorPath.Web/Components/**,src/MentorPath.Web/wwwroot/*.css"
 
 **Styling.** Use design tokens (`--mp-*` from `wwwroot/tokens.css`) and Bootstrap utilities mapped onto them; no hard-coded hex colours, font sizes or pixel spacing. No inline `style` for layout: add a class to `components.css` (shell chrome goes in `shell.css`). Prefer the 8pt spacing scale (`--mp-space-*`). Do not add a CSS framework, icon font or web font from a CDN.
 
-**Forms.** Every control has a `<label for>` and a matching `id`; show server errors with `FieldError`/`ErrorAlert`; narrow inputs use `field-narrow`/`field-medium`; disable the submit button while busy.
+**Forms.** Every control has a `<label for>` and a matching `id`; show server errors with `FieldError`/`ErrorAlert`; narrow inputs use `field-narrow`/`field-medium`; disable the submit button while busy. On `InteractiveServer` pages a form is interactive-only: no `FormName` on `EditForm`, and the submit button is disabled until `RendererInfo.IsInteractive`, so the prerendered markup can never fall back to a native POST that binds an empty model.
 
 **Accessibility and responsiveness.** Keep visible focus, touch targets of at least 40px on mobile, and no horizontal overflow at 360, 768 and 1280px. Check these widths for any new or changed page. Respect `prefers-reduced-motion`. Interactive elements are real `<a>`/`<button>` elements.
 
