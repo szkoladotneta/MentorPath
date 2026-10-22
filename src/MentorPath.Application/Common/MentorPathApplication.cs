@@ -1,5 +1,5 @@
-using Amazon.Runtime;
-using Amazon.S3;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using MentorPath.Application.AiAuthoring;
 using MentorPath.Application.Catalog;
 using MentorPath.Application.Common.Access;
@@ -50,33 +50,42 @@ public static class MentorPathApplication
 
     private static void AddFileStorage(this IServiceCollection services, IConfiguration configuration)
     {
-        var section = configuration.GetSection("Storage:S3");
-        services.Configure<S3StorageOptions>(section);
-        if (string.IsNullOrWhiteSpace(section["ServiceUrl"]))
+        var provider = configuration["Storage:Provider"] ?? "AzureBlob";
+        if (provider == "InMemory")
         {
             services.AddSingleton<IFileStorage, InMemoryFileStorage>();
             return;
         }
 
-        services.AddSingleton<IAmazonS3>(sp =>
+        if (provider != "AzureBlob")
+            throw new InvalidOperationException("Storage:Provider must be AzureBlob or InMemory (tests only).");
+
+        services.AddOptions<AzureBlobStorageOptions>()
+            .Bind(configuration.GetSection("Storage:AzureBlob"))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.ConnectionString)
+                || (Uri.TryCreate(o.ServiceUri, UriKind.Absolute, out var uri)
+                    && uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(uri.Query)),
+                "Configure Storage:AzureBlob:ServiceUri (HTTPS, no SAS) or ConnectionString (local emulator).")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.ContainerName) && System.Text.RegularExpressions.Regex.IsMatch(o.ContainerName,
+                "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,61}[a-z0-9]$"),
+                "Storage:AzureBlob:ContainerName must be a valid Azure container name.")
+            .ValidateOnStart();
+
+        services.AddSingleton(sp =>
         {
-            var o = sp.GetRequiredService<IOptions<S3StorageOptions>>().Value;
-            var config = new AmazonS3Config
-            {
-                ServiceURL = o.ServiceUrl,
-                ForcePathStyle = o.ForcePathStyle,
-                AuthenticationRegion = o.Region,
-                RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
-                ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
-            };
-            return new AmazonS3Client(new BasicAWSCredentials(o.AccessKey, o.SecretKey), config);
+            var o = sp.GetRequiredService<IOptions<AzureBlobStorageOptions>>().Value;
+            return string.IsNullOrWhiteSpace(o.ConnectionString)
+                ? new BlobServiceClient(new Uri(o.ServiceUri), new DefaultAzureCredential())
+                : new BlobServiceClient(o.ConnectionString);
         });
-        services.AddSingleton<S3FileStorage>();
-        services.AddSingleton<IFileStorage>(sp => sp.GetRequiredService<S3FileStorage>());
+        services.AddSingleton(sp => sp.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(
+            sp.GetRequiredService<IOptions<AzureBlobStorageOptions>>().Value.ContainerName));
+        services.AddSingleton<AzureBlobFileStorage>();
+        services.AddSingleton<IFileStorage>(sp => sp.GetRequiredService<AzureBlobFileStorage>());
     }
 
     public static async Task EnsureStorageAsync(IServiceProvider services, CancellationToken ct)
     {
-        if (services.GetService<S3FileStorage>() is { } s3) await s3.EnsureBucketAsync(ct);
+        if (services.GetService<AzureBlobFileStorage>() is { } blob) await blob.EnsureContainerAsync(ct);
     }
 }

@@ -97,7 +97,7 @@ Priorytet w fazie: **M** = Must (warunek wyjścia), **S** = Should, **C** = Coul
 
 | ID | Pozycja | Pr. | Agent | Schemat | h |
 |---|---|---|---|---|---|
-| N01 | Wdrożenie pilotażowe: zdalne repo GitHub + CI, hosting (kontener, zarządzany PostgreSQL z PITR, prywatny bucket), SMTP, domena + HTTPS, backup z testem odtworzenia | M | A5 | — | 10 |
+| N01 | Wdrożenie pilotażowe: zdalne repo GitHub + CI, Azure (kontener App Service, zarządzany PostgreSQL z PITR, prywatny Blob Storage), SMTP, domena + HTTPS, backup z testem odtworzenia | M | A5 | — | 10 |
 | N02 | Pomiar pętli: tabela `ActivityEvents` (append-only: `assignment_opened`, `review_opened`, `review_submitted` z czasem trwania) + strona `/mentor/insights` z metrykami z §6 | M | A4 (+A1 CR) | tak | 14 |
 | N03 | Friction log: przycisk „Uwaga do produktu” (mentor i mentee) → tabela `ProductFeedback`, lista dla operatora | S | A1 | tak | 4 |
 | N04 | RODO minimum: CLI `export-user` (JSON wszystkich danych osoby) i `anonymize-user`; polityka retencji w `docs/` | M | A1 | — | 8 |
@@ -183,7 +183,7 @@ Kryteria akceptacji (wybrane):
 |---|---|---|---|---|
 | T01 | Smoke Playwright w CI (kontenery + `seed-demo`) | Faza 0 | A5 | 6 |
 | T02 | Zaostrzenie CSP (`script-src 'self'`), szyfrowanie kluczy Data Protection | Faza 0 | A1/A5 | 4 |
-| T03 | Sprzątanie osieroconych obiektów S3 (job porównujący bucket z `SubmissionAttachments`) | Faza 3 | A3 | 4 |
+| T03 | Sprzątanie osieroconych blobów (job porównujący kontener Azure Blob z `SubmissionAttachments`) | Faza 3 | A3 | 4 |
 | T04 | Wersjonowane DTO i migracje danych JSON (DecisionAnswer v1→v2) — wzorzec dla kolejnych zmian | Faza 1 | A1 | 4 |
 | T05 | Infrastruktura zadań w tle (`BackgroundService` + `PeriodicTimer`, blokada w bazie przed podwójnym uruchomieniem); bez kolejek i event busa | Faza 3 | A1 | 6 |
 | T06 | Gotowość do > 1 instancji (sticky sessions, klucze Data Protection w bazie) — dopiero przy realnej potrzebie | Faza 6 | A1/A5 | 6 |

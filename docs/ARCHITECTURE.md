@@ -28,7 +28,7 @@ MentorPath/
 ├─ Directory.Build.props            # Nullable, TreatWarningsAsErrors, LangVersion
 ├─ Directory.Packages.props         # Central Package Management (właściciel: A1)
 ├─ .editorconfig
-├─ docker-compose.yml               # postgres, s3 (SeaweedFS), mailpit (A1); profil `app`: migrate + app (A5, B17)
+├─ docker-compose.yml               # postgres, Azurite (Azure Blob), mailpit; profil `app`: migrate + app
 ├─ Dockerfile                       # A5 (B17)
 ├─ .github/workflows/ci.yml         # A1 tworzy (B01), A5 rozwija (B16/B17)
 ├─ docs/
@@ -96,7 +96,7 @@ MentorPath/
 Uzasadnienie 3 projektów `src`:
 - `Data` oddzielony, bo jest jedynym plikiem współdzielonym przez wszystkich i ma jednego właściciela (A1) — kompilator pilnuje, że `Data` nie zależy od modułów.
 - `Application` oddzielony od `Web`, aby testy integracyjne wywoływały serwisy bez hosta Blazor.
-- Adaptery (S3, AI over HTTP, SMTP) mieszkają w `Application` za interfejsami — osobny projekt `Infrastructure` nie daje w MVP wartości.
+- Adaptery (Azure Blob, AI over HTTP, SMTP) mieszkają w `Application` za interfejsami — osobny projekt `Infrastructure` nie daje w MVP wartości.
 
 ---
 
@@ -122,7 +122,7 @@ flowchart TB
   end
   DATA["MentorPath.Data (A1)<br/>AppDbContext · Entities · Migrations"]
   PG[(PostgreSQL)]
-  S3[(S3-compatible)]
+  BLOB[(Azure Blob Storage)]
   LLM[[AI provider]]
 
   UI --> WS & CAT & AI & RDM & SUB & REV & PRG
@@ -137,7 +137,7 @@ flowchart TB
   COMMON --> DATA
   WS & CAT & AI & RDM & SUB & REV & PRG --> DATA
   DATA --> PG
-  COMMON -->|S3FileStorage| S3
+  COMMON -->|AzureBlobFileStorage| BLOB
   AI -->|IExerciseDraftGenerator| LLM
 ```
 
@@ -184,7 +184,7 @@ Propagacja `WorkspaceId` (D-08):
 - `ObjectKey = "ws/{workspaceId:N}/sub/{Guid.NewGuid():N}"` — bez nazwy pliku i danych osobowych.
 - Kolejność: zapis do storage → transakcja DB; jeśli DB się nie powiedzie → `DeleteAsync` (best-effort, log). Sieroty po awarii = znane ryzyko MVP.
 - Download: `GET /api/attachments/{attachmentId}` → `ISubmissionService.OpenAttachmentAsync` (autoryzacja) → `Results.File(..., fileDownloadName)` z `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`.
-- Bucket prywatny, brak presigned URL w MVP.
+- Kontener Blob prywatny, brak publicznych URL i SAS w MVP. Dostęp aplikacji przez managed identity (D-47).
 - Linki zewnętrzne: tylko `http`/`https`, ≤ 2000 znaków, nigdy nie pobierane przez serwer; renderowane z `rel="noopener noreferrer nofollow"`.
 
 ---
@@ -215,11 +215,14 @@ Tylko zmienne środowiskowe / user-secrets. `appsettings.json` bez sekretów.
 |---|---|
 | `ConnectionStrings__Default` | PostgreSQL |
 | `App__PublicBaseUrl` | baza linków zaproszeń / resetu hasła |
-| `Storage__S3__ServiceUrl`, `__BucketName`, `__AccessKey`, `__SecretKey`, `__ForcePathStyle` | S3-compatible (lokalnie SeaweedFS) |
+| `Storage__Provider` | `AzureBlob` (domyślnie), `InMemory` wyłącznie jawnie w testach; zabronione w Production |
+| `Storage__AzureBlob__ServiceUri`, `__ContainerName` | Endpoint HTTPS konta i prywatny kontener; `DefaultAzureCredential` (managed identity / `az login`) |
+| `Storage__AzureBlob__ConnectionString` | Lokalnie Azurite; ma pierwszeństwo przed `ServiceUri` |
+| `DataProtection__BlobUri` | Prywatny blob kluczy Identity, wspólny dla web i CLI; ma pierwszeństwo przed `KeysPath` |
 | `Ai__Provider` (`Fake`/`OpenAiCompatible`), `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey`, `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | AI |
 | `Email__Smtp__Host`, `__Port`, `__User`, `__Password`, `__From` | e-mail transakcyjny (reset hasła, D-11) |
 
-Lokalnie: `docker compose up -d` (postgres, SeaweedFS S3, mailpit) + `dotnet run --project src/MentorPath.Web` (D-31).
+Lokalnie: `docker compose up -d` (postgres, Azurite, mailpit) + `dotnet run --project src/MentorPath.Web` (D-47 zastępuje D-31). Instrukcja Azure: `AZURE_DEPLOYMENT.md`.
 
 ---
 
@@ -259,7 +262,7 @@ Lokalnie: `docker compose up -d` (postgres, SeaweedFS S3, mailpit) + `dotnet run
 Zasady:
 - Jeden kontener PostgreSQL na assembly (collection fixture), migracje raz. **Każdy test tworzy własne workspace'y** przez `TestDataBuilder` → brak czyszczenia, testy równoległe, brak wycieku fixture'ów.
 - `TestDataBuilder` (A1) tworzy dane przez serwisy aplikacji (D-32); rozszerzenia w plikach partial per agent.
-- `IFileStorage` w testach = `InMemoryFileStorage`; adapter S3 zweryfikowany ręcznie na SeaweedFS (upload/download przez UI i HTTP).
+- `IFileStorage` w testach serwisów = jawnie `InMemoryFileStorage`; adapter Azure Blob ma testy integracyjne na Azurite (upload/download, Content-Type, prywatność, usuwanie, anulowanie).
 - `TimeProvider` → `FakeTimeProvider` dla wygasania zaproszeń.
 - E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — uruchamiane przed wydaniem, poza CI (D-33).
 

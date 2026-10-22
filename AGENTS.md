@@ -1,13 +1,13 @@
 # MentorPath — instructions for AI agents
 
-MentorPath is a mentoring platform for backend architecture (.NET): Scenario → Decision → Rationale → Feedback → Reflection → Progress. It is a multi-tenant modular monolith (.NET 10, Blazor Web App Interactive Server, PostgreSQL + EF Core, ASP.NET Core Identity, S3 storage). The product source of truth is `docs/MVP_SPEC.md`.
+MentorPath is a mentoring platform for backend architecture (.NET): Scenario → Decision → Rationale → Feedback → Reflection → Progress. It is a multi-tenant modular monolith (.NET 10, Blazor Web App Interactive Server, PostgreSQL + EF Core, ASP.NET Core Identity, Azure Blob Storage). The product source of truth is `docs/MVP_SPEC.md`.
 
 Universal invariants live in `.github/copilot-instructions.md`; path-specific rules live in `.github/instructions/`. Do not duplicate them here.
 
 ## Commands
 
 ```bash
-docker compose up -d                                   # PostgreSQL, S3 (SeaweedFS), Mailpit
+docker compose up -d                                   # PostgreSQL, Azurite (Azure Blob), Mailpit
 dotnet build MentorPath.slnx                           # must finish with 0 warnings (warnings are errors)
 dotnet test tests/MentorPath.UnitTests
 dotnet test tests/MentorPath.IntegrationTests          # needs Docker (Testcontainers)

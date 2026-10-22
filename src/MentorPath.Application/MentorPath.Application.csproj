@@ -3,7 +3,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="HtmlSanitizer" />
-    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Azure.Identity" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MentorPath.Data\MentorPath.Data.csproj" />

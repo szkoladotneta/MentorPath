@@ -1,6 +1,6 @@
 # MentorPath — Retencja danych i procedura RODO (minimum)
 
-Status: **żywy dokument** · decyzja: D-42 (N04, issue #4) · dotyczy danych w PostgreSQL i w magazynie plików S3.
+Status: **żywy dokument** · decyzje: D-42 (N04, issue #4), D-47 · dotyczy danych w PostgreSQL i w Azure Blob Storage.
 
 Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuje prośbę o **dostęp/eksport** (art. 15 i 20 RODO) oraz o **usunięcie** (art. 17). Polityka prywatności (tekst dla użytkowników) i umowy powierzenia z dostawcami hostingu, SMTP i AI są poza repozytorium (`SECURITY_REVIEW.md` S8).
 
@@ -12,8 +12,9 @@ Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuj
 | Jak wyżej, wszystkie relacje mentee `Closed` | 12 miesięcy od zamknięcia ostatniej relacji | `anonymize-user --confirm` |
 | Zaproszenia zaakceptowane | jak konto osoby | e-mail zastępuje `anonymize-user` |
 | Zaproszenia niezaakceptowane, wygasłe | 30 dni po `ExpiresAtUtc` | usunięcie przez operatora (SQL poniżej; nie ma konta, więc nie ma czego anonimizować w CLI) |
-| Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5) | kopie wygasają rotacyjnie; nie edytujemy kopii |
-| Nieaktualne wersje obiektów S3 (bucket z wersjonowaniem) | 30 dni | reguła cyklu życia bucketu „expire noncurrent versions after 30 days” (konfiguracja u dostawcy, bez kodu) |
+| Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5); Azure PITR: 14 dni | kopie wygasają rotacyjnie; nie edytujemy kopii |
+| Usunięte bloby i kontenery (soft delete) | 30 dni | retencja Azure Blob; dotyczy także snapshotów usuniętych przez adapter |
+| Poprzednie wersje blobów | domyślnie wersjonowanie wyłączone (D-47) | jeśli operator je włączy, musi dodać regułę usuwania poprzednich wersji po 30 dniach; nigdy reguły wygaszającej bieżące załączniki |
 | Logi aplikacji | zgodnie z retencją platformy logów (zalecane ≤ 30 dni) | logi nie zawierają e-maili, tokenów, treści rozwiązań ani promptów |
 
 Czyszczenie wygasłych zaproszeń (operator, raz w miesiącu, po backupie):
@@ -71,4 +72,5 @@ Statystyki workspace'u i postęp roadmapy: identyfikatory, statusy prób, numery
 ### Ograniczenia
 
 - **Kopie bazy** zawierają dane do czasu ich rotacji (§1). Przy odtwarzaniu z kopii wykonanej przed anonimizacją uruchom `anonymize-user --user-id <guid> --confirm` ponownie dla wszystkich id z rejestru próśb.
-- **Wersjonowanie S3**: `DeleteObject` tworzy znacznik usunięcia; poprzednie wersje znikają zgodnie z regułą cyklu życia (§1).
+- **Azure Blob**: adapter usuwa bieżący blob i jego snapshoty. Soft delete zachowuje możliwość odtworzenia przez 30 dni (§1); po tym czasie dane wygasają. Wersjonowanie jest domyślnie wyłączone. Jeśli je włączysz, samo usunięcie bloba nie usuwa poprzednich wersji — wymagana osobna polityka 30 dni.
+- Po odtworzeniu blobów lub bazy sprzed anonimizacji ponów usuwanie dla id z rejestru próśb. Klucze Data Protection w osobnym kontenerze nie podlegają retencji załączników.

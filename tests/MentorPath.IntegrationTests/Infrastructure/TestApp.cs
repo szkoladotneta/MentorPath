@@ -34,6 +34,7 @@ public sealed class TestApp : IAsyncDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["App:PublicBaseUrl"] = "https://mentorpath.test",
+                ["Storage:Provider"] = "InMemory",
                 ["Ai:Provider"] = "Fake",
                 ["Ai:FakeMode"] = "Ok",
                 ["Ai:TimeoutSeconds"] = "2",

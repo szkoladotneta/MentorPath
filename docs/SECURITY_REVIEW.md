@@ -30,7 +30,7 @@ Data: 2026-10-17 · Zakres: kod w `src/`, konfiguracja hosta, obraz Docker. Każ
 |---|---|---|---|
 | S1 | Link zaproszenia przekazany niewłaściwej osobie pozwala jej założyć konto na e-mail z zaproszenia (posiadanie tokenu = weryfikacja e-maila, D-11) | Średni | Mentor przekazuje link prywatnym kanałem; w P1 — weryfikacja e-mailem |
 | S2 | ~~Brak procedury eksportu/usuwania danych osobowych~~ — **rozwiązane (N04, D-42)**: CLI `export-user` / `anonymize-user`, procedura i retencja w `docs/DATA_RETENTION.md`. Brak UI dla osoby (prośby obsługuje operator) | Niski | Rejestr próśb prowadzi operator poza aplikacją; usunięcie konta mentora — osobna decyzja |
-| S3 | Osierocone obiekty w S3 przy awarii procesu między zapisem pliku a commitem DB (D-20) | Niski | Okresowe porównanie kluczy bucketu z `SubmissionAttachments` |
+| S3 | Osierocone bloby przy awarii procesu między zapisem pliku a commitem DB (D-20, D-47) | Niski | Okresowe porównanie kluczy kontenera Azure Blob z `SubmissionAttachments` |
 | S4 | Wyścig limitu AI może przekroczyć limit o 1 | Niski | Akceptowalne (tylko mentor) |
 | S5 | CSP bez `script-src` | Niski | Zaostrzyć po weryfikacji zgodności z Blazor (`script-src 'self'`) |
 | S6 | Klucze Data Protection na dysku bez szyfrowania | Niski | `ProtectKeysWith…` (KMS / certyfikat) w środowisku docelowym |

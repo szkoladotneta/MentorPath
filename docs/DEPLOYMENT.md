@@ -1,11 +1,13 @@
 # MentorPath — Wdrożenie i operacje (B17)
 
+**Docelowe wdrożenie: Azure (D-47).** Pełna instrukcja od pustej subskrypcji do pierwszego mentora: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). Poniżej referencja konfiguracji i operacji; komendy `docker run` to wariant ogólny, nie komendy do wykonania wewnątrz App Service.
+
 ## 1. Architektura uruchomieniowa
 
 ```
 [Przeglądarka] ──HTTPS──▶ [Reverse proxy / TLS] ──HTTP──▶ [mentorpath (kontener, :8080)]
                                                             ├──▶ PostgreSQL 17 (prywatna sieć)
-                                                            ├──▶ S3-compatible bucket (prywatny, brak publicznych URL)
+                                                            ├──▶ Azure Blob Storage (prywatny, brak publicznych URL)
                                                             ├──▶ SMTP (tylko reset hasła — D-11)
                                                             └──▶ Dostawca AI (opcjonalnie; domyślnie Fake)
 ```
@@ -22,19 +24,20 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `App__PublicBaseUrl` | tak | Publiczny adres HTTPS (linki zaproszeń i ustawienia hasła) |
 | `App__BehindProxy` | zalecane | `true` za reverse proxy (X-Forwarded-For/Proto) |
 | `App__DisableHttpsRedirection` | opcjonalne | `true`, jeśli TLS kończy się na proxy i proxy samo przekierowuje |
-| `DataProtection__KeysPath` | tak | Trwały katalog kluczy (wolumen), domyślnie w obrazie `/keys` — bez niego wylogowanie po restarcie |
-| `Storage__S3__ServiceUrl` | tak | Endpoint S3 (np. `https://s3.eu-central-1.amazonaws.com` lub kompatybilny) |
-| `Storage__S3__BucketName` | tak | Prywatny bucket (domyślnie `mentorpath`) |
-| `Storage__S3__AccessKey`, `Storage__S3__SecretKey` | tak | Poświadczenia z uprawnieniami tylko do tego bucketu (Get/Put/Delete) |
-| `Storage__S3__Region`, `Storage__S3__ForcePathStyle` | opcjonalne | Region (domyślnie `us-east-1`), path-style (domyślnie `true`) |
-| `Storage__EnsureBucketOnStartup` | opcjonalne | `false`, jeśli bucket zakłada infrastruktura (zalecane w produkcji) |
+| `DataProtection__BlobUri` | Azure: tak | Pełny HTTPS URI prywatnego bloba z kluczami, bez SAS; `DefaultAzureCredential`; pierwszeństwo przed `KeysPath`; kontener tworzy operator |
+| `DataProtection__KeysPath` | poza Azure | Trwały katalog kluczy współdzielony z CLI (wolumen), domyślnie w obrazie `/keys` — sam katalog w obrazie nie jest trwały |
+| `Storage__Provider` | domyślnie `AzureBlob` | `InMemory` wyłącznie w testach; start Production jest odrzucany |
+| `Storage__AzureBlob__ServiceUri` | Azure: tak | `https://<konto>.blob.core.windows.net`, bez SAS; dostęp managed identity |
+| `Storage__AzureBlob__ContainerName` | domyślnie `mentorpath` | Prywatny kontener załączników |
+| `Storage__AzureBlob__ConnectionString` | lokalnie | Azurite; ma pierwszeństwo przed `ServiceUri`, nie ustawiaj w Azure |
+| `Storage__EnsureContainerOnStartup` | opcjonalne | Domyślnie `true` tylko w Development; w Production kontener tworzy operator; błąd tworzenia przerywa start |
 | `Email__Smtp__Host`, `__Port`, `__User`, `__Password`, `__EnableSsl`, `__From` | tak | SMTP dla resetu hasła |
 | `Ai__Provider` | tak | `Fake` (domyślnie) lub `OpenAiCompatible` |
 | `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey` | gdy `OpenAiCompatible` | Endpoint zgodny z OpenAI Chat Completions + structured output |
 | `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | opcjonalne | 60 / 3000 / 50 |
 | `Database__MigrateOnStartup` | opcjonalne | Nie zalecane w produkcji — używaj kroku `migrate` |
 
-Bez `Storage__S3__ServiceUrl` aplikacja używa pamięci operacyjnej (tylko testy/dev — **nie w produkcji**).
+Brak konfiguracji Azure Blob to błąd walidacji przy starcie; nie ma automatycznego fallbacku do pamięci. Stare klucze `Storage__S3__*` nie są obsługiwane. Przed aktualizacją istniejącej instalacji przenieś obiekty i zmień konfigurację ([migracja](AZURE_DEPLOYMENT.md#existing-s3-data)).
 
 ## 3. Procedura wdrożenia
 
@@ -89,9 +92,9 @@ pg_restore --no-owner --dbname "postgres://.../mentorpath_restore" mentorpath-YY
 ```
 Zalecane w chmurze: zarządzany PostgreSQL z PITR (point-in-time recovery) + powyższy logiczny dump jako druga linia.
 
-Storage S3: włącz wersjonowanie bucketu i replikację/backup zgodnie z polityką dostawcy. Klucze obiektów są losowe (`ws/<workspace>/sub/<guid>`) i powiązane z `SubmissionAttachments.ObjectKey`.
+Azure Blob: soft delete blobów i kontenerów 30 dni; wersjonowanie domyślnie wyłączone (D-47). Soft delete nie zastępuje niezależnego backupu. Procedura kopii i próba odtworzenia: `AZURE_DEPLOYMENT.md`. Klucze obiektów są losowe (`ws/<workspace>/sub/<guid>`) i powiązane z `SubmissionAttachments.ObjectKey`. Nie dodawaj reguły wygaszania bieżących załączników.
 
-Klucze Data Protection (`/keys`): backup razem z konfiguracją; utrata = wylogowanie użytkowników i unieważnienie linków resetu hasła (dane nie giną).
+Klucze Data Protection (Azure: osobny blob; poza Azure: wolumen `/keys`): backup razem z konfiguracją; utrata = wylogowanie użytkowników i unieważnienie linków resetu hasła (dane nie giną). Web i CLI muszą używać tego samego key ring.
 
 Lokalnie (docker compose):
 ```bash
@@ -110,11 +113,11 @@ docker compose exec -T postgres pg_restore -U mentorpath -d mentorpath --clean <
 - [ ] CI zielone (build, unit, integration, obraz).
 - [ ] `migrate` wykonane po backupie.
 - [ ] HTTPS na proxy, `App__PublicBaseUrl` z `https://`, `App__BehindProxy=true`.
-- [ ] Bucket prywatny (brak public ACL / policy), dedykowane poświadczenia.
-- [ ] Wolumen `/keys` podpięty.
+- [ ] Kontener Blob prywatny, managed identity i role ograniczone do kontenerów.
+- [ ] Klucze Data Protection trwałe (`BlobUri` w Azure albo wolumen `/keys`) i wspólne z CLI.
 - [ ] SMTP skonfigurowany i przetestowany (reset hasła).
 - [ ] Decyzja o dostawcy AI (D-19) — do tego czasu `Ai__Provider=Fake` (szkice testowe) lub wyłączenie przycisku w praktyce przez limit `0`.
 - [ ] Backup działa i został raz odtworzony.
 - [ ] Utworzeni mentorzy (`create-mentor`), smoke test: logowanie, zaproszenie, roadmapa.
-- [ ] Reguła cyklu życia bucketu: wygasanie nieaktualnych wersji obiektów po 30 dniach (`DATA_RETENTION.md` §1).
+- [ ] Soft delete blobów/kontenerów: 30 dni; jeśli włączono wersjonowanie, reguła usuwania poprzednich wersji po 30 dniach (`DATA_RETENTION.md` §1).
 - [ ] Polityka prywatności i umowy powierzenia z dostawcami hostingu/AI/SMTP (RODO) — poza kodem, wymagane przed użyciem z prawdziwymi danymi. Retencja i procedura eksportu/usunięcia: `docs/DATA_RETENTION.md`.
