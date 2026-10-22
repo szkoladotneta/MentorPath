@@ -7,7 +7,9 @@ COPY src/MentorPath.Application/MentorPath.Application.csproj src/MentorPath.App
 COPY src/MentorPath.Web/MentorPath.Web.csproj src/MentorPath.Web/
 RUN dotnet restore src/MentorPath.Web/MentorPath.Web.csproj
 COPY src/ src/
-RUN dotnet publish src/MentorPath.Web/MentorPath.Web.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
+# Restore again once sources are present: the SDK adds the implicit Blazor framework
+# assets package (blazor.web.js) only when it sees Razor components.
+RUN dotnet publish src/MentorPath.Web/MentorPath.Web.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app

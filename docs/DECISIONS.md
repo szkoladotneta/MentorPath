@@ -390,6 +390,12 @@ Status: Adopted (2026-10-22, poprawka błędu zaproszenia mentee)
 - Strony `InteractiveServer` są prerenderowane. `EditForm` z `FormName` renderuje zwykły `<form method="post">`; wysłany przed podłączeniem obwodu Blazor (lub przy zerwanym obwodzie) robi natywny POST bez `[SupplyParameterFromForm]`, więc serwer waliduje pusty model („Podaj e-mail”).
 - Nie obsługujemy ścieżki SSR dla takich formularzy: nowa instancja komponentu po podłączeniu obwodu zgubiłaby jednorazowo pokazywane dane (np. link zaproszenia). Zamiast tego: bez `FormName`, przycisk submit wyłączony do `RendererInfo.IsInteractive`.
 
+## D-50 — Obraz Dockera: publish z ponownym restore
+Status: Adopted (2026-10-22, poprawka braku interaktywności na Azure)
+
+- Restore wykonany tylko na plikach `.csproj` (warstwa cache) nie dodaje niejawnego pakietu `Microsoft.AspNetCore.App.Internal.Assets`, bo SDK nie widzi jeszcze komponentów Razor. `dotnet publish --no-restore` publikował więc obraz bez `_framework/blazor.web.js` (404), a cała aplikacja na Azure działała bez interaktywności.
+- `dotnet publish` w `Dockerfile` wykonuje restore ponownie po `COPY src/`; wcześniejszy restore zostaje jako cache pakietów.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
