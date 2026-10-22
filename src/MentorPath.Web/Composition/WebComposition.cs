@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Azure.Identity;
 using MentorPath.Application.Common;
 using MentorPath.Data;
 using MentorPath.Data.Enums;
@@ -37,9 +38,20 @@ public static class WebComposition
         services.AddMentorPathData(configuration);
         services.AddMentorPathIdentity(builder.Environment);
         services.AddMentorPathModules(configuration);
+        if (builder.Environment.IsProduction() && configuration["Storage:Provider"] == "InMemory")
+            throw new InvalidOperationException("InMemory storage is not allowed in Production.");
 
         var keysPath = configuration["DataProtection:KeysPath"];
-        if (!string.IsNullOrWhiteSpace(keysPath))
+        var keysBlobUri = configuration["DataProtection:BlobUri"];
+        if (!string.IsNullOrWhiteSpace(keysBlobUri))
+        {
+            if (!Uri.TryCreate(keysBlobUri, UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.Query))
+                throw new InvalidOperationException("DataProtection:BlobUri must be an HTTPS blob URI without a SAS token.");
+            services.AddDataProtection().SetApplicationName("MentorPath")
+                .PersistKeysToAzureBlobStorage(uri, new DefaultAzureCredential());
+        }
+        else if (!string.IsNullOrWhiteSpace(keysPath))
             services.AddDataProtection().SetApplicationName("MentorPath").PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 
         services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
@@ -155,17 +167,8 @@ public static class WebComposition
                 await db.Database.MigrateAsync();
             }
             await EnsureRolesAsync(scope.ServiceProvider);
-            if (app.Configuration.GetValue("Storage:EnsureBucketOnStartup", true))
-            {
-                try
-                {
-                    await MentorPathApplication.EnsureStorageAsync(scope.ServiceProvider, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    app.Logger.LogWarning(ex, "Could not ensure storage bucket exists.");
-                }
-            }
+            if (app.Configuration.GetValue("Storage:EnsureContainerOnStartup", app.Environment.IsDevelopment()))
+                await MentorPathApplication.EnsureStorageAsync(scope.ServiceProvider, app.Lifetime.ApplicationStopping);
         }
 
         if (!app.Environment.IsDevelopment())

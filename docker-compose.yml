@@ -16,15 +16,15 @@ services:
       timeout: 3s
       retries: 20
 
-  s3:
-    # S3-compatible private object storage for local development (SeaweedFS S3 gateway).
-    image: chrislusf/seaweedfs:latest
-    command: "server -s3 -dir=/data -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json"
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command: "azurite-blob --blobHost 0.0.0.0 --location /data --skipApiVersionCheck --silent"
+    environment:
+      AZURITE_ACCOUNTS: "mentorpath:bWVudG9ycGF0aC1sb2NhbC1kZXYta2V5LW9ubHk="
     ports:
-      - "8333:8333"
+      - "10000:10000"
     volumes:
-      - s3data:/data
-      - ./infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - blobdata:/data
 
   mailpit:
     image: axllent/mailpit:latest
@@ -42,9 +42,8 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=mentorpath;Username=mentorpath;Password=mentorpath"
       App__PublicBaseUrl: "http://localhost:8080"
       App__DisableHttpsRedirection: "true"
-      Storage__S3__ServiceUrl: "http://s3:8333"
-      Storage__S3__AccessKey: "mentorpath"
-      Storage__S3__SecretKey: "mentorpath-dev-secret"
+      Storage__AzureBlob__ConnectionString: "DefaultEndpointsProtocol=http;AccountName=mentorpath;AccountKey=bWVudG9ycGF0aC1sb2NhbC1kZXYta2V5LW9ubHk=;BlobEndpoint=http://azurite:10000/mentorpath;"
+      Storage__EnsureContainerOnStartup: "true"
       Email__Smtp__Host: "mailpit"
       Email__Smtp__Port: "1025"
       Ai__Provider: "Fake"
@@ -63,10 +62,10 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      s3:
+      azurite:
         condition: service_started
 
 volumes:
   dpkeys:
   pgdata:
-  s3data:
+  blobdata:

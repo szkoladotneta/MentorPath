@@ -17,7 +17,7 @@ public static class CliRunner
         var command = args[0].ToLowerInvariant();
         var options = ParseOptions(args.Skip(1).ToArray());
         var builder = WebApplication.CreateBuilder(args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('=')).ToArray());
-        builder.Configuration["Storage:EnsureBucketOnStartup"] = "false";
+        builder.Configuration["Storage:EnsureContainerOnStartup"] = "false";
         builder.AddMentorPathWeb();
         await using var app = builder.Build();
         await using var scope = app.Services.CreateAsyncScope();

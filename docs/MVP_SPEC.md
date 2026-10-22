@@ -733,7 +733,7 @@ Nie przechowywać surowych promptów zawierających dane osobowe.
 - PostgreSQL.
 - EF Core.
 - ASP.NET Core Identity.
-- Prywatny S3-compatible object storage.
+- Prywatny Azure Blob Storage (Azure managed identity; lokalnie Azurite, D-47). Hosting: Azure App Service Linux + Azure Database for PostgreSQL. AWS/S3 nie jest wymagane.
 - xUnit.
 - Testcontainers PostgreSQL dla testów integracyjnych.
 - GitHub Actions.

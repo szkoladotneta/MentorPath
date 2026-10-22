@@ -14,7 +14,8 @@ public sealed partial class WebAppFactory(PostgresFixture db) : WebApplicationFa
         builder.UseSetting("ConnectionStrings:Default", db.ConnectionString);
         builder.UseSetting("App:DisableHttpsRedirection", "true");
         builder.UseSetting("App:PublicBaseUrl", "http://localhost");
-        builder.UseSetting("Storage:EnsureBucketOnStartup", "false");
+        builder.UseSetting("Storage:Provider", "InMemory");
+        builder.UseSetting("Storage:EnsureContainerOnStartup", "false");
         builder.UseSetting("Ai:Provider", "Fake");
     }
 

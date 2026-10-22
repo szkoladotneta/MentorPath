@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MentorPath.Application\MentorPath.Application.csproj" />

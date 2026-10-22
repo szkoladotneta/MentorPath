@@ -2,7 +2,7 @@
 
 Platforma do indywidualnego mentoringu architektury backendowej (.NET): **Scenariusz → Decyzja → Uzasadnienie → Feedback → Refleksja → Postęp**.
 
-Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), PostgreSQL + EF Core, ASP.NET Core Identity, prywatny storage S3, xUnit + Testcontainers.
+Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), PostgreSQL + EF Core, ASP.NET Core Identity, prywatny Azure Blob Storage, xUnit + Testcontainers.
 
 | Dokument | Zawartość |
 |---|---|
@@ -13,6 +13,7 @@ Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), P
 | [docs/BACKLOG_NEXT.md](docs/BACKLOG_NEXT.md) | Backlog rozwoju po MVP (fazy 0–5) na podstawie researchu |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Jak pracować z agentami Copilota: od pozycji backlogu do merge |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Konfiguracja, wdrożenie, backup, operacje |
+| [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) | Azure krok po kroku: zasoby, sekrety, obraz, migracje, pierwszy mentor |
 | [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | Przegląd bezpieczeństwa i ryzyka |
 | [AGENTS.md](AGENTS.md) | Instrukcje dla agentów AI: komendy, mapa repo, workflow, DoD |
 | [docs/archive/](docs/archive) | Dokumenty historyczne (plan MVP, backlog v1, research) — nie są wymaganiami |
@@ -22,7 +23,7 @@ Modularny monolit: .NET 10, ASP.NET Core, Blazor Web App (Interactive Server), P
 Wymagania: .NET SDK 10.0.1xx+, Docker.
 
 ```bash
-docker compose up -d                                         # PostgreSQL, S3 (SeaweedFS), Mailpit
+docker compose up -d                                         # PostgreSQL, Azurite (Azure Blob), Mailpit
 export ASPNETCORE_ENVIRONMENT=Development
 dotnet run --project src/MentorPath.Web -- seed-demo         # migracje + dane demo
 dotnet run --project src/MentorPath.Web --launch-profile https
@@ -44,6 +45,10 @@ Pełny stack w kontenerach (obraz aplikacji + migracje):
 ```bash
 docker compose --profile app up -d --build                  # http://localhost:8080
 ```
+
+## Wdrożenie na Azure
+
+Zacznij od [instrukcji Azure](docs/AZURE_DEPLOYMENT.md). Docelowy stos to App Service Linux (jeden kontener), Azure Database for PostgreSQL i prywatny Azure Blob Storage. Dostęp do plików przez managed identity, bez AWS/S3 i bez kluczy konta storage. Lokalnie Azurite zastępuje SeaweedFS; stare wolumeny S3 nie są automatycznie migrowane (procedura w instrukcji Azure).
 
 ## Komendy administracyjne
 

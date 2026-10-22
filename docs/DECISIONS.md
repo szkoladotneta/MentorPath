@@ -363,6 +363,18 @@ Status: Proposed (2026-10-20; tylko prezentacja, bez zmian schematu i `Contracts
 
 ---
 
+## D-47 — Azure zamiast S3: hosting, pliki i klucze Identity
+Status: Adopted (2026-10-22, na życzenie właściciela produktu); zastępuje D-31 i wymaganie S3 w MVP §6.1
+
+- Produkcja: jeden kontener App Service Linux, Azure Database for PostgreSQL 17, prywatny Azure Blob Storage. Nie wymagamy AWS ani kompatybilności S3. Lokalnie Azurite zastępuje SeaweedFS; `IFileStorage` i klucze `ws/{workspaceId}/sub/{id}` pozostają bez zmian, bez migracji schematu i `Contracts/`.
+- ADR zależności: usuwamy `AWSSDK.S3` i nieużywany `Testcontainers.Minio`; dodajemy oficjalne `Azure.Storage.Blobs`, `Azure.Identity` oraz `Azure.Extensions.AspNetCore.DataProtection.Blobs`. SDK zapewnia streaming, anulowanie, retry oraz obsługę managed identity bez własnego podpisywania REST. Zmiany pakietów wymagają review CODEOWNERS. Testy adaptera używają Azurite przez istniejący Testcontainers.
+- `Storage:Provider=AzureBlob` domyślnie. Brak konfiguracji to błąd, nie fallback do pamięci. `InMemory` jest jawnym wyborem testowym i zabronione w Production. `ServiceUri` używa `DefaultAzureCredential`; connection string ma pierwszeństwo i służy lokalnemu emulatorowi. Produkcyjnie managed identity + rola `Storage Blob Data Contributor` ograniczona do kontenera.
+- Kontenery tworzy operator, aplikacja domyślnie tylko w Development (`Storage:EnsureContainerOnStartup`). Błąd tworzenia przerywa start. Pliki pozostają prywatne, pobierane wyłącznie przez autoryzowany endpoint. Tylko `BlobNotFound` staje się `FileNotFoundException`; błąd kontenera/poświadczeń nie jest maskowany.
+- Klucze Data Protection w osobnym prywatnym blobie (`DataProtection:BlobUri`, pierwszeństwo przed `KeysPath`), ze stałym application name `MentorPath`, wspólne dla web i CLI. Azure szyfruje storage at rest; klucze nie mają dodatkowego szyfrowania aplikacyjnego. Dostęp do kontenera kluczy daje możliwość odszyfrowania cookies/tokenów — tylko tożsamość aplikacji i zaufany operator. Key Vault w instrukcji chroni sekrety konfiguracji, nie szyfruje key ring.
+- Bazowy wariant wdrożenia: publiczne endpointy TLS, baza ograniczona firewallem do IP operatora i App Service; storage prywatny przez RBAC (nie prywatny endpoint sieciowy). To kompromis prostoty MVP, nie wariant pełnej izolacji sieciowej. Przed większym wdrożeniem rozważyć VNet/private endpoints i szyfrowanie key ring przez Key Vault.
+- Retencja Blob: soft delete blobów/kontenerów 30 dni, wersjonowanie wyłączone. Włączenie wersjonowania wymaga polityki usuwania poprzednich wersji po 30 dniach. Nie wygaszamy bieżących załączników ani kluczy Identity. Migracja istniejących obiektów S3 jest operacją operatora przed przełączeniem, z zachowaniem kluczy i weryfikacją bajtów; nie usuwamy starego magazynu automatycznie.
+- Instrukcja: `AZURE_DEPLOYMENT.md` (zasoby, role, sekrety Key Vault, build, migracje, pierwszy mentor, backup i rollback). Nie dodajemy płatnych zasobów, automatycznego deployu ani nowego workflow CI przez samą zmianę kodu.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
