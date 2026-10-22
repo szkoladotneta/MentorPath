@@ -1,6 +1,6 @@
 # Deploy MentorPath to Azure
 
-This is the supported MVP deployment path (D-47). Run commands yourself; changing this repository does **not** create Azure resources. Commands use **Bash**, from the repository root, in one terminal session.
+This is the supported MVP deployment path (D-47). Use sections 1–7 for initial provisioning and section 8a for manually triggered GitHub Actions releases. Changing this repository does **not** create Azure resources. Commands use **Bash**, from the repository root, in one terminal session.
 
 ## What you will deploy
 
@@ -116,6 +116,13 @@ GRANT CONNECT ON DATABASE mentorpath TO mentorpath_app;
 REVOKE mentorpath_app FROM $PGADMIN;
 SQL
 
+PGPASSWORD="$PGADMIN_PASSWORD" psql \
+  "host=$PGHOST dbname=mentorpath user=$PGADMIN sslmode=verify-full" \
+  --set ON_ERROR_STOP=1 <<'SQL'
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA public TO mentorpath_app;
+SQL
+
 DB_CONNECTION="Host=$PGHOST;Port=5432;Database=mentorpath;Username=mentorpath_app;Password=$PGAPP_PASSWORD;SSL Mode=VerifyFull"
 # Wait for Key Vault RBAC propagation if necessary.
 az keyvault secret set --vault-name "$VAULT" --name db-connection \
@@ -123,6 +130,8 @@ az keyvault secret set --vault-name "$VAULT" --name db-connection \
 ```
 
 The temporary role membership lets the non-superuser Azure server admin create a database owned by `mentorpath_app` (required by PostgreSQL 17). The server admin is a trusted administrative account; never use it for the web app.
+
+Azure's `public` schema permissions can differ from database ownership. The explicit schema grant lets the app login apply EF migrations without using the administrator or granting schema creation rights to every database user.
 
 The PostgreSQL clients and .NET host need a current OS CA trust store for `verify-full` / `VerifyFull`. On a TLS error, update the trust store using Azure PostgreSQL's current certificate guidance; do not disable verification or use `Trust Server Certificate=true`.
 
@@ -311,6 +320,116 @@ Use an immutable new image tag for each reviewed release; do not overwrite an ol
 Versionless Key Vault references are cached by App Service (up to 24 hours); a configuration change/restart refreshes resolution. Rotate the PostgreSQL role password and Key Vault secret together during a maintenance window. Never delete the identity key blob during an update or rotation.
 
 For ACS SMTP rotation, create a new client secret on the **same Entra application**, update `smtp-password` in Key Vault, refresh/restart App Service and verify receipt of a password-reset email. Only then remove the old Entra secret. Alert ahead of client-secret expiry; an expired secret stops reset emails. The app's managed identity does not rotate that secret automatically. Plan and complete migration away from ACS Email **before September 30, 2028**; change SMTP settings/secret and retest both mentor and mentee resets before retiring ACS resources.
+
+### 8a. Manual releases with GitHub Actions
+
+The workflow [Deploy Azure](../.github/workflows/deploy-azure.yml) updates **existing** resources; it never provisions an environment, creates users, changes SMTP/AI settings or seeds demo data. It runs only by `workflow_dispatch` on **main**, checks out that exact revision, runs Release build/unit/integration tests, builds a Linux/amd64 image, and tags it with `<commit>-<run-id>-<attempt>`. It does not rely on a possibly unrelated CI run. Deployments are serialized without cancelling an active migration.
+
+**One-time setup (trusted subscription/repository administrator):**
+
+1. Merge the workflow and the latest application fixes into `main` through CODEOWNERS review. In particular, retain the Dockerfile restore-after-copy fix needed to publish `blazor.web.js`; deployment refuses an image missing this file.
+2. In GitHub → Settings → Environments, create **production**. Under deployment branches/tags, allow **only the branch `main`**, not tags. Configure required reviewers if your GitHub plan supports them. The environment must exist with its branch restrictions **before granting Azure access**: its name is part of the OIDC trust boundary. Do not dispatch an unreviewed workflow revision.
+3. Create a dedicated Entra app/service principal with a federated credential, **not a client secret**, using the same subscription and resource names as above:
+
+```bash
+REPO=szkoladotneta/MentorPath
+SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+TENANT_ID="$(az account show --query tenantId -o tsv)"
+DEPLOY_CLIENT_ID="$(az ad app create --display-name mentorpath-github-production --query appId -o tsv)"
+DEPLOY_PRINCIPAL_ID="$(az ad sp create --id "$DEPLOY_CLIENT_ID" --query id -o tsv)"
+# Role assignment can require a short wait for Entra propagation.
+FEDERATED_FILE="$(mktemp)"
+cat > "$FEDERATED_FILE" <<JSON
+{
+  "name": "github-production",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:$REPO:environment:production",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+JSON
+az ad app federated-credential create --id "$DEPLOY_CLIENT_ID" --parameters "$FEDERATED_FILE" --output none
+rm -f "$FEDERATED_FILE"
+
+# A separate private container for sensitive logical database backups.
+az storage container create --account-name "$STORAGE" --name deployment-backups \
+  --auth-mode login --public-access off --output none
+APP_ID="$(az webapp show -g "$RG" -n "$APP" --query id -o tsv)"
+PG_ID="$(az postgres flexible-server show -g "$RG" -n "$PG" --query id -o tsv)"
+ACR_ID="$(az acr show -g "$RG" -n "$ACR" --query id -o tsv)"
+VAULT_ID="$(az keyvault show -g "$RG" -n "$VAULT" --query id -o tsv)"
+STORAGE_ID="$(az storage account show -g "$RG" -n "$STORAGE" --query id -o tsv)"
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role AcrPush --scope "$ACR_ID" --output none
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role "Website Contributor" --scope "$APP_ID" --output none
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role "Key Vault Secrets User" --scope "$VAULT_ID/secrets/db-connection" --output none
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role "Key Vault Secrets User" --scope "$VAULT_ID/secrets/pg-app-password" --output none
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role "Storage Blob Data Contributor" --scope "$STORAGE_ID/blobServices/default/containers/deployment-backups" --output none
+
+# Allow only server inspection and firewall management, not database/server administration.
+ROLE_FILE="$(mktemp)"
+cat > "$ROLE_FILE" <<JSON
+{
+  "Name": "MentorPath deployment firewall $PG",
+  "IsCustom": true,
+  "Description": "Manage temporary GitHub runner firewall rules on one PostgreSQL server.",
+  "Actions": [
+    "Microsoft.DBforPostgreSQL/flexibleServers/read",
+    "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules/read",
+    "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules/write",
+    "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules/delete"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": ["/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG"]
+}
+JSON
+FIREWALL_ROLE_ID="$(az role definition create --role-definition "$ROLE_FILE" --query name -o tsv)"
+rm -f "$ROLE_FILE"
+az role assignment create --assignee-object-id "$DEPLOY_PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
+  --role "$FIREWALL_ROLE_ID" --scope "$PG_ID" --output none
+```
+
+These are one-time creation commands, not an idempotent provisioning script. Keep the app/client ID for later maintenance; do not create a new identity on every release. The firewall role can manage **all rules on this one server** because Azure RBAC cannot constrain creation by a rule-name prefix; the workflow itself only deletes `github-<run-id>-<attempt>`. Never assign subscription Contributor/Owner to the workflow. The application keeps its own managed identity and `AcrPull` permission; do not enable registry admin credentials. The deployment identity has no Blob attachment/key-ring or SMTP-secret access.
+
+4. The workflow reads the **existing** Key Vault secrets `db-connection` and `pg-app-password`. Initial provisioning in section 3 saves only the connection secret; if the password secret does not exist, store the **same app password**, never a new/generated password:
+
+```bash
+az keyvault secret set --vault-name "$VAULT" --name pg-app-password --value "$PGAPP_PASSWORD" --output none
+
+# GitHub CLI must be signed in as a repository administrator.
+gh variable set AZURE_CLIENT_ID --repo "$REPO" --env production --body "$DEPLOY_CLIENT_ID"
+gh variable set AZURE_TENANT_ID --repo "$REPO" --env production --body "$TENANT_ID"
+gh variable set AZURE_SUBSCRIPTION_ID --repo "$REPO" --env production --body "$SUBSCRIPTION_ID"
+gh variable set AZURE_RESOURCE_GROUP --repo "$REPO" --env production --body "$RG"
+gh variable set AZURE_WEBAPP_NAME --repo "$REPO" --env production --body "$APP"
+gh variable set AZURE_ACR_NAME --repo "$REPO" --env production --body "$ACR"
+gh variable set AZURE_POSTGRES_NAME --repo "$REPO" --env production --body "$PG"
+gh variable set AZURE_KEY_VAULT_NAME --repo "$REPO" --env production --body "$VAULT"
+gh variable set AZURE_STORAGE_ACCOUNT --repo "$REPO" --env production --body "$STORAGE"
+```
+
+All nine GitHub values are **environment variables, not secrets**; none is a password. No Azure client secret or publish profile is required. For the existing pilot use subscription `ac5d7b30-a66f-44d0-b536-e3ef4b99f53f`, resource group `mentorpath-pilot-kd261022`, app `mentorpath-kd261022`, registry `mpacrkd261022`, PostgreSQL `mentorpath-pg-kd261022`, vault `mp-kv-kd261022` and storage `mpfileskd261022`. PostgreSQL is in North Europe and App Service in West Europe; no region input is needed for updates.
+
+5. Check `Database__MigrateOnStartup=false`, the classic container configuration, current App Service outbound firewall rules and managed-identity grants. Both secrets must refer to `mentorpath` / `mentorpath_app` on the configured PostgreSQL server. The workflow requires the guide's `SSL Mode=VerifyFull` connection string format. Wait for RBAC propagation before the first run. Hosted Ubuntu runners need public HTTPS access to ACR/Key Vault/Blob and a temporary PostgreSQL rule; private-endpoint deployments need a separately designed private runner.
+
+**Release:** open GitHub → Actions → **Deploy Azure** → **Run workflow** → select **main** → Run workflow. Alternatively:
+
+```bash
+gh workflow run deploy-azure.yml --repo szkoladotneta/MentorPath --ref main
+```
+
+The workflow builds/tests before touching the live app. It validates Blazor assets inside the image, publishes an immutable ACR tag, opens only the runner's current IPv4, and takes a PostgreSQL 17 custom-format backup over verified TLS. It checks archive readability and uploads it to the private `deployment-backups/releases/<date>/<tag>.dump` blob **before stopping the app**. Backup or upload failure leaves the app running. Backups are encrypted at rest by Azure; they contain personal data and must not become public or GitHub artifacts. This is a release checkpoint, **not** a tested restore, scheduled backup or independent disaster-recovery copy. Retain release backups for 90 days using an account lifecycle rule restricted to the prefix `deployment-backups/releases/`; merge this rule into existing policies rather than replacing them. Never target `identity-keys` with that rule.
+
+After the backup, the workflow stops the app, waits for `Stopped`, applies `migrate` from the same source revision (including Identity roles), updates only the container image, starts the app, and checks readiness/liveness, the login page and `blazor.web.js`. Allow downtime on the single B1 instance. The migration process receives masked database credentials but needs no key-ring access: it neither creates users nor produces Identity tokens. Existing shared Data Protection configuration remains unchanged on the web app.
+
+**Failure/recovery:** consult the run summary for the previous image and backup object. After maintenance starts, **there is no automatic rollback or restart of the old image**: a partial migration may already have changed the schema. Inspect migration output and app state; use section 8's compatibility/restore procedure. A failed post-start check can leave the new app running but unhealthy. After fixing it, bring the target back to a known healthy `Running` state before dispatching again. Never rerun against an unexplained stopped app.
+
+The `always()` cleanup removes only this run's PostgreSQL rule and its local backup; Azure login also cleans up its session. Forced termination or runner loss can bypass cleanup. In that case remove the exact `github-<run-id>-<attempt>` rule manually, inspect whether the app is stopped, and follow the same recovery procedure. Deployment success is not proof of attachment authorization, SMTP delivery, WebSockets or token continuity; retain the functional checks from section 7 after material application changes.
 
 ## 9. Backups, retention and administrative operations
 

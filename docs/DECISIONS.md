@@ -384,6 +384,15 @@ Status: Proposed (2026-10-22); właściciel wybrał ACS Email, ale ostrzeżenie 
 - Zasoby: Email Communication Services + Communication Services w tej samej geografii danych, połączona domena (Azure-managed na pilotaż albo własna po weryfikacji DNS), dedykowana rejestracja Entra i uprawnienia ograniczone do zasobu Communication Services. Managed identity aplikacji pobiera sekret z Key Vault, ale nie zastępuje uwierzytelnienia SMTP. Operator odpowiada za rotację i alert przed wygaśnięciem sekretu.
 - Zakres zachowania pozostaje D-11: reset hasła dla istniejących kont; bez automatycznej wysyłki zaproszeń i linków pierwszego ustawienia hasła mentora. Samo potwierdzenie formularza resetu nie dowodzi dostarczenia wiadomości — wymagany test odbioru. Nie utworzono zasobów ani nie wysłano wiadomości podczas zmiany dokumentacji.
 
+## D-49 — Ręcznie uruchamiane wydania Azure przez GitHub Actions
+Status: Proposed (2026-10-22); workflow wymaga review CODEOWNERS
+
+- Na życzenie właściciela dodajemy `workflow_dispatch` dla istniejącej instalacji Azure. Bez automatycznego wdrożenia po pushu, provisioningu zasobów ani zmian schematu/kontraktów w tym PR. Tylko `main`, środowisko GitHub `production` z ograniczeniem gałęzi; serializacja wydań bez anulowania migracji.
+- Uwierzytelnienie OIDC do dedykowanej tożsamości Entra, bez sekretu klienta/publish profile. Osobno ograniczone uprawnienia do ACR, jednej aplikacji, reguł firewalla jednego serwera, dwóch sekretów bazy i prywatnego kontenera backupów. Bez dostępu do key ring, załączników i SMTP. Rola firewalla nie może ograniczyć uprawnień do prefiksu nazwy reguły; kod usuwa wyłącznie regułę własnego uruchomienia.
+- Release build i testy jednostkowe/integracyjne dla dokładnego SHA, obraz Linux/amd64 z tagiem SHA + run ID + attempt i weryfikacją `blazor.web.js`. Lokalnie publikowany CLI migracji pochodzi z tego samego SHA; wywołanie `migrate` zapewnia także role Identity.
+- Przed maintenance: logiczny backup PostgreSQL 17 przez TLS `verify-full`, kontrola czytelności i zapis do prywatnego `deployment-backups` (szyfrowanie Azure at rest). Retencja checkpointów wydań 90 dni, polityka wyłącznie dla ich prefiksu; nie zastępuje regularnych backupów, testu odtworzenia ani niezależnej kopii z D-47.
+- Maintenance: zatrzymanie aplikacji, migracje przez nieadministracyjny login, zmiana obrazu, start i ograniczone czasowo sprawdzenia HTTP. Bez automatycznego cofania obrazu/schematu przy błędzie — możliwa częściowa migracja wymaga decyzji operatora. Cleanup `always()` usuwa regułę IPv4 runnera i lokalny backup; utrata runnera wymaga ręcznego sprawdzenia. Nie zmieniamy runtime SMTP/AI, kluczy Identity ani uprawnień domenowych.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
