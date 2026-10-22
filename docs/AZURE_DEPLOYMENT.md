@@ -12,6 +12,9 @@ This is the supported MVP deployment path (D-47). Run commands yourself; changin
 | Storage account | StorageV2, Standard LRS | Private attachment and Data Protection containers |
 | Key Vault | Standard, Azure RBAC | Database connection string and SMTP password |
 | App managed identity | System-assigned | Pull image, access blobs and resolve Key Vault references |
+| Email Communication Services + Communication Services | Consumption, linked email domain | ACS Email SMTP for password-reset emails; temporary option, retirement September 30, 2028 |
+
+**Email lifecycle warning (checked October 22, 2026):** the owner requested Azure Communication Services Email to keep administration in Azure. Microsoft has since announced that **ACS Email retires September 30, 2028** and recommends against onboarding new solutions. Its FAQ currently permits new email workloads, but says availability can change at any time; the wider ACS onboarding restrictions begin October 23, 2026. Do not assume your subscription can provision it. See the [official retirement guide](https://learn.microsoft.com/azure/communication-services/acs-retirement-and-breaking-changes-guide#acs-email) before creating resources. The steps below support the requested choice only as a **temporary deployment**, with a provider migration required before retirement. A supported SMTP provider can use the same application settings without changing code.
 
 These are **paid** resources, including while the app is idle. Check the [Azure calculator](https://azure.microsoft.com/pricing/calculator/) for your region and set a subscription budget/alert before provisioning. B1/B1ms are a small starting point, not an availability or capacity guarantee; this setup has no database HA or zero-downtime deployment.
 
@@ -44,7 +47,7 @@ TAG="$(git rev-parse HEAD)"
 read -r -p "Your workstation's public IPv4 address (not a local/VPN address): " OPERATOR_IP
 
 az group create --name "$RG" --location "$LOCATION" --output none
-for PROVIDER in Microsoft.Web Microsoft.Storage Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.KeyVault; do
+for PROVIDER in Microsoft.Web Microsoft.Storage Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.KeyVault Microsoft.Communication; do
   az provider register --namespace "$PROVIDER" --wait --output none
 done
 OPERATOR_ID="$(az ad signed-in-user show --query id -o tsv)"
@@ -123,16 +126,35 @@ The temporary role membership lets the non-superuser Azure server admin create a
 
 The PostgreSQL clients and .NET host need a current OS CA trust store for `verify-full` / `VerifyFull`. On a TLS error, update the trust store using Azure PostgreSQL's current certificate guidance; do not disable verification or use `Trust Server Certificate=true`.
 
-Choose a transactional SMTP service with **STARTTLS** support (normally port 587), verified sender/domain and production delivery enabled. Mailpit is only for local development. Azure Blob/App Service do not provide an SMTP service by themselves. Do not use port 25 or an implicit-TLS-only port 465 service with this app's `SmtpClient`.
+### 3a. Azure Communication Services Email
+
+This uses the existing SMTP sender: **no new NuGet package or application code is needed**. Mailpit remains local-only. App Service and Blob Storage do not send mail on their own. Follow these Azure Portal steps, checking the lifecycle warning above first:
+
+1. Create an **Email Communication Services** resource in the existing `$RG` resource group (for example `mentorpath-email-<suffix>`). Choose the data geography permitted for your deployment and privacy requirements; do not copy a US geography blindly from an example. Confirm supported geographies in your subscription.
+2. In that resource, provision a domain. For the simplest pilot, use **Add a free Azure subdomain** / **Azure-managed domain**: no domain purchase or DNS changes are needed, but email sending is still chargeable. For production branding, add your own domain and complete the verification, SPF and DKIM DNS records shown in the portal. Use the portal-provided values, not guessed DNS records.
+3. Create a separate **Communication Services** resource in `$RG` (for example `mentorpath-communications-<suffix>`), with the **same data geography** as the email resource. In its **Email → Domains** section, select **Connect domain** and link the verified domain from step 2. Creating only the email resource is not enough.
+4. Open the provisioned domain and copy an actual allowed **MailFrom/sender address**. For an Azure-managed domain, use the address Azure provides; do not invent `no-reply@<your-domain>`. This exact address is `SMTP_FROM` below. SMTP credentials and sender address are different values.
+5. In **Microsoft Entra ID → App registrations**, create a dedicated, single-tenant application (for example `mentorpath-email-smtp-<suffix>`). No redirect URI is needed for this server-to-server SMTP flow. Tenant policy may require an administrator to create the registration; Azure subscription Contributor/Owner does not automatically grant Entra application-registration permissions.
+6. On the **Communication Services** resource (not the Email Communication Services resource), open **Access control (IAM)**. Assign the application's service principal the documented **Communication and Email Service Owner** role, scoped **only to this resource**, not to the resource group or subscription. This built-in role grants broader communication/email operations than just sending. For tighter permissions, use Microsoft's [documented custom SMTP role](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication#assign-a-role-to-the-microsoft-entra-application) instead. Do not assign subscription Owner.
+7. In the Entra registration, open **Certificates & secrets → New client secret**. Choose an expiry consistent with your rotation policy and record its expiry date. Copy the secret **Value**, not the secret ID, directly into your password manager. This value becomes `SMTP_PASSWORD`; do not put it in source control, tickets or screenshots.
+8. On the **Communication Services** resource, open **SMTP Usernames → Add SMTP Username**, select that Entra application, and create a username (for example `mentorpath-smtp`). Wait until its status is **Ready to use**. Copy the exact username shown by Azure as `SMTP_USER`; it is not necessarily the sender email, application ID or your Azure login.
+
+The protocol settings are `smtp.azurecomm.net`, port **587**, and **STARTTLS enabled** (`Email__Smtp__EnableSsl=true` in this app). Do not use implicit TLS port 465 or port 25. The SMTP password is the Entra application's **client-secret value**, not an ACS connection string, ACS access key or Azure account password. App Service managed identity resolves the secret from Key Vault; it does **not** replace SMTP username/password authentication in the current sender.
 
 ```bash
-read -r -p "SMTP host: " SMTP_HOST
-read -r -p "SMTP user: " SMTP_USER
-read -r -p "Verified sender address: " SMTP_FROM
-read -r -s -p "SMTP password: " SMTP_PASSWORD; printf '\n'
+SMTP_HOST=smtp.azurecomm.net
+read -r -p "ACS SMTP username (Ready to use): " SMTP_USER
+read -r -p "Exact provisioned ACS sender address: " SMTP_FROM
+read -r -s -p "SMTP Entra application client-secret VALUE: " SMTP_PASSWORD; printf '\n'
 az keyvault secret set --vault-name "$VAULT" --name smtp-password \
   --value "$SMTP_PASSWORD" --output none
 ```
+
+Continue to step 4; step 5 already wires these values and the Key Vault secret into the app. If ACS provisioning is unavailable, stop this email path rather than disabling TLS or leaving SMTP unconfigured. A different SMTP provider needs its own host, username, secret and verified sender with STARTTLS on port 587.
+
+This configures **password-reset emails for existing mentors and mentees**, not automatic invitation or welcome emails. New mentees still receive a manually shared invitation link and choose their password on acceptance; `create-mentor` still prints a one-time setup link for secure manual delivery. Passwords themselves are never emailed.
+
+Before launch, check the resource's current email quotas, set a budget alert, and test delivery to an address you control. An Azure-managed domain may have restrictive quotas; do not assume custom-domain quotas or immediate quota increases. Review Azure's processing geography, delivery-log retention and privacy terms for account email addresses and reset-link content.
 
 Secrets are passed through shell variables, not literal command history; Azure CLI arguments can still be visible to local administrators/process inspection. Run this on a trusted workstation. Do not use `--debug` on commands containing credentials.
 
@@ -269,6 +291,7 @@ Before inviting real users, verify:
 - Log in, create a mentee invitation, accept it in another browser, and complete a roadmap exercise.
 - Upload and download a small allowed file. Verify unauthenticated/foreign users cannot download it; Blob anonymous access must fail. `/health/ready` checks **PostgreSQL only**, not Blob, SMTP, Key Vault or AI.
 - Use “Nie pamiętasz hasła?” and receive the reset email. Check spam/domain verification and sender settings.
+- For ACS, check the SMTP username is **Ready to use**, the domain is connected and the configured From address matches its allowed sender. Verify delivery, not just the application's generic reset confirmation; that confirmation is not proof an email was sent.
 - Confirm Blazor uses a `101 Switching Protocols` WebSocket connection in browser developer tools.
 - Restart with `az webapp restart -g "$RG" -n "$APP"` and verify login cookies and a previously generated reset link still work. If not, fix key ring sharing before launch.
 - In App Service Configuration, confirm Key Vault references have status **Resolved**. Do not paste resolved values into logs.
@@ -286,6 +309,8 @@ Use an immutable new image tag for each reviewed release; do not overwrite an ol
 4. For an application-only failure with a backward-compatible schema, set the previous image tag and restart. **Rolling back an image does not undo a database migration.** For incompatible migrations, restore to a new PostgreSQL server, validate, update the Key Vault connection secret, and restart against the restored database with the matching application version. Restore attachments consistently if necessary.
 
 Versionless Key Vault references are cached by App Service (up to 24 hours); a configuration change/restart refreshes resolution. Rotate the PostgreSQL role password and Key Vault secret together during a maintenance window. Never delete the identity key blob during an update or rotation.
+
+For ACS SMTP rotation, create a new client secret on the **same Entra application**, update `smtp-password` in Key Vault, refresh/restart App Service and verify receipt of a password-reset email. Only then remove the old Entra secret. Alert ahead of client-secret expiry; an expired secret stops reset emails. The app's managed identity does not rotate that secret automatically. Plan and complete migration away from ACS Email **before September 30, 2028**; change SMTP settings/secret and retest both mentor and mentee resets before retiring ACS resources.
 
 ## 9. Backups, retention and administrative operations
 
@@ -341,7 +366,7 @@ az webapp log tail -g "$RG" -n "$APP"
 | Unresolved Key Vault reference | App identity's Secrets User role, correct secret URI, role propagation; restart after fixing |
 | Invalid reset link / logout on restart | Shared `DataProtection__BlobUri`, Blob access, exact public URL, clock, no key deletion; `/keys` is not the Azure key ring |
 | Blazor disconnects | WebSockets, Always On, one instance, affinity; restarts intentionally end live circuits |
-| Mail missing | STARTTLS 587, sender/domain verification, SMTP credentials and provider restrictions |
+| Mail missing | `smtp.azurecomm.net:587` with STARTTLS, linked verified domain, exact allowed From address, SMTP username **Ready to use**, Entra client-secret value/expiry, resource-scoped SMTP role, quotas and delivery status |
 
 ## Existing S3 data
 
@@ -355,6 +380,8 @@ Existing Identity keys also require migration: the Blob key repository stores a 
 
 Deleting a resource group deletes the running app, database and storage. Export and verify backups first, and obtain the data owner's approval. For a disposable environment only, inspect `az resource list -g "$RG" -o table`, then deliberately run `az group delete --name "$RG"` and confirm the prompt. Purge-protected Key Vaults cannot be immediately purged, and names may remain unavailable during retention. Stopping only the web app does **not** stop all charges.
 
+Entra application registrations/service principals are tenant objects, not resources in `$RG`; deleting the resource group does not remove the dedicated SMTP registration or its secrets. After confirming it is no longer used, have an authorized tenant administrator remove that dedicated registration/credentials separately.
+
 ## Official references
 
 - [App Service custom containers, managed image pull and port settings](https://learn.microsoft.com/azure/app-service/configure-custom-container)
@@ -363,5 +390,10 @@ Deleting a resource group deletes the running app, database and storage. Export 
 - [ASP.NET Core Data Protection configuration](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)
 - [PostgreSQL firewall rules](https://learn.microsoft.com/azure/postgresql/security/security-firewall-rules)
 - [Azure Blob data protection](https://learn.microsoft.com/azure/storage/blobs/data-protection-overview)
+- [ACS Email retirement and onboarding guidance](https://learn.microsoft.com/azure/communication-services/acs-retirement-and-breaking-changes-guide#acs-email)
+- [Create Email Communication Services](https://learn.microsoft.com/azure/communication-services/quickstarts/email/create-email-communication-resource)
+- [Provision an Azure-managed email domain](https://learn.microsoft.com/azure/communication-services/quickstarts/email/add-azure-managed-domains)
+- [Connect the email domain to Communication Services](https://learn.microsoft.com/azure/communication-services/quickstarts/email/connect-email-communication-resource)
+- [ACS SMTP authentication, permissions and settings](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication)
 
 The repository tests exercise the adapter against Azurite, not a paid Azure subscription. Resource availability, subscription policy, SMTP delivery, networking and a real Azure smoke/restore test must be verified by the operator before accepting production traffic.
