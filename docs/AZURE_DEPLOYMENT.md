@@ -442,6 +442,8 @@ The `always()` cleanup removes only this run's PostgreSQL rule and its local bac
 
 The workflow uses versioned ARM REST calls for temporary firewall creation/deletion. Azure CLI releases differ in whether `--name` identifies the server or the firewall rule; do not replace these calls with unpinned CLI examples from another version.
 
+Cleanup retries transient ARM errors (including PostgreSQL `GatewayTimeout`) and checks the firewall inventory after each deletion attempt. Azure can complete deletion despite returning a gateway timeout. The workflow succeeds only after confirming the exact runner rule is absent; persistent errors remain failures. If only cleanup fails after successful readiness checks, the release itself is already running—retry cleanup of the recorded rule rather than rolling back or redeploying unnecessarily.
+
 ## 9. Backups, retention and administrative operations
 
 PostgreSQL has 14-day managed PITR. Before every migration, also take a protected logical backup. In a later terminal session, reload `PGAPP_PASSWORD` from the password manager without printing it (for example `read -r -s -p "Database app password: " PGAPP_PASSWORD; printf '\n'`):
