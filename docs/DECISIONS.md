@@ -396,6 +396,15 @@ Status: Adopted (2026-10-22, poprawka braku interaktywności na Azure)
 - Restore wykonany tylko na plikach `.csproj` (warstwa cache) nie dodaje niejawnego pakietu `Microsoft.AspNetCore.App.Internal.Assets`, bo SDK nie widzi jeszcze komponentów Razor. `dotnet publish --no-restore` publikował więc obraz bez `_framework/blazor.web.js` (404), a cała aplikacja na Azure działała bez interaktywności.
 - `dotnet publish` w `Dockerfile` wykonuje restore ponownie po `COPY src/`; wcześniejszy restore zostaje jako cache pakietów.
 
+## D-51 — Ręcznie uruchamiane wydania Azure przez GitHub Actions
+Status: Proposed (2026-10-22); workflow wymaga review CODEOWNERS
+
+- Na życzenie właściciela dodajemy `workflow_dispatch` dla istniejącej instalacji Azure. Bez automatycznego wdrożenia po pushu, provisioningu zasobów ani zmian schematu/kontraktów w tym PR. Tylko `main`, środowisko GitHub `production` z ograniczeniem gałęzi; serializacja wydań bez anulowania migracji.
+- Uwierzytelnienie OIDC do dedykowanej tożsamości Entra, bez sekretu klienta/publish profile. Osobno ograniczone uprawnienia do ACR, jednej aplikacji, reguł firewalla jednego serwera, dwóch sekretów bazy i prywatnego kontenera backupów. Bez dostępu do key ring, załączników i SMTP. Rola firewalla nie może ograniczyć uprawnień do prefiksu nazwy reguły; kod usuwa wyłącznie regułę własnego uruchomienia.
+- Release build i testy jednostkowe/integracyjne dla dokładnego SHA, obraz Linux/amd64 z tagiem SHA + run ID + attempt i weryfikacją `blazor.web.js`. Lokalnie publikowany CLI migracji pochodzi z tego samego SHA; wywołanie `migrate` zapewnia także role Identity.
+- Przed maintenance: logiczny backup PostgreSQL 17 przez TLS `verify-full`, kontrola czytelności i zapis do prywatnego `deployment-backups` (szyfrowanie Azure at rest). Retencja checkpointów wydań 90 dni, polityka wyłącznie dla ich prefiksu; nie zastępuje regularnych backupów, testu odtworzenia ani niezależnej kopii z D-47.
+- Maintenance: zatrzymanie aplikacji, migracje przez nieadministracyjny login, zmiana obrazu, start i ograniczone czasowo sprawdzenia HTTP. Bez automatycznego cofania obrazu/schematu przy błędzie — możliwa częściowa migracja wymaga decyzji operatora. Cleanup `always()` usuwa regułę IPv4 runnera i lokalny backup; utrata runnera wymaga ręcznego sprawdzenia. Nie zmieniamy runtime SMTP/AI, kluczy Identity ani uprawnień domenowych.
+
 ## Change Requests
 
 Mechanizm CR zniesiony przez D-41. Zmiany schematu i `Contracts/` — osobny PR z etykietą `schema-change` i review CODEOWNERS.
