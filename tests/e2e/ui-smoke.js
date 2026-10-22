@@ -61,6 +61,8 @@ async function expectText(page, text, timeout = 10000) {
     log('Mentor A logged in, dashboard visible');
 
     await go(mentor, '/mentor/mentees');
+    // The invite button is disabled until the Blazor circuit is interactive.
+    await mentor.locator('button:has-text("Utwórz zaproszenie"):enabled').waitFor({ timeout: 10000 });
     await mentor.fill('#invite-email', menteeEmail);
     await mentor.click('text=Utwórz zaproszenie');
     const linkInput = mentor.locator('input.mono-break');
