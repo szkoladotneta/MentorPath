@@ -10,6 +10,11 @@ public interface IProgressService
     Task<Result<MentorDashboardDto>> GetMentorDashboardAsync(Guid actorUserId, CancellationToken ct);
 }
 
+public interface IMentorInsightsService
+{
+    Task<Result<MentorInsightsDto>> GetMentorInsightsAsync(Guid actorUserId, CancellationToken ct);
+}
+
 public enum AssignmentProgressStatus { NotStarted, InProgress, PendingReview, NeedsRevision, Completed }
 public enum TopicProgressStatus { NotStarted, InProgress, Completed }
 
@@ -26,3 +31,7 @@ public sealed record MenteeProgressRow(Guid MentorshipId, string MenteeDisplayNa
     int CompletedTopics, int CountedTopics, int PendingReviewCount, DateTime? LastSubmissionAtUtc);
 public enum ActivityKind { Submitted, FeedbackGiven, ReflectionAdded }
 public sealed record ActivityItem(DateTime OccurredAtUtc, ActivityKind Kind, Guid MentorshipId, string MenteeDisplayName, string ExerciseTitle, Guid SubmissionId);
+public sealed record MentorInsightsDto(DateTime WindowStartUtc, DateTime WindowEndUtc,
+    ConversionMetricDto AssignmentToSubmittedWithin14Days, TimeSpan? MedianSubmittedToReviewed,
+    ConversionMetricDto NeedsRevisionToResubmittedWithin7Days, TimeSpan? MedianReviewDuration);
+public sealed record ConversionMetricDto(int Numerator, int Denominator);

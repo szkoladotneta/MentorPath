@@ -66,7 +66,7 @@ dotnet test tests/MentorPath.UnitTests          # reguły domenowe, walidatory, 
 dotnet test tests/MentorPath.IntegrationTests   # PostgreSQL (Testcontainers), HTTP, izolacja, scenariusz release
 ```
 
-Smoke test przeglądarkowy całego przepływu (`tests/e2e`) jest wymaganym jobem CI na pull requestach i pushach do `main` (D-54). Lokalnie wymaga uruchomionej aplikacji z `seed-demo`:
+Smoke test przeglądarkowy całego przepływu (`tests/e2e`) jest wymaganym jobem CI na pull requestach i pushach do `main` (D-55). Lokalnie wymaga uruchomionej aplikacji z `seed-demo`:
 
 ```bash
 cd tests/e2e && npm ci && npm run install-browser

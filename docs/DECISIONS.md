@@ -440,7 +440,19 @@ Decision:
 Impact: the rationale column and optional trailing contract properties were merged in schema-change PR #70. This feature change implements mentor form persistence and mentee projection/rendering.
 This decision supersedes D-52's deferral for these two context fields only; the resource/player slice and other exclusions remain unchanged.
 
-## D-54 — Playwright smoke is a required CI gate (T01)
+## D-54 — Activity events and phase-0 mentor insights (N02)
+Status: Adopted (2026-10-26, owner-confirmed event and anonymization behavior; reporting and ownership choices delegated)
+
+Decision:
+- Add append-only `ActivityEvents` records for `assignment_opened`, `review_opened` and `review_submitted`. Persist workspace, assignment, optional submission, mentee and mentor IDs, UTC occurrence time, optional review duration and an `ExceedsTwoHours` flag. Do not persist answer or feedback content. Keep mentee and mentor IDs in these records after mentee anonymization; N02 adds no time-based event purge.
+- Record only the first authorized `assignment_opened` per assignment and the first authorized `review_opened` per pending submission. Record `review_submitted` only after feedback is successfully saved. Its duration is measured from the first review opening to feedback submission; retain the actual duration and flag durations strictly greater than two hours. Do not cap or exclude flagged durations.
+- `Submissions` owns `assignment_opened` writes, `Reviews` owns review lifecycle event writes, and `Progress` reads events to calculate metrics without writing them.
+- The insights window is the rolling 30 days ending at the current UTC time. Conversion metrics use mature cohorts only: assignment-open cohorts at least 14 days old and `NeedsRevision` feedback cohorts at least 7 days old. Incomplete cohorts are excluded until their full conversion window elapses.
+- N02 includes only the four phase-0 metrics in `docs/BACKLOG_NEXT.md` §6. Later-phase metrics and engagement metrics are out of scope.
+
+Impact: add `ActivityEvents` with workspace-consistent foreign keys, event-specific payload checks and filtered unique indexes. Add the mentor insights application contract in the schema-change PR; implement event capture, queries and UI only after that PR is merged. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and the integration-test write-ownership convention.
+
+## D-55 — Playwright smoke is a required CI gate (T01)
 Status: Adopted (2026-10-26, confirmed by the user)
 
 Context: D-33 made the full-flow Playwright browser smoke an optional manual pre-release check outside CI. T01 adds this existing smoke test to the continuous integration workflow.

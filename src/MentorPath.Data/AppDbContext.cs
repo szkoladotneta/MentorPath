@@ -26,6 +26,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ExerciseCriterion> ExerciseCriteria => Set<ExerciseCriterion>();
     public DbSet<FeedbackCriterionScore> FeedbackCriterionScores => Set<FeedbackCriterionScore>();
     public DbSet<SubmissionReflection> SubmissionReflections => Set<SubmissionReflection>();
+    public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<AiGenerationRequest> AiGenerationRequests => Set<AiGenerationRequest>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)

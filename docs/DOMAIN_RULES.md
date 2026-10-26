@@ -64,6 +64,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | ExerciseCriteria | PK `(ExerciseId, CriterionId)`; FK `(WorkspaceId, ExerciseId)` → Exercises AK Cascade; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK |
 | FeedbackCriterionScores | PK `(FeedbackId, CriterionId)`; FK `(WorkspaceId, FeedbackId)` → MentorFeedback AK; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK; CHECK `Score BETWEEN 1 AND 5` |
 | SubmissionReflections | unique `SubmissionId`; CHECK `ConfidenceAfter BETWEEN 1 AND 5` |
+| ActivityEvents | append-only; FK `(WorkspaceId, AssignmentId)` → Assignments AK; nullable FK `(WorkspaceId, SubmissionId)` → Submissions AK; FKs to mentee and mentor users; unique first `assignment_opened` per assignment and unique `(WorkspaceId, SubmissionId, EventType)` for review events; event-specific payload CHECK; review duration nonnegative and `ExceedsTwoHours` iff duration > 2 h |
 | AiGenerationRequests | FK `ExerciseId` SetNull |
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
@@ -92,9 +93,9 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Catalog | Topics, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
 | Roadmaps | Roadmaps, RoadmapItems, Assignments |
-| Submissions | Submissions (insert), SubmissionAttachments |
-| Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`) |
-| Progress | nic (wszystko wyliczane) |
+| Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
+| Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
+| Progress | nic (ActivityEvents są tylko odczytywane; metryki są wyliczane) |
 | Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
 Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
