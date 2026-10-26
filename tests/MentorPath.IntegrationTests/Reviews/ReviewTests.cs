@@ -43,6 +43,7 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         detail.History.Attempts.Count.ShouldBe(1);
         (await App.Get<IReviewService>().GetReviewDetailAsync(b.UserId, s.SubmissionId, default)).ShouldBeNotFound();
         (await App.Get<IReviewService>().GetReviewDetailAsync(mentee.UserId, s.SubmissionId, default)).ShouldBeNotFound();
+        (await App.Get<IReviewService>().GetReviewDetailAsync(Guid.NewGuid(), s.SubmissionId, default)).ShouldBeNotFound();
     }
 
     [Fact]
