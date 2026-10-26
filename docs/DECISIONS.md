@@ -439,3 +439,16 @@ Decision:
 
 Impact: the rationale column and optional trailing contract properties were merged in schema-change PR #70. This feature change implements mentor form persistence and mentee projection/rendering.
 This decision supersedes D-52's deferral for these two context fields only; the resource/player slice and other exclusions remain unchanged.
+
+## D-54 — Playwright smoke is a required CI gate (T01)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Context: D-33 made the full-flow Playwright browser smoke an optional manual pre-release check outside CI. T01 adds this existing smoke test to the continuous integration workflow.
+
+Decision:
+- Run the smoke test as a required CI job for every pull request and every push to `main`. A setup, seed, readiness, or browser-test failure fails the workflow.
+- Run it against a disposable containerized application stack with PostgreSQL, Azurite, Mailpit, and the web app. Apply migrations and seed only demo data; remove the stack and its volumes at job completion.
+- Reuse `tests/e2e/ui-smoke.js`, including its existing cross-workspace isolation assertion. Do not use production services or data.
+- Retain browser failure screenshots as CI artifacts. The smoke remains runnable locally as documented.
+
+Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.

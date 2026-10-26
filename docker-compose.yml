@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: mentorpath
       POSTGRES_PASSWORD: mentorpath
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,15 +22,15 @@ services:
     environment:
       AZURITE_ACCOUNTS: "mentorpath:bWVudG9ycGF0aC1sb2NhbC1kZXYta2V5LW9ubHk="
     ports:
-      - "10000:10000"
+      - "${AZURITE_HOST_PORT:-10000}:10000"
     volumes:
       - blobdata:/data
 
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
 
   # Full stack (opt-in): docker compose --profile app up -d --build
   migrate:
@@ -56,7 +56,7 @@ services:
     build: .
     environment: *app-env
     ports:
-      - "8080:8080"
+      - "${APP_HOST_PORT:-8080}:8080"
     volumes:
       - dpkeys:/keys
     depends_on:

@@ -72,4 +72,4 @@ Potrzebujesz tylko testów (np. dług pokrycia): agent `mentorpath-qa-tester` �
 - CodeQL i secret scanning nie są dostępne dla prywatnego repo na planie Pro (GitHub Advanced Security). Zamiast nich: niezależny przegląd `mentorpath-security-reviewer` i skan podatnych pakietów w CI. Po zmianie planu lub upublicznieniu repo dodaj workflow CodeQL.
 
 - `dotnet format --verify-no-changes` nie jest bramką CI: 12 istniejących plików ma niezgodności (końce linii, kolejność `using`, wygenerowana migracja). Do uporządkowania osobnym, mechanicznym PR-em.
-- Playwright (`tests/e2e`) działa lokalnie przed wydaniem, nie w CI (D-33, backlog T01).
+- Playwright (`tests/e2e`) działa lokalnie przed wydaniem i jako wymagany job CI na pull requestach oraz pushach do `main` (D-54).
