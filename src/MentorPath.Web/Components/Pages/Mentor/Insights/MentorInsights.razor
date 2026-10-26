@@ -1,0 +1,81 @@
+@page "/mentor/insights"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+@inherits AppComponentBase
+@using System.Globalization
+@using MentorPath.Application.Progress.Contracts
+@inject IMentorInsightsService Insights
+
+<PageTitle>Pomiar pętli — MentorPath</PageTitle>
+
+<Page>
+    <PageHeader Title="Pomiar pętli" Subtitle="Metryki pracy mentoringowej z ostatnich 30 dni." />
+
+    <PageState Loading="Loading" NotFound="NotFound">
+        @if (Error is not null)
+        {
+            <ErrorAlert Error="Error" />
+        }
+        else if (data is not null)
+        {
+            <Section Title="Ostatnie 30 dni">
+                <p class="small text-secondary">
+                    Okres: @data.WindowStartUtc.ToString("d", PolishCulture) – @data.WindowEndUtc.ToString("d", PolishCulture).
+                    Kohorty konwersji są liczone dopiero po upływie pełnych 14 lub 7 dni.
+                </p>
+                @if (HasNoMetrics)
+                {
+                    <EmptyState Icon="trending-up" Title="Brak danych do pomiaru">
+                        Wyniki pojawią się, gdy w workspace zostaną otwarte zadania lub zakończone review.
+                    </EmptyState>
+                }
+                else
+                {
+                    <div class="mp-stats">
+                        <StatTile Label="Otwarte zadania → próba w 14 dni"
+                                  Value="@FormatPercent(data.AssignmentToSubmittedWithin14Days)"
+                                  Hint="@FormatCount(data.AssignmentToSubmittedWithin14Days)" />
+                        <StatTile Label="Od próby do feedbacku"
+                                  Value="@FormatDuration(data.MedianSubmittedToReviewed)"
+                                  Hint="Mediana czasu od przesłania próby do feedbacku." />
+                        <StatTile Label="Do poprawy → kolejna próba w 7 dni"
+                                  Value="@FormatPercent(data.NeedsRevisionToResubmittedWithin7Days)"
+                                  Hint="@FormatCount(data.NeedsRevisionToResubmittedWithin7Days)" />
+                        <StatTile Label="Od otwarcia review do feedbacku"
+                                  Value="@FormatDuration(data.MedianReviewDuration)"
+                                  Hint="Review powyżej 2 godzin pozostają w pomiarze i są oznaczane." />
+                    </div>
+                }
+            </Section>
+        }
+    </PageState>
+</Page>
+
+@code {
+    private static readonly CultureInfo PolishCulture = CultureInfo.GetCultureInfo("pl-PL");
+    private MentorInsightsDto? data;
+
+    private bool HasNoMetrics => data is not null
+                                 && data.AssignmentToSubmittedWithin14Days.Denominator == 0
+                                 && data.MedianSubmittedToReviewed is null
+                                 && data.NeedsRevisionToResubmittedWithin7Days.Denominator == 0
+                                 && data.MedianReviewDuration is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Insights.GetMentorInsightsAsync(await GetUserIdAsync(), Ct);
+        if (Handle(result)) data = result.Value;
+        Loading = false;
+    }
+
+    private static string FormatPercent(ConversionMetricDto metric) =>
+        metric.Denominator == 0 ? "—" : $"{Math.Round(100d * metric.Numerator / metric.Denominator)}%";
+
+    private static string FormatCount(ConversionMetricDto metric) =>
+        metric.Denominator == 0
+            ? "Brak dojrzałych kohort"
+            : $"{metric.Numerator} z {metric.Denominator} dojrzałych kohort";
+
+    private static string FormatDuration(TimeSpan? duration) =>
+        duration is null ? "—" : $"{duration.Value.TotalHours.ToString("0.0", PolishCulture)} godz.";
+}

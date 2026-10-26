@@ -193,6 +193,36 @@ public sealed class SubmissionTests(PostgresFixture db) : IntegrationTestBase(db
     }
 
     [Fact]
+    public async Task Assignment_open_event_is_recorded_once_only_after_authorized_access()
+    {
+        var mentor = await Data.MentorAsync();
+        var otherMentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var otherMentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submissions = App.Get<ISubmissionService>();
+
+        (await submissions.GetAssignmentForMenteeAsync(otherMentee.UserId, assignment.AssignmentId, default)).ShouldBeNotFound();
+        (await submissions.GetAssignmentForMenteeAsync(otherMentor.UserId, assignment.AssignmentId, default)).ShouldBeNotFound();
+        (await submissions.GetAssignmentForMenteeAsync(Guid.NewGuid(), assignment.AssignmentId, default)).ShouldBeNotFound();
+        (await App.Db(ctx => ctx.ActivityEvents.CountAsync(e => e.AssignmentId == assignment.AssignmentId))).ShouldBe(0);
+
+        (await submissions.GetAssignmentForMenteeAsync(mentee.UserId, assignment.AssignmentId, default)).ShouldSucceed();
+        App.Clock.Advance(TimeSpan.FromMinutes(1));
+        (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, assignment.AssignmentId, default)).ShouldSucceed();
+
+        var events = await App.Db(ctx => ctx.ActivityEvents
+            .Where(e => e.AssignmentId == assignment.AssignmentId)
+            .ToListAsync());
+        events.Count.ShouldBe(1);
+        events[0].WorkspaceId.ShouldBe(mentor.WorkspaceId);
+        events[0].MenteeUserId.ShouldBe(mentee.UserId);
+        events[0].MentorUserId.ShouldBe(mentor.UserId);
+        events[0].EventType.ShouldBe(ActivityEventType.AssignmentOpened);
+        events[0].OccurredAtUtc.ShouldBe(new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
     public async Task Paused_mentorship_and_withdrawn_assignment_block_new_attempts()
     {
         var mentor = await Data.MentorAsync();
