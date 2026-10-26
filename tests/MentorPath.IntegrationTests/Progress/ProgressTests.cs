@@ -4,12 +4,24 @@ using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
+using MentorPath.Web.Components.Pages.Mentor.Insights;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.IntegrationTests.Progress;
 
 public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
 {
+    [Fact]
+    public void Mentor_insights_duration_tiles_use_their_defined_units()
+    {
+        var thirtyMinutes = TimeSpan.FromMinutes(30);
+
+        MentorInsightsDurationFormatter.FormatMinutes(thirtyMinutes).ShouldBe("30 min");
+        MentorInsightsDurationFormatter.FormatHours(thirtyMinutes).ShouldBe("0,5 godz.");
+        MentorInsightsDurationFormatter.FormatMinutes(null).ShouldBe("—");
+        MentorInsightsDurationFormatter.FormatHours(null).ShouldBe("—");
+    }
+
     [Fact]
     public async Task Topic_completes_when_all_active_required_assignments_are_completed_and_optional_ones_do_not_block()
     {

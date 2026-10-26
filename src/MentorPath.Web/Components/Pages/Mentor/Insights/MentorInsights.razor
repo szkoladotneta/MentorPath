@@ -36,14 +36,14 @@
                                   Value="@FormatPercent(data.AssignmentToSubmittedWithin14Days)"
                                   Hint="@FormatCount(data.AssignmentToSubmittedWithin14Days)" />
                         <StatTile Label="Od próby do feedbacku"
-                                  Value="@FormatDuration(data.MedianSubmittedToReviewed)"
+                                  Value="@MentorInsightsDurationFormatter.FormatHours(data.MedianSubmittedToReviewed)"
                                   Hint="Mediana czasu od przesłania próby do feedbacku." />
                         <StatTile Label="Do poprawy → kolejna próba w 7 dni"
                                   Value="@FormatPercent(data.NeedsRevisionToResubmittedWithin7Days)"
                                   Hint="@FormatCount(data.NeedsRevisionToResubmittedWithin7Days)" />
-                        <StatTile Label="Od otwarcia review do feedbacku"
-                                  Value="@FormatDuration(data.MedianReviewDuration)"
-                                  Hint="Review powyżej 2 godzin pozostają w pomiarze i są oznaczane." />
+                        <StatTile Label="Czas review mentora"
+                                  Value="@MentorInsightsDurationFormatter.FormatMinutes(data.MedianReviewDuration)"
+                                  Hint="Mediana minut od otwarcia review do feedbacku; czasy powyżej 2 godzin pozostają w pomiarze i są oznaczane." />
                     </div>
                 }
             </Section>
@@ -75,7 +75,4 @@
         metric.Denominator == 0
             ? "Brak dojrzałych kohort"
             : $"{metric.Numerator} z {metric.Denominator} dojrzałych kohort";
-
-    private static string FormatDuration(TimeSpan? duration) =>
-        duration is null ? "—" : $"{duration.Value.TotalHours.ToString("0.0", PolishCulture)} godz.";
 }
