@@ -106,6 +106,16 @@ internal sealed class RubricService(
     internal static async Task EnsureSeededAsync(AppDbContext db, Guid workspaceId, TimeProvider clock, CancellationToken ct)
     {
         if (await db.RubricCriteria.AnyAsync(c => c.WorkspaceId == workspaceId, ct)) return;
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({workspaceId.ToString()}::text, 0::bigint))", ct);
+        if (await db.RubricCriteria.AnyAsync(c => c.WorkspaceId == workspaceId, ct))
+        {
+            await tx.CommitAsync(ct);
+            return;
+        }
+
         var now = clock.GetUtcNow().UtcDateTime;
         var added = new List<RubricCriterion>();
         for (var i = 0; i < DefaultRubric.Criteria.Count; i++)
@@ -131,10 +141,12 @@ internal sealed class RubricService(
         try
         {
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
         catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
         {
             // A concurrent request seeded the same workspace first; detach only our rows so the caller's tracked entities survive.
+            await tx.RollbackAsync(CancellationToken.None);
             foreach (var criterion in added) db.Entry(criterion).State = EntityState.Detached;
         }
     }
