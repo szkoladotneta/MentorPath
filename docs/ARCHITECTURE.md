@@ -90,7 +90,7 @@ MentorPath/
       ├─ Isolation/                 # A5
       ├─ Release/                   # A5 — scenariusz release
       └─ Http/                      # A5 — WebApplicationFactory: login, antiforgery, upload/download, nagłówki
-   └─ e2e/                          # A5 — Playwright smoke całego przepływu (D-33)
+   └─ e2e/                          # A5 — Playwright smoke całego przepływu (D-33, D-55)
 ```
 
 Uzasadnienie 3 projektów `src`:
@@ -264,7 +264,7 @@ Zasady:
 - `TestDataBuilder` (A1) tworzy dane przez serwisy aplikacji (D-32); rozszerzenia w plikach partial per agent.
 - `IFileStorage` w testach serwisów = jawnie `InMemoryFileStorage`; adapter Azure Blob ma testy integracyjne na Azurite (upload/download, Content-Type, prywatność, usuwanie, anulowanie).
 - `TimeProvider` → `FakeTimeProvider` dla wygasania zaproszeń.
-- E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — uruchamiane przed wydaniem, poza CI (D-33).
+- E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — wymagany job CI dla pull requestów i pushy do `main`; można też uruchomić lokalnie (D-55).
 
 ---
 

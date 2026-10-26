@@ -451,3 +451,16 @@ Decision:
 - N02 includes only the four phase-0 metrics in `docs/BACKLOG_NEXT.md` §6. Later-phase metrics and engagement metrics are out of scope.
 
 Impact: add `ActivityEvents` with workspace-consistent foreign keys, event-specific payload checks and filtered unique indexes. Add the mentor insights application contract in the schema-change PR; implement event capture, queries and UI only after that PR is merged. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and the integration-test write-ownership convention.
+
+## D-55 — Playwright smoke is a required CI gate (T01)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Context: D-33 made the full-flow Playwright browser smoke an optional manual pre-release check outside CI. T01 adds this existing smoke test to the continuous integration workflow.
+
+Decision:
+- Run the smoke test as a required CI job for every pull request and every push to `main`. A setup, seed, readiness, or browser-test failure fails the workflow.
+- Run it against a disposable containerized application stack with PostgreSQL, Azurite, Mailpit, and the web app. Apply migrations and seed only demo data; remove the stack and its volumes at job completion.
+- Reuse `tests/e2e/ui-smoke.js`, including its existing cross-workspace isolation assertion. Do not use production services or data.
+- Retain browser failure screenshots as CI artifacts. The smoke remains runnable locally as documented.
+
+Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.
