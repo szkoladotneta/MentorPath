@@ -15,6 +15,7 @@ Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuj
 | Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5); Azure PITR: 14 dni | kopie wygasają rotacyjnie; nie edytujemy kopii |
 | Usunięte bloby i kontenery (soft delete) | 30 dni | retencja Azure Blob; dotyczy także snapshotów usuniętych przez adapter |
 | Poprzednie wersje blobów | domyślnie wersjonowanie wyłączone (D-47) | jeśli operator je włączy, musi dodać regułę usuwania poprzednich wersji po 30 dniach; nigdy reguły wygaszającej bieżące załączniki |
+| Zdarzenia statystyczne `ActivityEvents` | brak automatycznego wygaszania w N02 | pozostają po anonimizacji; zachowują `MenteeUserId` i `MentorUserId` (D-54) |
 | Logi aplikacji | zgodnie z retencją platformy logów (zalecane ≤ 30 dni) | logi nie zawierają e-maili, tokenów, treści rozwiązań ani promptów |
 
 Czyszczenie wygasłych zaproszeń (operator, raz w miesiącu, po backupie):
@@ -67,7 +68,7 @@ Kolejność: najpierw usuwane są pliki z magazynu, potem w jednej transakcji zm
 
 ### Co zostaje i dlaczego
 
-Statystyki workspace'u i postęp roadmapy: identyfikatory, statusy prób, numery prób, wybrana opcja quizu, confidence przed/po, werdykty, daty, poziom i liczba godzin z onboardingu. Te dane nie identyfikują osoby po usunięciu konta i treści, a mentor potrzebuje ich do oceny działania programu (N02). Oczekująca próba zostaje w kolejce mentora z pustą treścią i nazwą `Usunięty użytkownik`. Mentor może technicznie przywrócić relację `Closed → Active` — dla zanonimizowanego konta nie ma to skutków (konto zablokowane, brak danych osobowych).
+Statystyki workspace'u i postęp roadmapy: identyfikatory, statusy prób, numery prób, wybrana opcja quizu, confidence przed/po, werdykty, daty, poziom i liczba godzin z onboardingu. Zdarzenia `ActivityEvents` pozostają wraz z `MenteeUserId` i `MentorUserId`, aby zachować statystyki pętli N02; nie zawierają treści odpowiedzi ani feedbacku. Te identyfikatory nadal łączą zdarzenia z kontem zanonimizowanym i są przechowywane świadomie (D-54). Oczekująca próba zostaje w kolejce mentora z pustą treścią i nazwą `Usunięty użytkownik`. Mentor może technicznie przywrócić relację `Closed → Active` — dla zanonimizowanego konta nie ma to skutków (konto zablokowane, brak danych osobowych).
 
 ### Ograniczenia
 
