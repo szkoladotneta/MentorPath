@@ -262,6 +262,20 @@ public sealed class SubmissionReflection
     public Submission? Submission { get; set; }
 }
 
+public sealed class ActivityEvent : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid AssignmentId { get; set; }
+    public Guid? SubmissionId { get; set; }
+    public Guid MenteeUserId { get; set; }
+    public Guid MentorUserId { get; set; }
+    public ActivityEventType EventType { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public TimeSpan? ReviewDuration { get; set; }
+    public bool ExceedsTwoHours { get; set; }
+}
+
 public sealed class AiGenerationRequest : IWorkspaceScoped
 {
     public Guid Id { get; set; }

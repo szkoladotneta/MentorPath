@@ -51,8 +51,8 @@ public sealed class ConventionTests
         ["Catalog"] = ["Topics", "TopicResources", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
         ["AiAuthoring"] = ["AiGenerationRequests"],
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
-        ["Submissions"] = ["Submissions", "SubmissionAttachments"],
-        ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions"],
+        ["Submissions"] = ["Submissions", "SubmissionAttachments", "ActivityEvents"],
+        ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
         ["Progress"] = [],
         ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Invitations"],
     };
@@ -63,7 +63,8 @@ public sealed class ConventionTests
     // Actor-scoped lists take no resource id: they return only the actor's own rows, so there is nothing foreign to probe by id.
     private static readonly HashSet<string> ActorScopedLists =
     [
-        "IReviewService.GetPendingAsync", "IMentorshipService.ListForMenteeAsync", "IMentorshipService.ListForMentorAsync",
+        "IReviewService.GetPendingAsync", "IMentorInsightsService.GetMentorInsightsAsync",
+        "IMentorshipService.ListForMenteeAsync", "IMentorshipService.ListForMentorAsync",
         "IInvitationService.ListAsync", "ITopicService.ListAsync", "IExerciseAuthoringService.ListAsync", "IAiExerciseDraftService.GetQuotaAsync",
     ];
 
@@ -168,6 +169,30 @@ public sealed class ConventionTests
         }
 
         violations.Distinct().ShouldBeEmpty("write ownership matrix in docs/DOMAIN_RULES.md");
+    }
+
+    [Fact]
+    public void ActivityEvents_are_append_only()
+    {
+        var mutations = new Regex(@"\bdb\.ActivityEvents\s*\.(?<operation>\w+)\s*\(");
+        var bulk = new Regex(@"\bdb\.ActivityEvents\b[^;]*?\.Execute(Update|Delete)Async", RegexOptions.Singleline);
+        var disallowed = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Remove", "RemoveRange", "Update", "UpdateRange",
+        };
+        var offenders = SourceFiles("src/MentorPath.Application")
+            .Where(f => !IsBuildOutput(f))
+            .SelectMany(file =>
+            {
+                var text = File.ReadAllText(file);
+                var ordinaryMutations = mutations.Matches(text)
+                    .Where(m => disallowed.Contains(m.Groups["operation"].Value))
+                    .Select(_ => file);
+                return ordinaryMutations.Concat(bulk.IsMatch(text) ? [file] : []);
+            })
+            .ToList();
+
+        offenders.ShouldBeEmpty("ActivityEvents may only be appended");
     }
 
     [Fact]
