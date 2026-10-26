@@ -26,6 +26,7 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `App__DisableHttpsRedirection` | opcjonalne | `true`, jeśli TLS kończy się na proxy i proxy samo przekierowuje |
 | `DataProtection__BlobUri` | Azure: tak | Pełny HTTPS URI prywatnego bloba z kluczami, bez SAS; `DefaultAzureCredential`; pierwszeństwo przed `KeysPath`; kontener tworzy operator |
 | `DataProtection__KeysPath` | poza Azure | Trwały katalog kluczy współdzielony z CLI (wolumen), domyślnie w obrazie `/keys` — sam katalog w obrazie nie jest trwały |
+| `DataProtection__CertificatePath` | Production | Ścieżka do PKCS#12 szyfrującego key ring (hasło: `DataProtection__CertificatePassword`); wspólny z CLI; brak = start przerwany w Production |
 | `Storage__Provider` | domyślnie `AzureBlob` | `InMemory` wyłącznie w testach; start Production jest odrzucany |
 | `Storage__AzureBlob__ServiceUri` | Azure: tak | `https://<konto>.blob.core.windows.net`, bez SAS; dostęp managed identity |
 | `Storage__AzureBlob__ContainerName` | domyślnie `mentorpath` | Prywatny kontener załączników |

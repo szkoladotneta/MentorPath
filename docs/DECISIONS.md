@@ -465,3 +465,10 @@ Decision:
 - Retain browser failure screenshots as CI artifacts. The smoke remains runnable locally as documented.
 
 Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.
+
+## D-56 — CSP `script-src 'self'` i szyfrowanie key ringu Data Protection (T02)
+Status: Adopted
+
+- CSP zawiera `script-src 'self' 'nonce-<per request>'` (nonce generowany per żądanie, tylko dla inline `<script type="importmap">` Blazora). Jedyny inline script (stan rail w `App.razor`) przeniesiony do `wwwroot/js/rail-init.js`. Test sprawdza nagłówek i że jedynym inline `<script>` jest import map z nonce. `style-src` bez zmian (poza zakresem).
+- Klucze Data Protection szyfrowane certyfikatem X.509 (`DataProtection:CertificatePath`, `DataProtection:CertificatePassword`; PKCS#12) przez `ProtectKeysWithCertificate`, bez nowego pakietu. W Production brak certyfikatu przy trwałym key ringu przerywa start.
+- Istniejące niezaszyfrowane klucze nadal się odczytują; nowe są szyfrowane. Utrata certyfikatu = utrata kluczy (jak utrata key ringu). Certyfikat i hasło przechowuj w Key Vault/sekretach, wspólne dla web i CLI.
