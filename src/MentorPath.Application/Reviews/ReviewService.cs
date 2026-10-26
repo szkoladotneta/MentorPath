@@ -53,6 +53,29 @@ internal sealed class ReviewService(
             .FirstOrDefaultAsync(ct);
         if (s is null) return Errors.NotFound(Module);
 
+        if (s.Status == SubmissionStatus.PendingReview)
+        {
+            db.ActivityEvents.Add(new ActivityEvent
+            {
+                Id = Guid.CreateVersion7(),
+                WorkspaceId = ws.Value,
+                AssignmentId = s.AssignmentId,
+                SubmissionId = s.Id,
+                MenteeUserId = s.MenteeUserId,
+                MentorUserId = actorUserId,
+                EventType = ActivityEventType.ReviewOpened,
+                OccurredAtUtc = clock.GetUtcNow().UtcDateTime,
+            });
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex, "IX_ActivityEvents_WorkspaceId_SubmissionId_EventType"))
+            {
+                // Concurrent review page loads produce one first-open event.
+            }
+        }
+
         var exercise = await db.Exercises.AsNoTracking().Include(e => e.QuizOptions).Include(e => e.Topic)
             .FirstAsync(e => e.Id == s.ExerciseId && e.WorkspaceId == ws, ct);
         var acc = new AssignmentAccess(s.AssignmentId, ws.Value, s.Roadmap.MentorshipId, s.MenteeUserId, s.ExerciseId,
@@ -84,13 +107,13 @@ internal sealed class ReviewService(
         if (!Enum.IsDefined(request.Verdict)) errors.Add(nameof(request.Verdict), "Wybierz werdykt.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var exerciseId = await db.Submissions.AsNoTracking()
+        var submission = await db.Submissions.AsNoTracking()
             .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws)
-            .Select(s => (Guid?)s.Assignment!.ExerciseId)
+            .Select(s => new { s.AssignmentId, s.MenteeUserId, s.Assignment!.ExerciseId })
             .FirstOrDefaultAsync(ct);
-        if (exerciseId is null) return Errors.NotFound(Module);
+        if (submission is null) return Errors.NotFound(Module);
 
-        var required = await LoadReviewCriteriaAsync(db, ws.Value, exerciseId.Value, ct);
+        var required = await LoadReviewCriteriaAsync(db, ws.Value, submission.ExerciseId, ct);
         var scores = request.Scores ?? [];
         var workspaceCriterionIds = await db.RubricCriteria.AsNoTracking().Where(c => c.WorkspaceId == ws).Select(c => c.Id).ToListAsync(ct);
         if (scores.Any(x => !workspaceCriterionIds.Contains(x.CriterionId))) return Errors.NotFound(Module);
@@ -123,6 +146,44 @@ internal sealed class ReviewService(
             ChallengeQuestionMarkdown = request.ChallengeQuestionMarkdown.Trim(),
             CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
         };
+        var openedAt = await db.ActivityEvents.AsNoTracking()
+            .Where(e => e.WorkspaceId == ws && e.SubmissionId == request.SubmissionId && e.EventType == ActivityEventType.ReviewOpened)
+            .Select(e => (DateTime?)e.OccurredAtUtc)
+            .SingleOrDefaultAsync(ct);
+        if (openedAt is null)
+        {
+            openedAt = feedback.CreatedAtUtc;
+            db.ActivityEvents.Add(new ActivityEvent
+            {
+                Id = Guid.CreateVersion7(),
+                WorkspaceId = ws.Value,
+                AssignmentId = submission.AssignmentId,
+                SubmissionId = request.SubmissionId,
+                MenteeUserId = submission.MenteeUserId,
+                MentorUserId = actorUserId,
+                EventType = ActivityEventType.ReviewOpened,
+                OccurredAtUtc = openedAt.Value,
+            });
+        }
+        var reviewDuration = feedback.CreatedAtUtc - openedAt.Value;
+        if (reviewDuration < TimeSpan.Zero)
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            return Errors.Conflict("review.clock_error", "Nie można zapisać pomiaru czasu review. Spróbuj ponownie.");
+        }
+        db.ActivityEvents.Add(new ActivityEvent
+        {
+            Id = Guid.CreateVersion7(),
+            WorkspaceId = ws.Value,
+            AssignmentId = submission.AssignmentId,
+            SubmissionId = request.SubmissionId,
+            MenteeUserId = submission.MenteeUserId,
+            MentorUserId = actorUserId,
+            EventType = ActivityEventType.ReviewSubmitted,
+            OccurredAtUtc = feedback.CreatedAtUtc,
+            ReviewDuration = reviewDuration,
+            ExceedsTwoHours = reviewDuration > TimeSpan.FromHours(2),
+        });
         db.MentorFeedback.Add(feedback);
         foreach (var score in scores)
             db.FeedbackCriterionScores.Add(new FeedbackCriterionScore
@@ -141,6 +202,8 @@ internal sealed class ReviewService(
         catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
         {
             await tx.RollbackAsync(CancellationToken.None);
+            if (DbErrors.ConstraintName(ex) == "IX_ActivityEvents_WorkspaceId_SubmissionId_EventType")
+                return Errors.Conflict("review.open_event_race", "Nie udało się zapisać początku pomiaru review. Spróbuj ponownie.");
             return Errors.Conflict("review.already_reviewed", "Ta próba ma już feedback.");
         }
         return feedback.Id;

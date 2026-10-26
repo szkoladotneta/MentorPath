@@ -36,9 +36,32 @@ internal sealed class SubmissionService(
             .Include(x => x.Exercise!).ThenInclude(e => e.QuizOptions)
             .Include(x => x.RoadmapItem!).ThenInclude(i => i.Topic)
             .FirstAsync(x => x.Id == assignmentId && x.WorkspaceId == acc.WorkspaceId, ct);
+        var mentorUserId = await db.Workspaces.AsNoTracking()
+            .Where(w => w.Id == acc.WorkspaceId)
+            .Select(w => w.OwnerUserId)
+            .SingleAsync(ct);
         var statuses = await db.Submissions.AsNoTracking()
             .Where(s => s.AssignmentId == assignmentId && s.WorkspaceId == acc.WorkspaceId)
             .Select(s => s.Status).ToListAsync(ct);
+
+        db.ActivityEvents.Add(new ActivityEvent
+        {
+            Id = Guid.CreateVersion7(),
+            WorkspaceId = acc.WorkspaceId,
+            AssignmentId = acc.AssignmentId,
+            MenteeUserId = actorUserId,
+            MentorUserId = mentorUserId,
+            EventType = ActivityEventType.AssignmentOpened,
+            OccurredAtUtc = clock.GetUtcNow().UtcDateTime,
+        });
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex, "IX_ActivityEvents_WorkspaceId_AssignmentId"))
+        {
+            // Concurrent page loads may both observe the assignment before the unique first-open event is saved.
+        }
 
         return new MenteeAssignmentDto(a.Id, acc.MentorshipId, a.RoadmapItem!.Topic!.Title, a.IsRequired, a.DueAtUtc,
             ExerciseAuthoringService.ToMenteeDto(a.Exercise!), BlockReason(acc, statuses), statuses.Count);

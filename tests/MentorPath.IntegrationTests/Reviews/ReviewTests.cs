@@ -43,6 +43,63 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         detail.History.Attempts.Count.ShouldBe(1);
         (await App.Get<IReviewService>().GetReviewDetailAsync(b.UserId, s.SubmissionId, default)).ShouldBeNotFound();
         (await App.Get<IReviewService>().GetReviewDetailAsync(mentee.UserId, s.SubmissionId, default)).ShouldBeNotFound();
+        (await App.Get<IReviewService>().GetReviewDetailAsync(Guid.NewGuid(), s.SubmissionId, default)).ShouldBeNotFound();
+    }
+
+    [Fact]
+    public async Task Review_open_and_submitted_events_capture_duration_and_flag_long_reviews()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        var reviews = App.Get<IReviewService>();
+
+        (await reviews.GetReviewDetailAsync(mentor.UserId, submission.SubmissionId, default)).ShouldSucceed();
+        App.Clock.Advance(TimeSpan.FromMinutes(1));
+        (await App.Get<IReviewService>().GetReviewDetailAsync(mentor.UserId, submission.SubmissionId, default)).ShouldSucceed();
+        App.Clock.Advance(TimeSpan.FromHours(2) + TimeSpan.FromMinutes(15));
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(submission.SubmissionId, "Mocne strony", "Do poprawy", "Pytanie", ReviewVerdict.NeedsRevision, await Data.ScoresAsync(mentor)), default))
+            .ShouldSucceed();
+
+        var events = await App.Db(ctx => ctx.ActivityEvents
+            .Where(e => e.SubmissionId == submission.SubmissionId)
+            .OrderBy(e => e.EventType)
+            .ToListAsync());
+        events.Count.ShouldBe(2);
+        var opened = events.Single(e => e.EventType == ActivityEventType.ReviewOpened);
+        opened.WorkspaceId.ShouldBe(mentor.WorkspaceId);
+        opened.AssignmentId.ShouldBe(assignment.AssignmentId);
+        opened.MenteeUserId.ShouldBe(mentee.UserId);
+        opened.MentorUserId.ShouldBe(mentor.UserId);
+        opened.OccurredAtUtc.ShouldBe(new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc));
+
+        var submitted = events.Single(e => e.EventType == ActivityEventType.ReviewSubmitted);
+        var submittedDuration = submitted.ReviewDuration.GetValueOrDefault();
+        submittedDuration.ShouldBe(TimeSpan.FromHours(2) + TimeSpan.FromMinutes(16));
+        submitted.ExceedsTwoHours.ShouldBeTrue();
+        submitted.OccurredAtUtc.ShouldBe(opened.OccurredAtUtc + submittedDuration);
+    }
+
+    [Fact]
+    public async Task Review_of_exactly_two_hours_is_not_flagged_as_exceeding_the_threshold()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+
+        (await App.Get<IReviewService>().GetReviewDetailAsync(mentor.UserId, submission.SubmissionId, default)).ShouldSucceed();
+        App.Clock.Advance(TimeSpan.FromHours(2));
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(submission.SubmissionId, "Mocne strony", "Do poprawy", "Pytanie", ReviewVerdict.Accepted, await Data.ScoresAsync(mentor)), default))
+            .ShouldSucceed();
+
+        var submitted = await App.Db(ctx => ctx.ActivityEvents.SingleAsync(e =>
+            e.SubmissionId == submission.SubmissionId && e.EventType == ActivityEventType.ReviewSubmitted));
+        submitted.ReviewDuration.ShouldBe(TimeSpan.FromHours(2));
+        submitted.ExceedsTwoHours.ShouldBeFalse();
     }
 
     [Fact]
@@ -67,6 +124,8 @@ public sealed class ReviewTests(PostgresFixture db) : IntegrationTestBase(db)
         var scores = await Data.ScoresAsync(a);
         (await Reviews.SubmitFeedbackAsync(a.UserId, new(s.SubmissionId, "", "", "", ReviewVerdict.Accepted, scores), default))
             .ShouldFail(ErrorKind.Validation).FieldErrors!.Count.ShouldBe(3);
+        (await App.Db(ctx => ctx.ActivityEvents.CountAsync(e =>
+            e.SubmissionId == s.SubmissionId && e.EventType == ActivityEventType.ReviewSubmitted))).ShouldBe(0);
     }
 
     [Fact]

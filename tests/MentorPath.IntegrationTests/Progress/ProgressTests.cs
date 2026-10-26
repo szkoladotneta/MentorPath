@@ -4,12 +4,24 @@ using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
+using MentorPath.Web.Components.Pages.Mentor.Insights;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.IntegrationTests.Progress;
 
 public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
 {
+    [Fact]
+    public void Mentor_insights_duration_tiles_use_their_defined_units()
+    {
+        var thirtyMinutes = TimeSpan.FromMinutes(30);
+
+        MentorInsightsDurationFormatter.FormatMinutes(thirtyMinutes).ShouldBe("30 min");
+        MentorInsightsDurationFormatter.FormatHours(thirtyMinutes).ShouldBe("0,5 godz.");
+        MentorInsightsDurationFormatter.FormatMinutes(null).ShouldBe("—");
+        MentorInsightsDurationFormatter.FormatHours(null).ShouldBe("—");
+    }
+
     [Fact]
     public async Task Topic_completes_when_all_active_required_assignments_are_completed_and_optional_ones_do_not_block()
     {
@@ -63,7 +75,9 @@ public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
         var mentee = await Data.MenteeAsync(a);
         var other = await Data.MenteeAsync(a);
         var asg = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.ArchitecturalDecision);
+        (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, asg.AssignmentId, default)).ShouldSucceed();
         await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
+        App.Clock.Advance(TimeSpan.FromDays(14));
 
         (await App.Get<IProgressService>().GetRoadmapProgressAsync(b.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
         (await App.Get<IProgressService>().GetRoadmapProgressAsync(other.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
@@ -78,6 +92,74 @@ public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
         dashA.RecentActivity.ShouldContain(x => x.Kind == ActivityKind.Submitted);
         dashA.Mentees.Single(m => m.MentorshipId == mentee.MentorshipId).PendingReviewCount.ShouldBe(1);
         (await App.Get<IProgressService>().GetMentorDashboardAsync(mentee.UserId, default)).ShouldBeNotFound();
+
+        var insights = App.Get<IMentorInsightsService>();
+        (await insights.GetMentorInsightsAsync(a.UserId, default)).ShouldSucceed()
+            .AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(1, 1));
+        (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(b.UserId, default)).ShouldSucceed()
+            .AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(0, 0));
+        (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(mentee.UserId, default)).ShouldBeNotFound();
+        (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(Guid.NewGuid(), default)).ShouldBeNotFound();
+    }
+
+    [Fact]
+    public async Task Mentor_insights_calculate_mature_conversion_cohorts_and_median_durations()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, assignment.AssignmentId, default)).ShouldSucceed();
+
+        App.Clock.Advance(TimeSpan.FromDays(14));
+        var first = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        (await App.Get<IReviewService>().GetReviewDetailAsync(mentor.UserId, first.SubmissionId, default)).ShouldSucceed();
+        var reviewDuration = TimeSpan.FromHours(2) + TimeSpan.FromMinutes(15);
+        App.Clock.Advance(reviewDuration);
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(first.SubmissionId, "Mocne strony", "Do poprawy", "Pytanie", ReviewVerdict.NeedsRevision, await Data.ScoresAsync(mentor)), default))
+            .ShouldSucceed();
+
+        var secondAssignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, secondAssignment.AssignmentId, default)).ShouldSucceed();
+        var second = await Data.DecisionSubmissionAsync(mentee, secondAssignment.AssignmentId);
+        (await App.Get<IReviewService>().GetReviewDetailAsync(mentor.UserId, second.SubmissionId, default)).ShouldSucceed();
+        App.Clock.Advance(TimeSpan.FromHours(1));
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(second.SubmissionId, "Mocne strony", "Do poprawy", "Pytanie", ReviewVerdict.Accepted, await Data.ScoresAsync(mentor)), default))
+            .ShouldSucceed();
+
+        App.Clock.Advance(TimeSpan.FromDays(7) - TimeSpan.FromHours(1));
+        await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        var insights = (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(mentor.UserId, default)).ShouldSucceed();
+
+        insights.AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(1, 1));
+        insights.MedianSubmittedToReviewed.ShouldBe(TimeSpan.FromMinutes(97.5));
+        insights.NeedsRevisionToResubmittedWithin7Days.ShouldBe(new ConversionMetricDto(1, 1));
+        insights.MedianReviewDuration.ShouldBe(TimeSpan.FromMinutes(97.5));
+        insights.WindowStartUtc.ShouldBe(App.Clock.GetUtcNow().UtcDateTime.AddDays(-30));
+        insights.WindowEndUtc.ShouldBe(App.Clock.GetUtcNow().UtcDateTime);
+    }
+
+    [Fact]
+    public async Task Mentor_insights_include_exact_maturity_and_reporting_window_boundaries()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        (await App.Get<ISubmissionService>().GetAssignmentForMenteeAsync(mentee.UserId, assignment.AssignmentId, default)).ShouldSucceed();
+        var insightsService = App.Get<IMentorInsightsService>();
+
+        App.Clock.Advance(TimeSpan.FromDays(14));
+        (await insightsService.GetMentorInsightsAsync(mentor.UserId, default)).ShouldSucceed()
+            .AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(0, 1));
+
+        App.Clock.Advance(TimeSpan.FromDays(16));
+        (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(mentor.UserId, default)).ShouldSucceed()
+            .AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(0, 1));
+
+        App.Clock.Advance(TimeSpan.FromMicroseconds(1));
+        (await App.Get<IMentorInsightsService>().GetMentorInsightsAsync(mentor.UserId, default)).ShouldSucceed()
+            .AssignmentToSubmittedWithin14Days.ShouldBe(new ConversionMetricDto(0, 0));
     }
 
     [Fact]
