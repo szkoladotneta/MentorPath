@@ -214,6 +214,17 @@ public sealed class MentorFeedback : IWorkspaceScoped
     public List<FeedbackCriterionScore> CriterionScores { get; set; } = [];
 }
 
+public sealed class ProductFeedback
+{
+    public Guid Id { get; set; }
+    public Guid AuthorUserId { get; set; }
+    public string MessageText { get; set; } = "";
+    public string? PageContext { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+
+    public AppUser? Author { get; set; }
+}
+
 public sealed class RubricCriterion : IWorkspaceScoped
 {
     public Guid Id { get; set; }

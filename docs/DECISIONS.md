@@ -465,3 +465,15 @@ Decision:
 - Retain browser failure screenshots as CI artifacts. The smoke remains runnable locally as documented.
 
 Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.
+
+## D-56 — Global product feedback and redaction (N03)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Decision:
+- Mentors and mentees can submit global product feedback without associating the row with a workspace. Submission authorization still requires a real workspace relationship, checked through `IWorkspaceAccessService`: a mentor owns a workspace or a mentee has a mentorship in any status, including `Closed`. Identity role alone is insufficient.
+- Store the author user ID, required plain-text message (maximum 2000 characters), optional page path without query string (maximum 2000 characters), and UTC creation time. Do not store a workspace ID, author role, category, or rate-limit state. The operator follows up using the author ID.
+- The operator lists feedback through the CLI only, newest first; users cannot read submissions back in the web app.
+- Anonymization retains the feedback row and author ID but blanks the message. Database storage permits an empty message for that redacted state; submission validation rejects empty or whitespace-only text.
+- Place “Uwaga do produktu” in the top-bar user menu. No rate limit is added for the MVP.
+
+Impact: add a global `ProductFeedback` table in a schema-change PR. `Feedback` owns inserts and `Privacy` owns message redaction. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and write-ownership convention tests; implement submission, operator CLI and privacy behavior only after the schema PR is merged.
