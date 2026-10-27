@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using MentorPath.Application.Feedback.Contracts;
 using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
@@ -161,6 +162,42 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         assignmentHtml.ShouldNotContain("Guide quizu");
         assignmentHtml.ShouldNotContain("Wyja&#x15B;nienie");
         (await menteeClient.GetAsync("/mentor")).StatusCode.ShouldBe(HttpStatusCode.Redirect);
+    }
+
+    [Fact]
+    public async Task Feedback_entry_is_available_to_both_roles_but_notes_are_not_returned_by_web_routes()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        const string privateNote = "<script>window.__feedbackPwned=true</script>";
+        (await App.Get<IProductFeedbackService>().SubmitAsync(mentor.UserId,
+            new SubmitProductFeedbackRequest(privateNote, "/mentor"), default)).ShouldSucceed();
+
+        using var mentorClient = _factory.Client();
+        await WebAppFactory.LoginAsync(mentorClient, mentor.Email, TestDataBuilder.Password);
+        foreach (var url in new[] { "/mentor", "/mentor/feedback" })
+        {
+            var html = await mentorClient.GetStringAsync(url);
+            html.ShouldContain("Uwaga do produktu", customMessage: url);
+            html.ShouldContain("mentor/feedback", customMessage: url);
+            html.ShouldNotContain(privateNote, customMessage: url);
+        }
+        (await mentorClient.GetAsync("/mentor/feedback/list")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await mentorClient.GetAsync("/api/product-feedback")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var menteeClient = _factory.Client();
+        await WebAppFactory.LoginAsync(menteeClient, mentee.Email, TestDataBuilder.Password);
+        foreach (var url in new[] { "/app", "/app/feedback" })
+        {
+            var html = await menteeClient.GetStringAsync(url);
+            html.ShouldContain("Uwaga do produktu", customMessage: url);
+            html.ShouldContain("app/feedback", customMessage: url);
+            html.ShouldNotContain(privateNote, customMessage: url);
+        }
+        (await menteeClient.GetAsync("/app/feedback/list")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await menteeClient.GetAsync("/api/product-feedback")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await App.Get<IProductFeedbackOperatorService>().ListAsync(500, default))
+            .ShouldContain(x => x.AuthorUserId == mentor.UserId && x.Message == privateNote);
     }
 
     [Fact]

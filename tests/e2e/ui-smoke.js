@@ -58,6 +58,19 @@ async function expectText(page, text, timeout = 10000) {
     // Mentor A invites a new mentee.
     const mentor = current = await login(browser, 'mentor.a@mentorpath.local');
     await expectText(mentor, 'Dashboard');
+    await mentor.locator('summary[aria-label^="Menu użytkownika"]').click();
+    await expectText(mentor, 'Uwaga do produktu');
+    if (!(await mentor.locator('a.menu-item[href^="mentor/feedback"]').count()))
+      throw new Error('Mentor user menu does not link to product feedback');
+    await go(mentor, '/mentor/feedback');
+    await expectText(mentor, 'Napisz, co Ci przeszkadza');
+    await mentor.locator('#feedback-message').fill('<script>window.__feedbackPwned=true</script>');
+    await mentor.click('button:has-text("Wyślij uwagę")');
+    await expectText(mentor, 'Dziękujemy, uwaga została zapisana.');
+    if (await mentor.locator('script').evaluateAll(nodes => nodes.some(n => n.textContent.includes('__feedbackPwned'))))
+      throw new Error('Product feedback was rendered as executable HTML');
+    log('Mentor can open the feedback form and receives submission confirmation');
+    await go(mentor, '/mentor');
     log('Mentor A logged in, dashboard visible');
 
     await go(mentor, '/mentor/mentees');
@@ -88,6 +101,17 @@ async function expectText(page, text, timeout = 10000) {
     await mentee.locator('input[type=number]').fill('6');
     await mentee.click('button:has-text("Zapisz")');
     await expectText(mentee, 'Zapisano profil');
+    await mentee.locator('summary[aria-label^="Menu użytkownika"]').click();
+    await expectText(mentee, 'Uwaga do produktu');
+    if (!(await mentee.locator('a.menu-item[href^="app/feedback"]').count()))
+      throw new Error('Mentee user menu does not link to product feedback');
+    await go(mentee, '/app/feedback');
+    await expectText(mentee, 'Napisz, co Ci przeszkadza');
+    await mentee.locator('#feedback-message').fill('Mentees can send product feedback.');
+    await mentee.click('button:has-text("Wyślij uwagę")');
+    await expectText(mentee, 'Dziękujemy, uwaga została zapisana.');
+    log('Mentee can open the feedback form and receives submission confirmation');
+    await go(mentee, '/app');
     log('Mentee registered via invitation and saved onboarding');
 
     // Reusing the invitation is rejected.

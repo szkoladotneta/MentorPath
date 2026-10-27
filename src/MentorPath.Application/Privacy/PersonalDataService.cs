@@ -22,7 +22,7 @@ internal sealed class PersonalDataService(
     ILogger<PersonalDataService> logger) : IPersonalDataService
 {
     private const string Module = "privacy";
-    internal const int ExportSchemaVersion = 1;
+    internal const int ExportSchemaVersion = 2;
 
     public async Task<Result<PersonalDataExport>> ExportAsync(PersonalDataSubject subject, CancellationToken ct)
     {

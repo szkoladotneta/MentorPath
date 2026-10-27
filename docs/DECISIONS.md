@@ -477,3 +477,13 @@ Decision:
 - Place “Uwaga do produktu” in the top-bar user menu. No rate limit is added for the MVP.
 
 Impact: add a global `ProductFeedback` table in a schema-change PR. `Feedback` owns inserts and `Privacy` owns message redaction. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and write-ownership convention tests; implement submission, operator CLI and privacy behavior only after the schema PR is merged.
+
+## D-57 — Product feedback page context and export schema (N03)
+Status: Adopted (2026-10-27, clarification during PR review)
+
+Decision:
+- Store `PageContext` only when it is a local application path beginning with one `/`; reject network-path forms (`//` and `/\`), external URLs, and control characters. Remove query strings and fragments before storage.
+- Anonymization clears the feedback message but retains the local page path, author ID and timestamp for product context and operator follow-up. The privacy export includes this context.
+- Increment the personal-data export `schemaVersion` to 2 when adding the feedback collection.
+
+Impact: page context cannot carry a query-string secret or external destination, but may contain route identifiers and remains associated with the retained author ID after anonymization. Document this retention in `DATA_RETENTION.md`.

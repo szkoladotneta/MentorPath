@@ -83,7 +83,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
 
         var export = (await Privacy.ExportAsync(new(null, s.A.Email.ToUpperInvariant()), default)).ShouldSucceed();
 
-        export.SchemaVersion.ShouldBe(1);
+        export.SchemaVersion.ShouldBe(2);
         export.Profile.UserId.ShouldBe(s.A.UserId);
         export.Profile.Email.ShouldBe(s.A.Email);
         export.Profile.Roles.ShouldBe([AppRoles.Mentee]);

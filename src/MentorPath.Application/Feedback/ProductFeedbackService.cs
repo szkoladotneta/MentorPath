@@ -44,12 +44,13 @@ internal sealed class ProductFeedbackService(
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         var path = value.Trim();
-        if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(path, UriKind.Absolute, out var uri)
-            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            path = uri.AbsolutePath;
         var end = path.IndexOfAny(['?', '#']);
         if (end >= 0) path = path[..end];
-        return string.IsNullOrWhiteSpace(path) || path.Any(char.IsControl) ? null : path;
+        if (!path.StartsWith("/", StringComparison.Ordinal)
+            || path.StartsWith("//", StringComparison.Ordinal)
+            || path.StartsWith("/\\", StringComparison.Ordinal)
+            || path.Any(char.IsControl))
+            return null;
+        return path;
     }
 }

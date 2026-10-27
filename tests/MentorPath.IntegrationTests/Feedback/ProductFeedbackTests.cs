@@ -112,9 +112,11 @@ public sealed class ProductFeedbackTests(PostgresFixture db) : IntegrationTestBa
     [Theory]
     [InlineData("/app/roadmap/abc?token=secret", "/app/roadmap/abc")]
     [InlineData("/app/progress#frag", "/app/progress")]
-    [InlineData("https://mentorpath.test/app/profile?x=1", "/app/profile")]
+    [InlineData("https://mentorpath.test/app/profile?x=1", null)]
     [InlineData("?token=secret", null)]
     [InlineData("   ", null)]
+    [InlineData("//outside.example/path", null)]
+    [InlineData("/\\outside.example/path", null)]
     [InlineData("/app/\u001b]0;pwn\u0007x", null)]
     public async Task Page_path_never_keeps_query_string_or_fragment(string input, string? expected)
     {
@@ -193,7 +195,7 @@ public sealed class ProductFeedbackTests(PostgresFixture db) : IntegrationTestBa
         (await privacy.AnonymizeAsync(new(a.UserId, null), apply: true, default)).ShouldSucceed().ProductFeedbackScrubbed.ShouldBe(1);
 
         var kept = (await RowsAsync(a.UserId)).ShouldHaveSingleItem();
-        (kept.MessageText, kept.AuthorUserId).ShouldBe(("", a.UserId));
+        (kept.MessageText, kept.PageContext, kept.AuthorUserId).ShouldBe(("", "/app/a", a.UserId));
         (await RowsAsync(b.UserId)).ShouldHaveSingleItem().MessageText.ShouldBe("Uwaga B");
         (await Operator.ListAsync(500, default)).Where(f => f.AuthorUserId == a.UserId || f.AuthorUserId == b.UserId)
             .Select(f => f.Message).ShouldBe(["Uwaga B", ""], ignoreOrder: true);
