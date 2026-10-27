@@ -1,6 +1,6 @@
 # MentorPath — Retencja danych i procedura RODO (minimum)
 
-Status: **żywy dokument** · decyzje: D-42 (N04, issue #4), D-47 · dotyczy danych w PostgreSQL i w Azure Blob Storage.
+Status: **żywy dokument** · decyzje: D-42 (N04, issue #4), D-47, D-56 (N03) · dotyczy danych w PostgreSQL i w Azure Blob Storage.
 
 Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuje prośbę o **dostęp/eksport** (art. 15 i 20 RODO) oraz o **usunięcie** (art. 17). Polityka prywatności (tekst dla użytkowników) i umowy powierzenia z dostawcami hostingu, SMTP i AI są poza repozytorium (`SECURITY_REVIEW.md` S8).
 
@@ -10,6 +10,7 @@ Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuj
 |---|---|---|
 | Konto, relacja mentoringowa i jej treści (onboarding, próby, pliki, feedback, refleksje) — relacja `Active`/`Paused` | przez czas trwania relacji | — |
 | Jak wyżej, wszystkie relacje mentee `Closed` | 12 miesięcy od zamknięcia ostatniej relacji | `anonymize-user --confirm` |
+| Uwagi do produktu (`ProductFeedback`, N03) | jak konto osoby | `anonymize-user --confirm` czyści treść uwagi, ale zostawia wiersz z identyfikatorem autora i datą (D-56); eksport zawiera uwagi osoby |
 | Zaproszenia zaakceptowane | jak konto osoby | e-mail zastępuje `anonymize-user` |
 | Zaproszenia niezaakceptowane, wygasłe | 30 dni po `ExpiresAtUtc` | usunięcie przez operatora (SQL poniżej; nie ma konta, więc nie ma czego anonimizować w CLI) |
 | Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5); Azure PITR: 14 dni | kopie wygasają rotacyjnie; nie edytujemy kopii |

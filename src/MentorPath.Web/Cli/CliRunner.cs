@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.Web.Cli;
 
-/// <summary>Administrative commands executed from the same binary (D-24): migrate, create-mentor, seed-demo, export-user, anonymize-user.</summary>
+/// <summary>Administrative commands executed from the same binary (D-24): migrate, create-mentor, seed-demo, export-user, anonymize-user, list-feedback.</summary>
 public static class CliRunner
 {
-    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user"];
+    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user", "list-feedback"];
 
     public static bool IsCliCommand(string[] args) => args.Length > 0 && Commands.Contains(args[0], StringComparer.OrdinalIgnoreCase);
 
@@ -72,6 +72,9 @@ public static class CliRunner
 
                 case "anonymize-user":
                     return await PrivacyCommands.AnonymizeAsync(sp, options, Console.Out, Console.Error, CancellationToken.None);
+
+                case "list-feedback":
+                    return await FeedbackCommands.ListAsync(sp, options, Console.Out, Console.Error, CancellationToken.None);
             }
         }
         catch (Exception ex)

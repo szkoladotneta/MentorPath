@@ -6,6 +6,7 @@ using MentorPath.Application.Common.Access;
 using MentorPath.Application.Common.Email;
 using MentorPath.Application.Common.Markdown;
 using MentorPath.Application.Common.Storage;
+using MentorPath.Application.Feedback;
 using MentorPath.Application.Invitations;
 using MentorPath.Application.Mentorships;
 using MentorPath.Application.Privacy;
@@ -45,6 +46,7 @@ public static class MentorPathApplication
         services.AddReviewsModule();
         services.AddProgressModule();
         services.AddPrivacyModule();
+        services.AddFeedbackModule();
         return services;
     }
 

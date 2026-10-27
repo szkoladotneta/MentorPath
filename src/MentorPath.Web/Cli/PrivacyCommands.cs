@@ -52,7 +52,7 @@ internal static class PrivacyCommands
         }
 
         await stdout.WriteLineAsync($"Export written. UserId={export.Profile.UserId} Mentorships={export.Mentorships.Count} " +
-                                    $"Submissions={export.Submissions.Count} Invitations={export.Invitations.Count}");
+                                    $"Submissions={export.Submissions.Count} Invitations={export.Invitations.Count} ProductFeedback={export.ProductFeedback.Count}");
         return 0;
     }
 
@@ -73,7 +73,7 @@ internal static class PrivacyCommands
         await stdout.WriteLineAsync($"UserId={r.UserId} AlreadyAnonymized={r.AlreadyAnonymized} MentorshipsClosed={r.MentorshipsClosed} " +
                                     $"MentorshipsScrubbed={r.MentorshipsScrubbed} SubmissionsScrubbed={r.SubmissionsScrubbed} " +
                                     $"AttachmentsDeleted={r.AttachmentsDeleted} FeedbackScrubbed={r.FeedbackScrubbed} " +
-                                    $"ReflectionsScrubbed={r.ReflectionsScrubbed} InvitationsScrubbed={r.InvitationsScrubbed}");
+                                    $"ReflectionsScrubbed={r.ReflectionsScrubbed} InvitationsScrubbed={r.InvitationsScrubbed} ProductFeedbackScrubbed={r.ProductFeedbackScrubbed}");
         return 0;
     }
 

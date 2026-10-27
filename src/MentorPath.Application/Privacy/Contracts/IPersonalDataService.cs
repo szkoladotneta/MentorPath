@@ -34,7 +34,8 @@ public sealed record PersonalDataExport(
     ProfileExport Profile,
     IReadOnlyList<MentorshipExport> Mentorships,
     IReadOnlyList<SubmissionExport> Submissions,
-    IReadOnlyList<InvitationExport> Invitations);
+    IReadOnlyList<InvitationExport> Invitations,
+    IReadOnlyList<ProductFeedbackExport> ProductFeedback);
 
 public sealed record ProfileExport(Guid UserId, string Email, string DisplayName, DateTime CreatedAtUtc, IReadOnlyList<string> Roles);
 
@@ -58,10 +59,12 @@ public sealed record CriterionScoreExport(string CriterionName, int Position, in
 
 public sealed record ReflectionExport(short ConfidenceAfter, string TakeawayMarkdown, DateTime CreatedAtUtc);
 
+public sealed record ProductFeedbackExport(Guid FeedbackId, string Message, string? PagePath, DateTime CreatedAtUtc);
+
 public sealed record InvitationExport(Guid InvitationId, string WorkspaceName, DateTime ExpiresAtUtc, DateTime? AcceptedAtUtc, DateTime CreatedAtUtc);
 
 /// <summary>Counts only (no e-mails, texts or file names). In a dry run they describe what would change.</summary>
 public sealed record AnonymizationReport(
     Guid UserId, bool Applied, bool AlreadyAnonymized,
     int MentorshipsClosed, int MentorshipsScrubbed, int SubmissionsScrubbed, int AttachmentsDeleted,
-    int FeedbackScrubbed, int ReflectionsScrubbed, int InvitationsScrubbed);
+    int FeedbackScrubbed, int ReflectionsScrubbed, int InvitationsScrubbed, int ProductFeedbackScrubbed);

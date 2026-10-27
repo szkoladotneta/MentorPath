@@ -56,7 +56,7 @@ public static class InputLimits
 {
     public const int Title = 200, Slug = 150, Category = 80, ShortText = 1000,
                      Markdown = 20_000, ExternalUrl = 2000, DisplayName = 200, Email = 320,
-                     WorkspaceName = 200, QuizOptionsMin = 2, QuizOptionsMax = 6;
+                     WorkspaceName = 200, FeedbackMessage = 2000, PagePath = 2000, QuizOptionsMin = 2, QuizOptionsMax = 6;
 
     public const long MaxAttachmentBytes = 10 * 1024 * 1024;
 }

@@ -1,0 +1,15 @@
+@page "/mentor/feedback"
+@attribute [Authorize(Roles = AppRoles.Mentor)]
+@rendermode InteractiveServer
+
+<PageTitle>Uwaga do produktu — MentorPath</PageTitle>
+
+<Page Width="narrow">
+    <PageHeader Title="Uwaga do produktu"
+                Subtitle="Napisz, co Ci przeszkadza albo czego brakuje. Uwagi czyta zespół produktu; nie dostaniesz odpowiedzi w aplikacji." />
+    <ProductFeedbackForm From="From" />
+</Page>
+
+@code {
+    [SupplyParameterFromQuery(Name = "from")] public string? From { get; set; }
+}
