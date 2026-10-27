@@ -81,6 +81,9 @@ jobs:
           cache: npm
           cache-dependency-path: tests/e2e/package-lock.json
 
+      - name: Create disposable Data Protection certificate
+        run: bash scripts/create-local-dp-certificate.sh
+
       - name: Start disposable application stack
         run: docker compose --profile app up --detach --build
 

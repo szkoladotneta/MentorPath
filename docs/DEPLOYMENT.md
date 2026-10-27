@@ -13,6 +13,12 @@
 ```
 Jeden obraz Docker zawiera aplikację i komendy administracyjne (`migrate`, `create-mentor`, `seed-demo`).
 
+### Lokalny pełny stos i smoke CI
+
+Przed `docker compose --profile app up -d --build` uruchom `bash scripts/create-local-dp-certificate.sh` (wymaga OpenSSL). Skrypt tworzy certyfikat PKCS#12 bez hasła w ignorowanym `.local/`, poza kontekstem budowania obrazu. Compose montuje go tylko do odczytu jako secret w `migrate` i `app`, a `seed-demo` uruchamiane przez `exec app` używa tego samego certyfikatu i wolumenu `/keys`. Smoke CI wykonuje ten sam krok na jednorazowym runnerze i nadal testuje środowisko Production.
+
+To certyfikat **wyłącznie lokalny/CI**, nie do Azure ani prawdziwych danych. Skrypt zachowuje istniejący plik: nie usuwaj go, jeśli chcesz nadal odczytywać klucze z istniejącego wolumenu `dpkeys`. Do rzeczywistych wdrożeń dostarcz własny certyfikat przez bezpieczny magazyn i konfigurację poniżej.
+
 ## 2. Konfiguracja (zmienne środowiskowe)
 
 Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium nie ma sekretów produkcyjnych (wartości w `docker-compose.yml` i `appsettings.Development.json` są lokalne).

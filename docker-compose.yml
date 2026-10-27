@@ -32,7 +32,7 @@ services:
       - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
       - "${MAILPIT_UI_HOST_PORT:-8025}:8025"
 
-  # Full stack (opt-in): docker compose --profile app up -d --build
+  # Full stack (opt-in): bash scripts/create-local-dp-certificate.sh, then docker compose --profile app up -d --build
   migrate:
     profiles: ["app"]
     build: .
@@ -47,6 +47,9 @@ services:
       Email__Smtp__Host: "mailpit"
       Email__Smtp__Port: "1025"
       Ai__Provider: "Fake"
+      DataProtection__CertificatePath: "/run/secrets/data-protection-certificate"
+    secrets:
+      - data-protection-certificate
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +62,8 @@ services:
       - "${APP_HOST_PORT:-8080}:8080"
     volumes:
       - dpkeys:/keys
+    secrets:
+      - data-protection-certificate
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -69,3 +74,7 @@ volumes:
   dpkeys:
   pgdata:
   blobdata:
+
+secrets:
+  data-protection-certificate:
+    file: ./.local/data-protection.pfx
