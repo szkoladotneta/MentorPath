@@ -60,6 +60,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Submissions | unique `(AssignmentId, AttemptNumber)`; unique `(MenteeUserId, ClientRequestId)`; **partial unique `(AssignmentId) WHERE "Status" = 'PendingReview'`**; CHECK `ConfidenceBefore BETWEEN 1 AND 5`, `AttemptNumber > 0` |
 | SubmissionAttachments | unique `SubmissionId`, unique `ObjectKey` |
 | MentorFeedback | unique `SubmissionId`; AK `(WorkspaceId, Id)` |
+| ProductFeedback | global (not workspace-scoped); FK `AuthorUserId` → AspNetUsers (Restrict); `MessageText` required, max 2000 (empty stored value is reserved for anonymization); optional `PageContext` max 2000; indexes `(AuthorUserId, CreatedAtUtc)` and `CreatedAtUtc` |
 | RubricCriteria | unique `(WorkspaceId, Name)`; AK `(WorkspaceId, Id)`; CHECK `Position >= 0` |
 | ExerciseCriteria | PK `(ExerciseId, CriterionId)`; FK `(WorkspaceId, ExerciseId)` → Exercises AK Cascade; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK |
 | FeedbackCriterionScores | PK `(FeedbackId, CriterionId)`; FK `(WorkspaceId, FeedbackId)` → MentorFeedback AK; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK; CHECK `Score BETWEEN 1 AND 5` |
@@ -95,8 +96,9 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Roadmaps | Roadmaps, RoadmapItems, Assignments |
 | Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
 | Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
+| Feedback | ProductFeedback (insert submissions) |
 | Progress | nic (ActivityEvents są tylko odczytywane; metryki są wyliczane) |
-| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
+| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), ProductFeedback (wyczyszczenie `MessageText`), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
 Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
 

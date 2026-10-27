@@ -22,6 +22,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionAttachment> SubmissionAttachments => Set<SubmissionAttachment>();
     public DbSet<MentorFeedback> MentorFeedback => Set<MentorFeedback>();
+    public DbSet<ProductFeedback> ProductFeedback => Set<ProductFeedback>();
     public DbSet<RubricCriterion> RubricCriteria => Set<RubricCriterion>();
     public DbSet<ExerciseCriterion> ExerciseCriteria => Set<ExerciseCriterion>();
     public DbSet<FeedbackCriterionScore> FeedbackCriterionScores => Set<FeedbackCriterionScore>();

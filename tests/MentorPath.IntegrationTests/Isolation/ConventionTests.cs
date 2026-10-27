@@ -53,8 +53,9 @@ public sealed class ConventionTests
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments", "ActivityEvents"],
         ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
+        ["Feedback"] = ["ProductFeedback"],
         ["Progress"] = [],
-        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Invitations"],
+        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "ProductFeedback", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.

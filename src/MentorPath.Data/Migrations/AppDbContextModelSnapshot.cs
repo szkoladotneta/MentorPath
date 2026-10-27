@@ -525,6 +525,35 @@ namespace MentorPath.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MessageText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PageContext")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("AuthorUserId", "CreatedAtUtc");
+
+                    b.ToTable("ProductFeedback");
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.QuizOption", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1315,6 +1344,17 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Mentee");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
+                {
+                    b.HasOne("MentorPath.Data.AppUser", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.QuizOption", b =>
