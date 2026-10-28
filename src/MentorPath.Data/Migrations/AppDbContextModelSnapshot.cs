@@ -281,6 +281,50 @@ namespace MentorPath.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ManualJustification")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("RoadmapItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("WorkspaceId", "Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "RoadmapItemId", "ChangedAtUtc");
+
+                    b.ToTable("CompetencyStatusHistory");
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
                 {
                     b.Property<Guid>("Id")
@@ -657,6 +701,13 @@ namespace MentorPath.Data.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("CompetencyStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("NotAssessed");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1260,6 +1311,32 @@ namespace MentorPath.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyStatusHistory", b =>
+                {
+                    b.HasOne("MentorPath.Data.AppUser", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.RoadmapItem", "RoadmapItem")
+                        .WithMany("CompetencyStatusHistory")
+                        .HasForeignKey("WorkspaceId", "RoadmapItemId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("RoadmapItem");
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
                 {
                     b.HasOne("MentorPath.Data.Entities.Workspace", null)
@@ -1651,6 +1728,8 @@ namespace MentorPath.Data.Migrations
             modelBuilder.Entity("MentorPath.Data.Entities.RoadmapItem", b =>
                 {
                     b.Navigation("Assignments");
+
+                    b.Navigation("CompetencyStatusHistory");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Submission", b =>

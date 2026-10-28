@@ -496,3 +496,14 @@ Status: Adopted
 - Istniejące niezaszyfrowane klucze nadal się odczytują; nowe są szyfrowane. Utrata certyfikatu = utrata kluczy (jak utrata key ringu). Certyfikat i hasło przechowuj w Key Vault/sekretach, wspólne dla web i CLI.
 - Uzupełnienie T02: lokalny pełny stos i smoke CI pozostają w Production. Przed startem generują lokalny certyfikat PKCS#12 przez `scripts/create-local-dp-certificate.sh`, montowany jako read-only Compose secret do web i CLI. `.local/` jest ignorowany przez Git i Docker; certyfikat nie trafia do obrazu ani repozytorium. Zmiana workflow CI jest ograniczona do generowania tego certyfikatu i wymaga przeglądu CODEOWNERS. Nie wyłączamy walidacji Production na potrzeby smoke.
 - Uzupełnienie po review T02: wymóg certyfikatu w Production i zastosowanie skonfigurowanego certyfikatu nie zależą od ustawienia `KeysPath`/`BlobUri`; obejmują też magazyn wybrany domyślnie przez framework. Stała nazwa aplikacji `MentorPath` dotyczy również tej ścieżki (wcześniejsze cookies/tokeny hostów bez jawnej konfiguracji magazynu mogą wymagać ponownego wystawienia). Certyfikat nie zapewnia trwałości magazynu: operator nadal odpowiada za trwałe, wspólne przechowywanie kluczy web i CLI.
+
+## D-59 — Status kompetencji per roadmap item (N12)
+Status: Adopted (2026-10-28, owner-confirmed on issue #7)
+
+- Persist one mentor-assigned status per roadmap item: `NotAssessed`, `Learning`, `Practicing`, `Demonstrated`, or `NeedsRevisit`; new items default to `NotAssessed`.
+- The system only suggests `Demonstrated` when all active required assignments are `Accepted`; it never changes the status. A mentor may set `Demonstrated` without an `Accepted` attempt only with a non-empty plain-text justification, limited to 1000 characters.
+- Record each status change as an append-only history entry containing previous status, new status, mentor user ID, UTC timestamp, and any manual justification. The mentee sees the current status; attempt evidence and status history are mentor-only on the mentor roadmap.
+- Competency progress is the percentage of active roadmap items whose status is `Demonstrated`; with no active items the percentage is zero. Keep the existing assignment-completion progress alongside it.
+- Do not hard-delete a roadmap item after it has status history; deactivate it instead, preserving the append-only audit trail.
+
+Impact: add `RoadmapItems.CompetencyStatus` and `CompetencyStatusHistory` in the schema-change PR, alongside additive Roadmaps/Progress contract DTOs. Implement status authorization, evidence/history reads, suggestions, progress calculation, and UI only after the schema-change PR is merged.

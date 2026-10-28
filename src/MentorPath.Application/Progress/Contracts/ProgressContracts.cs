@@ -19,7 +19,8 @@ public enum AssignmentProgressStatus { NotStarted, InProgress, PendingReview, Ne
 public enum TopicProgressStatus { NotStarted, InProgress, Completed }
 
 public sealed record RoadmapProgressDto(Guid MentorshipId, bool HasPublishedRoadmap, int CompletedTopics, int CountedTopics,
-    int PercentComplete, IReadOnlyList<TopicProgressDto> Topics);
+    int PercentComplete, IReadOnlyList<TopicProgressDto> Topics, CompetencyProgressDto? CompetencyProgress = null);
+public sealed record CompetencyProgressDto(int DemonstratedCompetencies, int ActiveCompetencies, int PercentComplete);
 public sealed record TopicProgressDto(Guid RoadmapItemId, string TopicTitle, TopicProgressStatus Status, bool CountsTowardsProgress,
     int CompletedRequired, int TotalRequired, IReadOnlyList<AssignmentProgressDto> Assignments);
 public sealed record AssignmentProgressDto(Guid AssignmentId, string ExerciseTitle, bool IsRequired, AssignmentProgressStatus Status,
