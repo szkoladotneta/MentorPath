@@ -1,6 +1,8 @@
 using MentorPath.Data.Entities;
+using MentorPath.Data.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MentorPath.Data.Configurations;
 
@@ -56,6 +58,26 @@ internal sealed class TopicConfiguration : IEntityTypeConfiguration<Topic>
             .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
             .OnDelete(DeleteBehavior.Restrict);
         e.ToTable(t => t.HasCheckConstraint("CK_Topics_NotOwnParent", "\"ParentTopicId\" IS NULL OR \"ParentTopicId\" <> \"Id\""));
+    }
+}
+
+internal sealed class CompetencyPrerequisiteConfiguration : IEntityTypeConfiguration<CompetencyPrerequisite>
+{
+    public void Configure(EntityTypeBuilder<CompetencyPrerequisite> e)
+    {
+        e.HasKey(x => new { x.WorkspaceId, x.TopicId, x.PrerequisiteTopicId });
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasIndex(x => new { x.WorkspaceId, x.PrerequisiteTopicId });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Topic>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.TopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Topic>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.PrerequisiteTopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_CompetencyPrerequisites_NotSelf", "\"TopicId\" <> \"PrerequisiteTopicId\""));
     }
 }
 
@@ -218,6 +240,18 @@ internal sealed class MentorFeedbackConfiguration : IEntityTypeConfiguration<Men
     }
 }
 
+internal sealed class ProductFeedbackConfiguration : IEntityTypeConfiguration<ProductFeedback>
+{
+    public void Configure(EntityTypeBuilder<ProductFeedback> e)
+    {
+        e.Property(x => x.MessageText).HasMaxLength(2000).IsRequired();
+        e.Property(x => x.PageContext).HasMaxLength(2000);
+        e.HasIndex(x => new { x.AuthorUserId, x.CreatedAtUtc });
+        e.HasIndex(x => x.CreatedAtUtc);
+        e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class RubricCriterionConfiguration : IEntityTypeConfiguration<RubricCriterion>
 {
     public void Configure(EntityTypeBuilder<RubricCriterion> e)
@@ -282,6 +316,62 @@ internal sealed class SubmissionReflectionConfiguration : IEntityTypeConfigurati
             .OnDelete(DeleteBehavior.Restrict);
         e.ToTable(t => t.HasCheckConstraint("CK_SubmissionReflections_ConfidenceAfter", "\"ConfidenceAfter\" BETWEEN 1 AND 5"));
     }
+}
+
+internal sealed class ActivityEventConfiguration : IEntityTypeConfiguration<ActivityEvent>
+{
+    public void Configure(EntityTypeBuilder<ActivityEvent> e)
+    {
+        e.Property(x => x.EventType)
+            .HasConversion(new ValueConverter<ActivityEventType, string>(
+                value => ToStorage(value),
+                value => FromStorage(value)))
+            .HasMaxLength(30)
+            .IsRequired();
+        e.Property(x => x.ReviewDuration).HasColumnType("interval");
+        e.HasIndex(x => new { x.WorkspaceId, x.EventType, x.OccurredAtUtc });
+        e.HasIndex(x => new { x.WorkspaceId, x.SubmissionId });
+        e.HasIndex(x => new { x.WorkspaceId, x.AssignmentId })
+            .IsUnique()
+            .HasFilter("\"EventType\" = 'assignment_opened'");
+        e.HasIndex(x => new { x.WorkspaceId, x.SubmissionId, x.EventType }).IsUnique();
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Assignment>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.AssignmentId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Submission>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.SubmissionId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.MenteeUserId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.MentorUserId).OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_ActivityEvents_Payload",
+                "(\"EventType\" = 'assignment_opened' AND \"SubmissionId\" IS NULL AND \"ReviewDuration\" IS NULL AND NOT \"ExceedsTwoHours\") OR " +
+                "(\"EventType\" = 'review_opened' AND \"SubmissionId\" IS NOT NULL AND \"ReviewDuration\" IS NULL AND NOT \"ExceedsTwoHours\") OR " +
+                "(\"EventType\" = 'review_submitted' AND \"SubmissionId\" IS NOT NULL AND \"ReviewDuration\" IS NOT NULL " +
+                "AND \"ReviewDuration\" >= INTERVAL '0 seconds' " +
+                "AND \"ExceedsTwoHours\" = (\"ReviewDuration\" > INTERVAL '2 hours'))");
+        });
+    }
+
+    private static string ToStorage(ActivityEventType eventType) => eventType switch
+    {
+        ActivityEventType.AssignmentOpened => "assignment_opened",
+        ActivityEventType.ReviewOpened => "review_opened",
+        ActivityEventType.ReviewSubmitted => "review_submitted",
+        _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, null),
+    };
+
+    private static ActivityEventType FromStorage(string eventType) => eventType switch
+    {
+        "assignment_opened" => ActivityEventType.AssignmentOpened,
+        "review_opened" => ActivityEventType.ReviewOpened,
+        "review_submitted" => ActivityEventType.ReviewSubmitted,
+        _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, null),
+    };
 }
 
 internal sealed class AiGenerationRequestConfiguration : IEntityTypeConfiguration<AiGenerationRequest>

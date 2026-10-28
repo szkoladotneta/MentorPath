@@ -12,6 +12,8 @@ public enum RoadmapStatus { Draft, Published }
 
 public enum SubmissionStatus { Correct, Incorrect, PendingReview, Accepted, NeedsRevision }
 
+public enum ActivityEventType { AssignmentOpened, ReviewOpened, ReviewSubmitted }
+
 public enum MentorshipStatus { Active, Paused, Closed }
 
 public enum AiRequestStatus { Pending, Completed, Failed }

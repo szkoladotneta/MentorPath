@@ -439,3 +439,84 @@ Decision:
 
 Impact: the rationale column and optional trailing contract properties were merged in schema-change PR #70. This feature change implements mentor form persistence and mentee projection/rendering.
 This decision supersedes D-52's deferral for these two context fields only; the resource/player slice and other exclusions remain unchanged.
+
+## D-54 — Activity events and phase-0 mentor insights (N02)
+Status: Adopted (2026-10-26, owner-confirmed event and anonymization behavior; reporting and ownership choices delegated)
+
+Decision:
+- Add append-only `ActivityEvents` records for `assignment_opened`, `review_opened` and `review_submitted`. Persist workspace, assignment, optional submission, mentee and mentor IDs, UTC occurrence time, optional review duration and an `ExceedsTwoHours` flag. Do not persist answer or feedback content. Keep mentee and mentor IDs in these records after mentee anonymization; N02 adds no time-based event purge.
+- Record only the first authorized `assignment_opened` per assignment and the first authorized `review_opened` per pending submission. Record `review_submitted` only after feedback is successfully saved. Its duration is measured from the first review opening to feedback submission; retain the actual duration and flag durations strictly greater than two hours. Do not cap or exclude flagged durations.
+- If feedback is submitted without a prior persisted `review_opened` event, record the opening at the feedback timestamp. This avoids inventing an unobserved start time; the resulting measured duration is zero.
+- `Submissions` owns `assignment_opened` writes, `Reviews` owns review lifecycle event writes, and `Progress` reads events to calculate metrics without writing them.
+- The insights window is the rolling 30 days ending at the current UTC time. Conversion metrics use mature cohorts only: assignment-open cohorts at least 14 days old and `NeedsRevision` feedback cohorts at least 7 days old. Incomplete cohorts are excluded until their full conversion window elapses.
+- N02 includes only the four phase-0 metrics in `docs/BACKLOG_NEXT.md` §6. Later-phase metrics and engagement metrics are out of scope.
+
+Impact: add `ActivityEvents` with workspace-consistent foreign keys, event-specific payload checks and filtered unique indexes. Add the mentor insights application contract in the schema-change PR; implement event capture, queries and UI only after that PR is merged. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and the integration-test write-ownership convention.
+
+## D-55 — Playwright smoke is a required CI gate (T01)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Context: D-33 made the full-flow Playwright browser smoke an optional manual pre-release check outside CI. T01 adds this existing smoke test to the continuous integration workflow.
+
+Decision:
+- Run the smoke test as a required CI job for every pull request and every push to `main`. A setup, seed, readiness, or browser-test failure fails the workflow.
+- Run it against a disposable containerized application stack with PostgreSQL, Azurite, Mailpit, and the web app. Apply migrations and seed only demo data; remove the stack and its volumes at job completion.
+- Reuse `tests/e2e/ui-smoke.js`, including its existing cross-workspace isolation assertion. Do not use production services or data.
+- Retain browser failure screenshots as CI artifacts. The smoke remains runnable locally as documented.
+
+Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.
+
+## D-56 — Global product feedback and redaction (N03)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Decision:
+- Mentors and mentees can submit global product feedback without associating the row with a workspace. Submission authorization still requires a real workspace relationship, checked through `IWorkspaceAccessService`: a mentor owns a workspace or a mentee has a mentorship in any status, including `Closed`. Identity role alone is insufficient.
+- Store the author user ID, required plain-text message (maximum 2000 characters), optional page path without query string (maximum 2000 characters), and UTC creation time. Do not store a workspace ID, author role, category, or rate-limit state. The operator follows up using the author ID.
+- The operator lists feedback through the CLI only, newest first; users cannot read submissions back in the web app.
+- Anonymization retains the feedback row and author ID but blanks the message. Database storage permits an empty message for that redacted state; submission validation rejects empty or whitespace-only text.
+- Place “Uwaga do produktu” in the top-bar user menu. No rate limit is added for the MVP.
+
+Impact: add a global `ProductFeedback` table in a schema-change PR. `Feedback` owns inserts and `Privacy` owns message redaction. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and write-ownership convention tests; implement submission, operator CLI and privacy behavior only after the schema PR is merged.
+
+## D-57 — Product feedback page context and export schema (N03)
+Status: Adopted (2026-10-27, clarification during PR review)
+
+Decision:
+- Store `PageContext` only when it is a local application path beginning with one `/`; reject network-path forms (`//` and `/\`), external URLs, and control characters. Remove query strings and fragments before storage.
+- Anonymization clears the feedback message but retains the local page path, author ID and timestamp for product context and operator follow-up. The privacy export includes this context.
+- Increment the personal-data export `schemaVersion` to 2 when adding the feedback collection.
+
+Impact: page context cannot carry a query-string secret or external destination, but may contain route identifiers and remains associated with the retained author ID after anonymization. Document this retention in `DATA_RETENTION.md`.
+
+## D-58 — CSP `script-src 'self'` i szyfrowanie key ringu Data Protection (T02)
+Status: Adopted
+
+- CSP zawiera `script-src 'self' 'nonce-<per request>'` (nonce generowany per żądanie, tylko dla inline `<script type="importmap">` Blazora). Jedyny inline script (stan rail w `App.razor`) przeniesiony do `wwwroot/js/rail-init.js`. Test sprawdza nagłówek i że jedynym inline `<script>` jest import map z nonce. `style-src` bez zmian (poza zakresem).
+- Klucze Data Protection szyfrowane certyfikatem X.509 (`DataProtection:CertificatePath`, `DataProtection:CertificatePassword`; PKCS#12) przez `ProtectKeysWithCertificate`, bez nowego pakietu. W Production brak certyfikatu przy trwałym key ringu przerywa start.
+- Istniejące niezaszyfrowane klucze nadal się odczytują; nowe są szyfrowane. Utrata certyfikatu = utrata kluczy (jak utrata key ringu). Certyfikat i hasło przechowuj w Key Vault/sekretach, wspólne dla web i CLI.
+- Uzupełnienie T02: lokalny pełny stos i smoke CI pozostają w Production. Przed startem generują lokalny certyfikat PKCS#12 przez `scripts/create-local-dp-certificate.sh`, montowany jako read-only Compose secret do web i CLI. `.local/` jest ignorowany przez Git i Docker; certyfikat nie trafia do obrazu ani repozytorium. Zmiana workflow CI jest ograniczona do generowania tego certyfikatu i wymaga przeglądu CODEOWNERS. Nie wyłączamy walidacji Production na potrzeby smoke.
+- Uzupełnienie po review T02: wymóg certyfikatu w Production i zastosowanie skonfigurowanego certyfikatu nie zależą od ustawienia `KeysPath`/`BlobUri`; obejmują też magazyn wybrany domyślnie przez framework. Stała nazwa aplikacji `MentorPath` dotyczy również tej ścieżki (wcześniejsze cookies/tokeny hostów bez jawnej konfiguracji magazynu mogą wymagać ponownego wystawienia). Certyfikat nie zapewnia trwałości magazynu: operator nadal odpowiada za trwałe, wspólne przechowywanie kluczy web i CLI.
+
+## D-59 — Background job infrastructure and database coordination (T05)
+Status: Adopted (2026-10-28, confirmed by the user)
+
+Decision:
+- T05 provides reusable hosting infrastructure only. It does not include a concrete reminder, email, cleanup, or tenant-data job, queue, or event bus.
+- Jobs are registered through dependency injection and share one configurable interval, hosted by `BackgroundService` with `PeriodicTimer`.
+- Each scheduler tick uses a PostgreSQL session-level advisory lock shared across processes. Contending workers use a non-blocking try-lock and skip that tick. The lock is explicitly released on normal completion; PostgreSQL releases it when the owning session/process is lost. If acquisition fails ambiguously, discard the connection pool so an unknown lock holder cannot be reused. No persisted lock/lease table is added.
+- A failed job is logged and does not prevent other registered jobs or later ticks from running. Host shutdown cancellation propagates through the in-flight job.
+
+Impact: future job consumers register into the shared schedule and must account for skipped ticks while another process holds the lock. Individual job failures are visible in logs but do not stop the scheduler. T05 requires no schema migration or `Contracts/` prerequisite.
+
+## D-60 — Cleanup osieroconych załączników (T03)
+Status: Adopted
+
+- The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
+- Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
+- T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
+
+## D-61 — Microsoft .NET 10.0.14 package updates
+Status: Adopted (2026-10-28; maintenance update)
+
+- Upgrade `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Design`, `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`, and `Microsoft.AspNetCore.Mvc.Testing` from 10.0.13 to 10.0.14.
+- This is a package maintenance update; no product behavior or new dependency is intended.

@@ -1,0 +1,39 @@
+@inherits AppComponentBase
+@using MentorPath.Application.Feedback.Contracts
+@inject IProductFeedbackService Feedback
+
+<Section>
+    <ErrorAlert Error="Error" ShowFieldList="false" />
+    @if (sent)
+    {
+        <div class="alert alert-success" role="status">Dziękujemy, uwaga została zapisana.</div>
+    }
+    <div class="mb-3">
+        <label class="form-label" for="feedback-message">Uwaga</label>
+        <InputTextArea id="feedback-message" class="form-control" rows="6" maxlength="@InputLimits.FeedbackMessage" @bind-Value="message" />
+        <FieldError Error="Error" Field="Message" />
+    </div>
+    <button type="button" class="btn btn-primary" @onclick="SendAsync" disabled="@(busy || !RendererInfo.IsInteractive)">Wyślij uwagę</button>
+</Section>
+
+@code {
+    /// <summary>Page the user came from; the service keeps the path only.</summary>
+    [Parameter] public string? From { get; set; }
+
+    private string message = "";
+    private bool busy;
+    private bool sent;
+
+    private async Task SendAsync()
+    {
+        busy = true;
+        sent = false;
+        var ok = Handle(await Feedback.SubmitAsync(await GetUserIdAsync(), new SubmitProductFeedbackRequest(message, From), Ct));
+        if (ok)
+        {
+            sent = true;
+            message = "";
+        }
+        busy = false;
+    }
+}

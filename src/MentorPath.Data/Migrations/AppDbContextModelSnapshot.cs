@@ -95,6 +95,63 @@ namespace MentorPath.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.ActivityEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("ExceedsTwoHours")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MenteeUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MentorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeSpan?>("ReviewDuration")
+                        .HasColumnType("interval");
+
+                    b.Property<Guid?>("SubmissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenteeUserId");
+
+                    b.HasIndex("MentorUserId");
+
+                    b.HasIndex("WorkspaceId", "AssignmentId")
+                        .IsUnique()
+                        .HasFilter("\"EventType\" = 'assignment_opened'");
+
+                    b.HasIndex("WorkspaceId", "SubmissionId");
+
+                    b.HasIndex("WorkspaceId", "EventType", "OccurredAtUtc");
+
+                    b.HasIndex("WorkspaceId", "SubmissionId", "EventType")
+                        .IsUnique();
+
+                    b.ToTable("ActivityEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_ActivityEvents_Payload", "(\"EventType\" = 'assignment_opened' AND \"SubmissionId\" IS NULL AND \"ReviewDuration\" IS NULL AND NOT \"ExceedsTwoHours\") OR (\"EventType\" = 'review_opened' AND \"SubmissionId\" IS NOT NULL AND \"ReviewDuration\" IS NULL AND NOT \"ExceedsTwoHours\") OR (\"EventType\" = 'review_submitted' AND \"SubmissionId\" IS NOT NULL AND \"ReviewDuration\" IS NOT NULL AND \"ReviewDuration\" >= INTERVAL '0 seconds' AND \"ExceedsTwoHours\" = (\"ReviewDuration\" > INTERVAL '2 hours'))");
+                        });
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.AiGenerationRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -199,6 +256,29 @@ namespace MentorPath.Data.Migrations
                     b.HasIndex("WorkspaceId", "RoadmapItemId");
 
                     b.ToTable("Assignments");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyPrerequisite", b =>
+                {
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PrerequisiteTopicId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("WorkspaceId", "TopicId", "PrerequisiteTopicId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "PrerequisiteTopicId");
+
+                    b.ToTable("CompetencyPrerequisites", t =>
+                        {
+                            t.HasCheckConstraint("CK_CompetencyPrerequisites_NotSelf", "\"TopicId\" <> \"PrerequisiteTopicId\"");
+                        });
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
@@ -466,6 +546,35 @@ namespace MentorPath.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_Mentorships_WeeklyHours", "\"WeeklyHours\" IS NULL OR (\"WeeklyHours\" BETWEEN 1 AND 80)");
                         });
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MessageText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PageContext")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("AuthorUserId", "CreatedAtUtc");
+
+                    b.ToTable("ProductFeedback");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.QuizOption", b =>
@@ -1047,6 +1156,40 @@ namespace MentorPath.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.ActivityEvent", b =>
+                {
+                    b.HasOne("MentorPath.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("MenteeUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("MentorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Assignment", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "AssignmentId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Submission", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "SubmissionId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.AiGenerationRequest", b =>
                 {
                     b.HasOne("MentorPath.Data.Entities.Exercise", null)
@@ -1092,6 +1235,29 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Exercise");
 
                     b.Navigation("RoadmapItem");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyPrerequisite", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "PrerequisiteTopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "TopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
@@ -1224,6 +1390,17 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Mentee");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
+                {
+                    b.HasOne("MentorPath.Data.AppUser", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.QuizOption", b =>

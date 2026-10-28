@@ -66,6 +66,13 @@ public sealed class Topic : IWorkspaceScoped
     public DateTime CreatedAtUtc { get; set; }
 }
 
+public sealed class CompetencyPrerequisite : IWorkspaceScoped
+{
+    public Guid WorkspaceId { get; set; }
+    public Guid TopicId { get; set; }
+    public Guid PrerequisiteTopicId { get; set; }
+}
+
 public sealed class TopicResource : IWorkspaceScoped
 {
     public Guid Id { get; set; }
@@ -214,6 +221,17 @@ public sealed class MentorFeedback : IWorkspaceScoped
     public List<FeedbackCriterionScore> CriterionScores { get; set; } = [];
 }
 
+public sealed class ProductFeedback
+{
+    public Guid Id { get; set; }
+    public Guid AuthorUserId { get; set; }
+    public string MessageText { get; set; } = "";
+    public string? PageContext { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+
+    public AppUser? Author { get; set; }
+}
+
 public sealed class RubricCriterion : IWorkspaceScoped
 {
     public Guid Id { get; set; }
@@ -260,6 +278,20 @@ public sealed class SubmissionReflection
     public DateTime CreatedAtUtc { get; set; }
 
     public Submission? Submission { get; set; }
+}
+
+public sealed class ActivityEvent : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid AssignmentId { get; set; }
+    public Guid? SubmissionId { get; set; }
+    public Guid MenteeUserId { get; set; }
+    public Guid MentorUserId { get; set; }
+    public ActivityEventType EventType { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public TimeSpan? ReviewDuration { get; set; }
+    public bool ExceedsTwoHours { get; set; }
 }
 
 public sealed class AiGenerationRequest : IWorkspaceScoped

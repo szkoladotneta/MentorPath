@@ -22,7 +22,7 @@ internal sealed class PersonalDataService(
     ILogger<PersonalDataService> logger) : IPersonalDataService
 {
     private const string Module = "privacy";
-    internal const int ExportSchemaVersion = 1;
+    internal const int ExportSchemaVersion = 2;
 
     public async Task<Result<PersonalDataExport>> ExportAsync(PersonalDataSubject subject, CancellationToken ct)
     {
@@ -89,11 +89,17 @@ internal sealed class PersonalDataService(
             .Select(i => new InvitationExport(i.Id, i.Workspace!.Name, i.ExpiresAtUtc, i.AcceptedAtUtc, i.CreatedAtUtc))
             .ToListAsync(ct);
 
+        var productFeedback = await read.ProductFeedback.AsNoTracking()
+            .Where(f => f.AuthorUserId == user.Id)
+            .OrderBy(f => f.CreatedAtUtc).ThenBy(f => f.Id)
+            .Select(f => new ProductFeedbackExport(f.Id, f.MessageText, f.PageContext, f.CreatedAtUtc))
+            .ToListAsync(ct);
+
         return new PersonalDataExport(
             ExportSchemaVersion,
             clock.GetUtcNow().UtcDateTime,
             new ProfileExport(user.Id, user.Email ?? "", user.DisplayName, user.CreatedAtUtc, roles),
-            mentorships, submissions, invitations);
+            mentorships, submissions, invitations, productFeedback);
     }
 
     public async Task<Result<AnonymizationReport>> AnonymizeAsync(PersonalDataSubject subject, bool apply, CancellationToken ct)
@@ -120,7 +126,8 @@ internal sealed class PersonalDataService(
             AttachmentsDeleted: attachments.Count,
             FeedbackScrubbed: await db.MentorFeedback.CountAsync(f => submissionIds.Contains(f.SubmissionId), ct),
             ReflectionsScrubbed: await db.SubmissionReflections.CountAsync(r => submissionIds.Contains(r.SubmissionId), ct),
-            InvitationsScrubbed: await db.Invitations.CountAsync(i => i.NormalizedEmail == normalizedEmail, ct));
+            InvitationsScrubbed: await db.Invitations.CountAsync(i => i.NormalizedEmail == normalizedEmail, ct),
+            ProductFeedbackScrubbed: await db.ProductFeedback.CountAsync(f => f.AuthorUserId == userId, ct));
         if (!apply) return report;
 
         // Files first: a storage failure leaves the database untouched, and a re-run tolerates objects that are already gone.
@@ -173,6 +180,9 @@ internal sealed class PersonalDataService(
         await db.SubmissionReflections
             .Where(r => submissionIds.Contains(r.SubmissionId))
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.TakeawayMarkdown, ""), ct);
+        await db.ProductFeedback
+            .Where(f => f.AuthorUserId == userId)
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MessageText, ""), ct);
         await db.Invitations
             .Where(i => i.NormalizedEmail == normalizedEmail)
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.NormalizedEmail, placeholderNormalized), ct);

@@ -51,6 +51,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Mentorships | unique `(WorkspaceId, MenteeUserId)`; AK `(WorkspaceId, Id)` |
 | Invitations | unique `TokenHash`; index `(WorkspaceId, NormalizedEmail)` |
 | Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)`; nullable `ParentTopicId` — FK `(WorkspaceId, ParentTopicId)` → Topics AK (Restrict); check `ParentTopicId <> Id`; index `(WorkspaceId, ParentTopicId)`; cykle i głębokość ≤ 3 pilnuje serwis (D-45) |
+| CompetencyPrerequisites | PK `(WorkspaceId, TopicId, PrerequisiteTopicId)`; FKs `(WorkspaceId, TopicId)` and `(WorkspaceId, PrerequisiteTopicId)` → Topics AK (Restrict); check `TopicId <> PrerequisiteTopicId`; index `WorkspaceId`, `(WorkspaceId, PrerequisiteTopicId)`; cykle wielokrokowe pilnuje serwis |
 | TopicResources | FK `(WorkspaceId, TopicId)` → Topics AK (Restrict); FK `WorkspaceId` → Workspaces (Restrict); indexes `WorkspaceId`, `(WorkspaceId, TopicId, Position)`; CHECK `Position >= 0`; title ≤ 200, URL ≤ 2000, optional plain-text description ≤ 1000; `Kind` as string (`Article`/`Video`, validated by the service), D-52 |
 | Exercises | FK `(WorkspaceId, TopicId)` → Topics AK; AK `(WorkspaceId, Id)` |
 | QuizOptions | FK `ExerciseId` Cascade; partial unique `(ExerciseId) WHERE "IsCorrect"` |
@@ -60,10 +61,12 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Submissions | unique `(AssignmentId, AttemptNumber)`; unique `(MenteeUserId, ClientRequestId)`; **partial unique `(AssignmentId) WHERE "Status" = 'PendingReview'`**; CHECK `ConfidenceBefore BETWEEN 1 AND 5`, `AttemptNumber > 0` |
 | SubmissionAttachments | unique `SubmissionId`, unique `ObjectKey` |
 | MentorFeedback | unique `SubmissionId`; AK `(WorkspaceId, Id)` |
+| ProductFeedback | global (not workspace-scoped); FK `AuthorUserId` → AspNetUsers (Restrict); `MessageText` required, max 2000 (empty stored value is reserved for anonymization); optional `PageContext` max 2000; indexes `(AuthorUserId, CreatedAtUtc)` and `CreatedAtUtc` |
 | RubricCriteria | unique `(WorkspaceId, Name)`; AK `(WorkspaceId, Id)`; CHECK `Position >= 0` |
 | ExerciseCriteria | PK `(ExerciseId, CriterionId)`; FK `(WorkspaceId, ExerciseId)` → Exercises AK Cascade; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK |
 | FeedbackCriterionScores | PK `(FeedbackId, CriterionId)`; FK `(WorkspaceId, FeedbackId)` → MentorFeedback AK; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK; CHECK `Score BETWEEN 1 AND 5` |
 | SubmissionReflections | unique `SubmissionId`; CHECK `ConfidenceAfter BETWEEN 1 AND 5` |
+| ActivityEvents | append-only; FK `(WorkspaceId, AssignmentId)` → Assignments AK; nullable FK `(WorkspaceId, SubmissionId)` → Submissions AK; FKs to mentee and mentor users; unique first `assignment_opened` per assignment and unique `(WorkspaceId, SubmissionId, EventType)` for review events; event-specific payload CHECK; review duration nonnegative and `ExceedsTwoHours` iff duration > 2 h |
 | AiGenerationRequests | FK `ExerciseId` SetNull |
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
@@ -89,13 +92,14 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Workspaces | Workspaces |
 | Mentorships | Mentorships |
 | Invitations | Invitations, Mentorships |
-| Catalog | Topics, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
+| Catalog | Topics, CompetencyPrerequisites, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
 | Roadmaps | Roadmaps, RoadmapItems, Assignments |
-| Submissions | Submissions (insert), SubmissionAttachments |
-| Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`) |
-| Progress | nic (wszystko wyliczane) |
-| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
+| Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
+| Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
+| Feedback | ProductFeedback (insert submissions) |
+| Progress | nic (ActivityEvents są tylko odczytywane; metryki są wyliczane) |
+| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), ProductFeedback (wyczyszczenie `MessageText`), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
 Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
 

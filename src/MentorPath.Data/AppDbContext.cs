@@ -13,6 +13,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Mentorship> Mentorships => Set<Mentorship>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Topic> Topics => Set<Topic>();
+    public DbSet<CompetencyPrerequisite> CompetencyPrerequisites => Set<CompetencyPrerequisite>();
     public DbSet<TopicResource> TopicResources => Set<TopicResource>();
     public DbSet<Exercise> Exercises => Set<Exercise>();
     public DbSet<QuizOption> QuizOptions => Set<QuizOption>();
@@ -22,10 +23,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionAttachment> SubmissionAttachments => Set<SubmissionAttachment>();
     public DbSet<MentorFeedback> MentorFeedback => Set<MentorFeedback>();
+    public DbSet<ProductFeedback> ProductFeedback => Set<ProductFeedback>();
     public DbSet<RubricCriterion> RubricCriteria => Set<RubricCriterion>();
     public DbSet<ExerciseCriterion> ExerciseCriteria => Set<ExerciseCriterion>();
     public DbSet<FeedbackCriterionScore> FeedbackCriterionScores => Set<FeedbackCriterionScore>();
     public DbSet<SubmissionReflection> SubmissionReflections => Set<SubmissionReflection>();
+    public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<AiGenerationRequest> AiGenerationRequests => Set<AiGenerationRequest>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)

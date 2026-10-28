@@ -83,7 +83,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
 
         var export = (await Privacy.ExportAsync(new(null, s.A.Email.ToUpperInvariant()), default)).ShouldSucceed();
 
-        export.SchemaVersion.ShouldBe(1);
+        export.SchemaVersion.ShouldBe(2);
         export.Profile.UserId.ShouldBe(s.A.UserId);
         export.Profile.Email.ShouldBe(s.A.Email);
         export.Profile.Roles.ShouldBe([AppRoles.Mentee]);
@@ -195,7 +195,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
         var report = (await Privacy.AnonymizeAsync(new(s.A.UserId, null), apply: false, default)).ShouldSucceed();
 
         report.ShouldBe(new AnonymizationReport(s.A.UserId, Applied: false, AlreadyAnonymized: false, MentorshipsClosed: 1, MentorshipsScrubbed: 1,
-            SubmissionsScrubbed: 3, AttachmentsDeleted: 1, FeedbackScrubbed: 2, ReflectionsScrubbed: 1, InvitationsScrubbed: 1));
+            SubmissionsScrubbed: 3, AttachmentsDeleted: 1, FeedbackScrubbed: 2, ReflectionsScrubbed: 1, InvitationsScrubbed: 1, ProductFeedbackScrubbed: 0));
         (await SubjectFullSnapshotAsync(App, s.A)).ShouldBe(before);
         App.Storage.Keys.Order().ToList().ShouldBe(keys);
     }
@@ -234,7 +234,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
         var report = (await Privacy.AnonymizeAsync(new(s.A.UserId, null), apply: true, default)).ShouldSucceed();
 
         report.ShouldBe(new AnonymizationReport(s.A.UserId, Applied: true, AlreadyAnonymized: false, MentorshipsClosed: 1, MentorshipsScrubbed: 1,
-            SubmissionsScrubbed: 3, AttachmentsDeleted: 1, FeedbackScrubbed: 2, ReflectionsScrubbed: 1, InvitationsScrubbed: 1));
+            SubmissionsScrubbed: 3, AttachmentsDeleted: 1, FeedbackScrubbed: 2, ReflectionsScrubbed: 1, InvitationsScrubbed: 1, ProductFeedbackScrubbed: 0));
         App.Storage.Keys.ShouldNotContain(s.AttachmentKey);
         var placeholderNormalized = App.Get<UserManager<AppUser>>().NormalizeEmail($"deleted-{s.A.UserId:N}@anonymized.invalid");
         await App.Db(async db =>
@@ -444,6 +444,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
 
         public Task SaveAsync(string objectKey, Stream content, string contentType, CancellationToken ct) => Inner.SaveAsync(objectKey, content, contentType, ct);
         public Task<Stream> OpenReadAsync(string objectKey, CancellationToken ct) => Inner.OpenReadAsync(objectKey, ct);
+        public IAsyncEnumerable<StoredBlobInfo> ListAsync(CancellationToken ct) => Inner.ListAsync(ct);
 
         public Task DeleteAsync(string objectKey, CancellationToken ct) =>
             FailDeletes ? throw new IOException("storage unavailable") : Inner.DeleteAsync(objectKey, ct);

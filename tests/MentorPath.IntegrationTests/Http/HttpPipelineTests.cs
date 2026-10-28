@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using MentorPath.Application.Feedback.Contracts;
 using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
@@ -36,6 +37,20 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
     }
 
     [Fact]
+    public async Task Login_page_has_no_inline_scripts()
+    {
+        using var client = _factory.Client();
+        var response = await client.GetAsync("/Account/Login");
+        var html = await response.Content.ReadAsStringAsync();
+        var csp = response.Headers.GetValues("Content-Security-Policy").Single();
+        var inline = System.Text.RegularExpressions.Regex.Matches(html, @"<script(?![^>]*\ssrc=)[^>]*>")
+            .Select(m => m.Value).ToList();
+        // Only the nonce-protected import map may be inline.
+        inline.ShouldAllBe(tag => tag.Contains("type=\"importmap\"") && tag.Contains("nonce="));
+        csp.ShouldContain("'nonce-");
+    }
+
+    [Fact]
     public async Task Health_endpoints_and_security_headers()
     {
         using var client = _factory.Client();
@@ -46,6 +61,7 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         page.Headers.GetValues("X-Frame-Options").ShouldContain("DENY");
         var contentSecurityPolicy = page.Headers.GetValues("Content-Security-Policy").ShouldHaveSingleItem();
         contentSecurityPolicy.ShouldContain("frame-ancestors 'none'");
+        contentSecurityPolicy.ShouldContain("script-src 'self'");
         contentSecurityPolicy.ShouldContain("frame-src https://www.youtube-nocookie.com https://player.vimeo.com");
     }
 
@@ -161,6 +177,42 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         assignmentHtml.ShouldNotContain("Guide quizu");
         assignmentHtml.ShouldNotContain("Wyja&#x15B;nienie");
         (await menteeClient.GetAsync("/mentor")).StatusCode.ShouldBe(HttpStatusCode.Redirect);
+    }
+
+    [Fact]
+    public async Task Feedback_entry_is_available_to_both_roles_but_notes_are_not_returned_by_web_routes()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        const string privateNote = "<script>window.__feedbackPwned=true</script>";
+        (await App.Get<IProductFeedbackService>().SubmitAsync(mentor.UserId,
+            new SubmitProductFeedbackRequest(privateNote, "/mentor"), default)).ShouldSucceed();
+
+        using var mentorClient = _factory.Client();
+        await WebAppFactory.LoginAsync(mentorClient, mentor.Email, TestDataBuilder.Password);
+        foreach (var url in new[] { "/mentor", "/mentor/feedback" })
+        {
+            var html = await mentorClient.GetStringAsync(url);
+            html.ShouldContain("Uwaga do produktu", customMessage: url);
+            html.ShouldContain("mentor/feedback", customMessage: url);
+            html.ShouldNotContain(privateNote, customMessage: url);
+        }
+        (await mentorClient.GetAsync("/mentor/feedback/list")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await mentorClient.GetAsync("/api/product-feedback")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var menteeClient = _factory.Client();
+        await WebAppFactory.LoginAsync(menteeClient, mentee.Email, TestDataBuilder.Password);
+        foreach (var url in new[] { "/app", "/app/feedback" })
+        {
+            var html = await menteeClient.GetStringAsync(url);
+            html.ShouldContain("Uwaga do produktu", customMessage: url);
+            html.ShouldContain("app/feedback", customMessage: url);
+            html.ShouldNotContain(privateNote, customMessage: url);
+        }
+        (await menteeClient.GetAsync("/app/feedback/list")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await menteeClient.GetAsync("/api/product-feedback")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await App.Get<IProductFeedbackOperatorService>().ListAsync(500, default))
+            .ShouldContain(x => x.AuthorUserId == mentor.UserId && x.Message == privateNote);
     }
 
     [Fact]

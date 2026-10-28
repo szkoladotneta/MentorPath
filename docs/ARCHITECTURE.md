@@ -59,7 +59,7 @@ MentorPath/
 │  └─ MentorPath.Web/
 │     ├─ Program.cs                 # A1
 │     ├─ Composition/               # A1: auth, cookies, rate limiting, health, headers, AddMentorPathModules()
-│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs); N04: export-user, anonymize-user (PrivacyCommands.cs)
+│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs); N04: export-user, anonymize-user (PrivacyCommands.cs); N03: list-feedback (FeedbackCommands.cs)
 │     ├─ Endpoints/                 # A1: Account (jeśli potrzebne); A3: AttachmentEndpoints.cs, PracticalSubmissionEndpoints.cs
 │     └─ Components/
 │        ├─ App.razor, Routes.razor, _Imports.razor     # A1
@@ -90,7 +90,7 @@ MentorPath/
       ├─ Isolation/                 # A5
       ├─ Release/                   # A5 — scenariusz release
       └─ Http/                      # A5 — WebApplicationFactory: login, antiforgery, upload/download, nagłówki
-   └─ e2e/                          # A5 — Playwright smoke całego przepływu (D-33)
+   └─ e2e/                          # A5 — Playwright smoke całego przepływu (D-33, D-55)
 ```
 
 Uzasadnienie 3 projektów `src`:
@@ -107,7 +107,7 @@ flowchart TB
   subgraph Web["MentorPath.Web (Blazor Interactive Server + endpoints + CLI)"]
     UI[Pages / Components]
     EP[Endpoints: upload/download]
-    CLI[CLI: migrate, create-mentor, seed, export-user, anonymize-user]
+    CLI[CLI: migrate, create-mentor, seed, export-user, anonymize-user, list-feedback]
   end
   subgraph App["MentorPath.Application"]
     COMMON["Common (A1)<br/>Result · IWorkspaceAccessService · IFileStorage · IMarkdownRenderer"]
@@ -234,6 +234,7 @@ Lokalnie: `docker compose up -d` (postgres, Azurite, mailpit) + `dotnet run --pr
 - `seed-demo` — tylko `Development` (lub `--force`): 2 mentorów, 2 mentees (jedna w obu workspace'ach), katalog, roadmapy (D-34).
 - `export-user (--email | --user-id) --out <plik>` — eksport danych osobowych mentee do pliku JSON (D-42).
 - `anonymize-user (--email | --user-id) [--confirm]` — anonimizacja mentee; bez `--confirm` tylko podgląd (D-42). Procedura: `docs/DATA_RETENTION.md`.
+- `list-feedback [--limit <1-500>]` — uwagi do produktu od najnowszych, z identyfikatorem autora (N03, D-56). Drukuje treść uwag, więc uruchamiaj w terminalu, nie w potoku logów.
 
 ---
 
@@ -264,7 +265,7 @@ Zasady:
 - `TestDataBuilder` (A1) tworzy dane przez serwisy aplikacji (D-32); rozszerzenia w plikach partial per agent.
 - `IFileStorage` w testach serwisów = jawnie `InMemoryFileStorage`; adapter Azure Blob ma testy integracyjne na Azurite (upload/download, Content-Type, prywatność, usuwanie, anulowanie).
 - `TimeProvider` → `FakeTimeProvider` dla wygasania zaproszeń.
-- E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — uruchamiane przed wydaniem, poza CI (D-33).
+- E2E przeglądarkowe: `tests/e2e/ui-smoke.js` (Playwright) — wymagany job CI dla pull requestów i pushy do `main`; można też uruchomić lokalnie (D-55).
 
 ---
 
