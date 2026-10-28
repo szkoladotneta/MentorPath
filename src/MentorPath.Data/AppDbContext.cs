@@ -19,6 +19,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<QuizOption> QuizOptions => Set<QuizOption>();
     public DbSet<Roadmap> Roadmaps => Set<Roadmap>();
     public DbSet<RoadmapItem> RoadmapItems => Set<RoadmapItem>();
+    public DbSet<CompetencyStatusHistory> CompetencyStatusHistory => Set<CompetencyStatusHistory>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionAttachment> SubmissionAttachments => Set<SubmissionAttachment>();
@@ -37,6 +38,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Properties<ExerciseStatus>().HaveConversion<string>().HaveMaxLength(20);
         builder.Properties<ExerciseSource>().HaveConversion<string>().HaveMaxLength(20);
         builder.Properties<RoadmapStatus>().HaveConversion<string>().HaveMaxLength(20);
+        builder.Properties<CompetencyStatus>().HaveConversion<string>().HaveMaxLength(30);
         builder.Properties<SubmissionStatus>().HaveConversion<string>().HaveMaxLength(30);
         builder.Properties<MentorshipStatus>().HaveConversion<string>().HaveMaxLength(20);
         builder.Properties<AiRequestStatus>().HaveConversion<string>().HaveMaxLength(20);

@@ -150,6 +150,7 @@ internal sealed class RoadmapItemConfiguration : IEntityTypeConfiguration<Roadma
     public void Configure(EntityTypeBuilder<RoadmapItem> e)
     {
         e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.Property(x => x.CompetencyStatus).HasDefaultValue(CompetencyStatus.NotAssessed);
         e.HasIndex(x => new { x.RoadmapId, x.TopicId }).IsUnique();
         e.HasIndex(x => x.WorkspaceId);
         e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
@@ -161,6 +162,25 @@ internal sealed class RoadmapItemConfiguration : IEntityTypeConfiguration<Roadma
             .HasForeignKey(a => new { a.WorkspaceId, a.RoadmapItemId })
             .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class CompetencyStatusHistoryConfiguration : IEntityTypeConfiguration<CompetencyStatusHistory>
+{
+    public void Configure(EntityTypeBuilder<CompetencyStatusHistory> e)
+    {
+        e.HasAlternateKey(x => new { x.WorkspaceId, x.Id });
+        e.Property(x => x.PreviousStatus).IsRequired();
+        e.Property(x => x.NewStatus).IsRequired();
+        e.Property(x => x.ManualJustification).HasMaxLength(1000);
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasIndex(x => new { x.WorkspaceId, x.RoadmapItemId, x.ChangedAtUtc });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.RoadmapItem).WithMany(x => x.CompetencyStatusHistory)
+            .HasForeignKey(x => new { x.WorkspaceId, x.RoadmapItemId })
+            .HasPrincipalKey(x => new { x.WorkspaceId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne(x => x.ChangedByUser).WithMany().HasForeignKey(x => x.ChangedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

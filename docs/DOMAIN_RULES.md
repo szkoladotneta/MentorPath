@@ -56,7 +56,8 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Exercises | FK `(WorkspaceId, TopicId)` → Topics AK; AK `(WorkspaceId, Id)` |
 | QuizOptions | FK `ExerciseId` Cascade; partial unique `(ExerciseId) WHERE "IsCorrect"` |
 | Roadmaps | unique `MentorshipId`; FK `(WorkspaceId, MentorshipId)` |
-| RoadmapItems | unique `(RoadmapId, TopicId)`; FK `(WorkspaceId, RoadmapId)`, `(WorkspaceId, TopicId)` |
+| RoadmapItems | unique `(RoadmapId, TopicId)`; FK `(WorkspaceId, RoadmapId)`, `(WorkspaceId, TopicId)`; `CompetencyStatus` stored as string, default `NotAssessed` |
+| CompetencyStatusHistory | append-only; AK `(WorkspaceId, Id)`; FK `WorkspaceId` → Workspaces (Restrict); FK `(WorkspaceId, RoadmapItemId)` → RoadmapItems AK (Restrict); `ChangedByUserId` → AspNetUsers (Restrict); indexes `WorkspaceId`, `(WorkspaceId, RoadmapItemId, ChangedAtUtc)`; optional plain-text `ManualJustification` ≤ 1000 |
 | Assignments | unique `(RoadmapItemId, ExerciseId)`; FK `(WorkspaceId, RoadmapItemId)`, `(WorkspaceId, ExerciseId)` |
 | Submissions | unique `(AssignmentId, AttemptNumber)`; unique `(MenteeUserId, ClientRequestId)`; **partial unique `(AssignmentId) WHERE "Status" = 'PendingReview'`**; CHECK `ConfidenceBefore BETWEEN 1 AND 5`, `AttemptNumber > 0` |
 | SubmissionAttachments | unique `SubmissionId`, unique `ObjectKey` |
@@ -71,7 +72,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
 - Indeks po `WorkspaceId` na każdej tabeli `IWorkspaceScoped`.
-- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions, `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-52), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
+- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions (RoadmapItem dodatkowo bez historii statusu kompetencji), `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-52), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
 - Enumy zapisywane jako string. Role Identity: `Mentor`, `Mentee`, `PlatformOperator`.
 
 ## 4. `DecisionAnswerJson` (schemat v1)
@@ -94,7 +95,7 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Invitations | Invitations, Mentorships |
 | Catalog | Topics, CompetencyPrerequisites, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
-| Roadmaps | Roadmaps, RoadmapItems, Assignments |
+| Roadmaps | Roadmaps, RoadmapItems, CompetencyStatusHistory, Assignments |
 | Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
 | Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
 | Feedback | ProductFeedback (insert submissions) |
@@ -112,7 +113,8 @@ Czysta funkcja `ProgressCalculator` jest jedynym miejscem reguł postępu.
 - Assignment `Completed` ⇔ istnieje próba `Correct` lub `Accepted`.
 - Aktywny temat `Completed` ⇔ wszystkie aktywne wymagane przypisania `Completed`. Temat bez aktywnych wymaganych przypisań: `CountsTowardsProgress = false`.
 - `PercentComplete = CountedTopics == 0 ? 0 : floor(100 * Completed / Counted)`.
-- Nic nie jest przechowywane. Ostatnia aktywność: 20 zdarzeń z 30 dni, wyliczane z Submissions/MentorFeedback/SubmissionReflections.
+- Competency status is mentor-assigned per roadmap item; the system only suggests `Demonstrated` when all active required assignments are `Accepted`. The mentee can see current status; evidence and append-only status history are mentor-only. Manual `Demonstrated` without an `Accepted` attempt requires a non-empty plain-text justification (≤ 1000), stored with the history entry. Competency progress is `floor(100 * Demonstrated active roadmap items / active roadmap items)`; zero active items gives 0%.
+- Assignment-completion progress remains calculated, not stored as an independent state. Last activity: 20 events from 30 days, calculated from Submissions/MentorFeedback/SubmissionReflections.
 - Refleksja: tylko autor-mentee, tylko dla statusów `Correct/Incorrect/Accepted/NeedsRevision`, jednorazowa (D-15).
 
 ## 7. Maszyna stanów

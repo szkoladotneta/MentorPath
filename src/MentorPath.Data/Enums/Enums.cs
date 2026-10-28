@@ -10,6 +10,8 @@ public enum TopicResourceKind { Article, Video }
 
 public enum RoadmapStatus { Draft, Published }
 
+public enum CompetencyStatus { NotAssessed, Learning, Practicing, Demonstrated, NeedsRevisit }
+
 public enum SubmissionStatus { Correct, Incorrect, PendingReview, Accepted, NeedsRevision }
 
 public enum ActivityEventType { AssignmentOpened, ReviewOpened, ReviewSubmitted }
