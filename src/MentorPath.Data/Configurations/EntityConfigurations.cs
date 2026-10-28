@@ -61,6 +61,26 @@ internal sealed class TopicConfiguration : IEntityTypeConfiguration<Topic>
     }
 }
 
+internal sealed class CompetencyPrerequisiteConfiguration : IEntityTypeConfiguration<CompetencyPrerequisite>
+{
+    public void Configure(EntityTypeBuilder<CompetencyPrerequisite> e)
+    {
+        e.HasKey(x => new { x.WorkspaceId, x.TopicId, x.PrerequisiteTopicId });
+        e.HasIndex(x => x.WorkspaceId);
+        e.HasIndex(x => new { x.WorkspaceId, x.PrerequisiteTopicId });
+        e.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Topic>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.TopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.HasOne<Topic>().WithMany()
+            .HasForeignKey(x => new { x.WorkspaceId, x.PrerequisiteTopicId })
+            .HasPrincipalKey(t => new { t.WorkspaceId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        e.ToTable(t => t.HasCheckConstraint("CK_CompetencyPrerequisites_NotSelf", "\"TopicId\" <> \"PrerequisiteTopicId\""));
+    }
+}
+
 internal sealed class TopicResourceConfiguration : IEntityTypeConfiguration<TopicResource>
 {
     public void Configure(EntityTypeBuilder<TopicResource> e)

@@ -66,6 +66,13 @@ public sealed class Topic : IWorkspaceScoped
     public DateTime CreatedAtUtc { get; set; }
 }
 
+public sealed class CompetencyPrerequisite : IWorkspaceScoped
+{
+    public Guid WorkspaceId { get; set; }
+    public Guid TopicId { get; set; }
+    public Guid PrerequisiteTopicId { get; set; }
+}
+
 public sealed class TopicResource : IWorkspaceScoped
 {
     public Guid Id { get; set; }

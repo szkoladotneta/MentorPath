@@ -258,6 +258,29 @@ namespace MentorPath.Data.Migrations
                     b.ToTable("Assignments");
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyPrerequisite", b =>
+                {
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PrerequisiteTopicId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("WorkspaceId", "TopicId", "PrerequisiteTopicId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "PrerequisiteTopicId");
+
+                    b.ToTable("CompetencyPrerequisites", t =>
+                        {
+                            t.HasCheckConstraint("CK_CompetencyPrerequisites_NotSelf", "\"TopicId\" <> \"PrerequisiteTopicId\"");
+                        });
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1212,6 +1235,29 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Exercise");
 
                     b.Navigation("RoadmapItem");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.CompetencyPrerequisite", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "PrerequisiteTopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Topic", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "TopicId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Exercise", b =>
