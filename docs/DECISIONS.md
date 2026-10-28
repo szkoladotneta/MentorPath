@@ -507,3 +507,10 @@ Decision:
 - A failed job is logged and does not prevent other registered jobs or later ticks from running. Host shutdown cancellation propagates through the in-flight job.
 
 Impact: future job consumers register into the shared schedule and must account for skipped ticks while another process holds the lock. Individual job failures are visible in logs but do not stop the scheduler. T05 requires no schema migration or `Contracts/` prerequisite.
+
+## D-60 — Cleanup osieroconych załączników (T03)
+Status: Adopted
+
+- The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
+- Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
+- T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
