@@ -19,6 +19,17 @@ else
     <div class="progress" role="progressbar" aria-valuenow="@progress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
         <div class="progress-bar" style="width:@(progress.PercentComplete)%"></div>
     </div>
+    @if (progress.CompetencyProgress is { } competencyProgress)
+    {
+        <div class="d-flex justify-content-between small mt-3 mb-1">
+            <span>Wykazane kompetencje: <strong>@competencyProgress.DemonstratedCompetencies / @competencyProgress.ActiveCompetencies</strong></span>
+            <span>@competencyProgress.PercentComplete%</span>
+        </div>
+        <div class="progress" role="progressbar" aria-label="Wykazane kompetencje"
+             aria-valuenow="@competencyProgress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width:@(competencyProgress.PercentComplete)%"></div>
+        </div>
+    }
     @if (progress.CountedTopics == 0)
     {
         <div class="small text-secondary mt-1">Brak wymaganych zadań na roadmapie.</div>

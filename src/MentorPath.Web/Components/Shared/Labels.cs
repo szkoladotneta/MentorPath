@@ -42,6 +42,16 @@ public static class Labels
 
     public static string Of(RoadmapStatus v) => v == RoadmapStatus.Published ? "Opublikowana" : "Szkic";
 
+    public static string Of(CompetencyStatus v) => v switch
+    {
+        CompetencyStatus.NotAssessed => "Nieoceniona",
+        CompetencyStatus.Learning => "W trakcie nauki",
+        CompetencyStatus.Practicing => "Ćwiczona",
+        CompetencyStatus.Demonstrated => "Wykazana",
+        CompetencyStatus.NeedsRevisit => "Do powtórki",
+        _ => v.ToString(),
+    };
+
     public static string Of(Difficulty v) => v switch
     {
         Difficulty.Beginner => "Podstawowy",
@@ -114,11 +124,13 @@ public static class Labels
     public static string Tone(object v) => v switch
     {
         SubmissionStatus.Correct or SubmissionStatus.Accepted or AssignmentProgressStatus.Completed or TopicProgressStatus.Completed
-            or ExerciseStatus.Published or RoadmapStatus.Published or MentorshipStatus.Active or InvitationState.Accepted => "success",
+            or ExerciseStatus.Published or RoadmapStatus.Published or MentorshipStatus.Active or InvitationState.Accepted
+            or CompetencyStatus.Demonstrated => "success",
         SubmissionStatus.PendingReview or AssignmentProgressStatus.PendingReview or InvitationState.Pending => "info",
         SubmissionStatus.NeedsRevision or SubmissionStatus.Incorrect or AssignmentProgressStatus.NeedsRevision
-            or MentorshipStatus.Paused or AssignmentProgressStatus.InProgress or TopicProgressStatus.InProgress => "warning",
-        ExerciseStatus.Archived or MentorshipStatus.Closed or InvitationState.Expired => "secondary",
+            or MentorshipStatus.Paused or AssignmentProgressStatus.InProgress or TopicProgressStatus.InProgress
+            or CompetencyStatus.Learning or CompetencyStatus.Practicing => "warning",
+        ExerciseStatus.Archived or MentorshipStatus.Closed or InvitationState.Expired or CompetencyStatus.NeedsRevisit => "secondary",
         _ => "light",
     };
 

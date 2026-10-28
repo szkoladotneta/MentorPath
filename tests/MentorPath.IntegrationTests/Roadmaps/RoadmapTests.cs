@@ -1,8 +1,11 @@
 using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Common;
 using MentorPath.Application.Roadmaps.Contracts;
+using MentorPath.Application.Reviews.Contracts;
+using MentorPath.Application.Submissions.Contracts;
 using MentorPath.Data.Enums;
 using MentorPath.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.IntegrationTests.Roadmaps;
 
@@ -79,6 +82,115 @@ public sealed class RoadmapTests(PostgresFixture db) : IntegrationTestBase(db)
         (await App.Get<IRoadmapService>().RemoveAssignmentAsync(mentor.UserId, asg.AssignmentId, default)).ShouldFail(ErrorKind.Conflict, "roadmap.has_submissions");
         (await App.Get<IRoadmapService>().RemoveTopicAsync(mentor.UserId, asg.RoadmapItemId, default)).ShouldFail(ErrorKind.Conflict, "roadmap.has_submissions");
         (await App.Get<IRoadmapService>().SetAssignmentActiveAsync(mentor.UserId, asg.AssignmentId, false, default)).ShouldSucceed();
+    }
+
+    [Fact]
+    public async Task Manual_demonstrated_status_requires_a_justification_and_is_visible_to_mentee_without_history()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var asg = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.QuizSingleChoice);
+        var svc = App.Get<IRoadmapService>();
+        var correctOptionId = await App.Db(ctx => ctx.QuizOptions.Where(o => o.ExerciseId == asg.ExerciseId && o.IsCorrect)
+            .Select(o => o.Id).SingleAsync());
+        (await App.Get<ISubmissionService>().SubmitQuizAsync(mentee.UserId,
+            new(asg.AssignmentId, Guid.NewGuid(), correctOptionId, "Rozumiem tę odpowiedź.", 4), default)).ShouldSucceed();
+
+        (await svc.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, null), default))
+            .ShouldFail(ErrorKind.Validation, "roadmap.competency_justification_required");
+        (await svc.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new((CompetencyStatus)999, null), default))
+            .ShouldFail(ErrorKind.Validation, "roadmap.invalid_competency_status");
+        (await svc.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, new string('x', 1001)), default))
+            .ShouldFail(ErrorKind.Validation, "roadmap.invalid_competency_justification");
+
+        (await svc.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, "Mentee samodzielnie uzasadnił decyzję."), default)).ShouldSucceed();
+        var mentorRoadmap = (await svc.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed()!;
+        var item = mentorRoadmap.Items.Single(i => i.RoadmapItemId == asg.RoadmapItemId);
+        item.Status.ShouldBe(CompetencyStatus.Demonstrated);
+        item.StatusHistory!.Count.ShouldBe(1);
+        item.StatusHistory[0].PreviousStatus.ShouldBe(CompetencyStatus.NotAssessed);
+        item.StatusHistory[0].NewStatus.ShouldBe(CompetencyStatus.Demonstrated);
+        item.StatusHistory[0].ChangedByUserId.ShouldBe(mentor.UserId);
+        item.StatusHistory[0].ChangedAtUtc.ShouldBe(App.Clock.GetUtcNow().UtcDateTime);
+        item.StatusHistory[0].ManualJustification.ShouldBe("Mentee samodzielnie uzasadnił decyzję.");
+        (await svc.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, "Duplicate"), default)).ShouldSucceed();
+        (await svc.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed()!
+            .Items.Single(i => i.RoadmapItemId == asg.RoadmapItemId).StatusHistory!.Count.ShouldBe(1);
+
+        var menteeRoadmap = (await svc.GetForMenteeAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        menteeRoadmap.Items.Single(i => i.RoadmapItemId == asg.RoadmapItemId).Status.ShouldBe(CompetencyStatus.Demonstrated);
+    }
+
+    [Fact]
+    public async Task Accepted_attempt_allows_demonstrated_status_without_manual_justification_and_preserves_history()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var asg = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, asg.AssignmentId);
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(submission.SubmissionId, "Mocne strony", "Rozwijaj dalej", "Jakie są kompromisy?", ReviewVerdict.Accepted,
+                await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
+
+        (await Roadmaps.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, null), default)).ShouldSucceed();
+        var item = (await Roadmaps.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed()!
+            .Items.Single(i => i.RoadmapItemId == asg.RoadmapItemId);
+        item.Evidence!.ShouldContain(e => e.SubmissionId == submission.SubmissionId && e.Status == SubmissionStatus.Accepted);
+        item.StatusHistory!.Count.ShouldBe(1);
+
+        (await Roadmaps.RemoveTopicAsync(mentor.UserId, asg.RoadmapItemId, default))
+            .ShouldFail(ErrorKind.Conflict, "roadmap.has_submissions");
+    }
+
+    [Fact]
+    public async Task Demonstrated_is_suggested_only_when_every_active_required_assignment_is_accepted()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var required = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var optionalExercise = await Data.PublishedExerciseAsync(mentor, required.TopicId, ExerciseType.PracticalTask);
+        var secondRequiredExercise = await Data.PublishedExerciseAsync(mentor, required.TopicId, ExerciseType.ArchitecturalDecision);
+        (await Roadmaps.AssignExerciseAsync(mentor.UserId,
+            new(required.RoadmapItemId, optionalExercise, false, null), default)).ShouldSucceed();
+        var secondRequiredId = (await Roadmaps.AssignExerciseAsync(mentor.UserId,
+            new(required.RoadmapItemId, secondRequiredExercise, true, null), default)).ShouldSucceed();
+
+        var firstSubmission = await Data.DecisionSubmissionAsync(mentee, required.AssignmentId);
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(firstSubmission.SubmissionId, "Mocne strony", "Rozwijaj dalej", "Jakie są kompromisy?", ReviewVerdict.Accepted,
+                await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
+        var item = (await Roadmaps.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed()!
+            .Items.Single(i => i.RoadmapItemId == required.RoadmapItemId);
+        item.SuggestedDemonstrated.ShouldBeFalse();
+        item.Status.ShouldBe(CompetencyStatus.NotAssessed);
+
+        var secondSubmission = await Data.DecisionSubmissionAsync(mentee, secondRequiredId);
+        (await App.Get<IReviewService>().SubmitFeedbackAsync(mentor.UserId,
+            new(secondSubmission.SubmissionId, "Mocne strony", "Rozwijaj dalej", "Jakie są kompromisy?", ReviewVerdict.Accepted,
+                await Data.ScoresAsync(mentor)), default)).ShouldSucceed();
+        item = (await Roadmaps.GetForMentorAsync(mentor.UserId, mentee.MentorshipId, default)).ShouldSucceed()!
+            .Items.Single(i => i.RoadmapItemId == required.RoadmapItemId);
+        item.SuggestedDemonstrated.ShouldBeTrue();
+        item.Status.ShouldBe(CompetencyStatus.NotAssessed);
+    }
+
+    [Fact]
+    public async Task Competency_status_history_prevents_removing_item_without_submissions()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var asg = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        (await Roadmaps.SetCompetencyStatusAsync(mentor.UserId, asg.RoadmapItemId,
+            new(CompetencyStatus.Learning, null), default)).ShouldSucceed();
+
+        (await Roadmaps.RemoveTopicAsync(mentor.UserId, asg.RoadmapItemId, default))
+            .ShouldFail(ErrorKind.Conflict, "roadmap.has_competency_history");
     }
 
     [Fact]

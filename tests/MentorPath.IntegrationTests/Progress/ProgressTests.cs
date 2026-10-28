@@ -68,6 +68,41 @@ public sealed class ProgressTests(PostgresFixture db) : IntegrationTestBase(db)
     }
 
     [Fact]
+    public async Task Competency_progress_counts_active_roadmap_items_and_uses_floor_percentage()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var first = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var second = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var withdrawn = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var roadmaps = App.Get<IRoadmapService>();
+
+        (await roadmaps.SetCompetencyStatusAsync(mentor.UserId, first.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, "Zaakceptowane rozwiązanie i uzasadnienie."), default)).ShouldSucceed();
+        (await roadmaps.SetCompetencyStatusAsync(mentor.UserId, second.RoadmapItemId,
+            new(CompetencyStatus.Learning, null), default)).ShouldSucceed();
+
+        var progress = App.Get<IProgressService>();
+        var third = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        third.CompetencyProgress.ShouldBe(new CompetencyProgressDto(1, 3, 33));
+        third.CountedTopics.ShouldBe(3);
+
+        (await roadmaps.SetTopicActiveAsync(mentor.UserId, withdrawn.RoadmapItemId, false, default)).ShouldSucceed();
+        var half = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        half.CompetencyProgress.ShouldBe(new CompetencyProgressDto(1, 2, 50));
+
+        (await roadmaps.SetCompetencyStatusAsync(mentor.UserId, second.RoadmapItemId,
+            new(CompetencyStatus.Demonstrated, "Kompetencja potwierdzona podczas przeglądu."), default)).ShouldSucceed();
+        var complete = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        complete.CompetencyProgress.ShouldBe(new CompetencyProgressDto(2, 2, 100));
+
+        (await roadmaps.SetTopicActiveAsync(mentor.UserId, first.RoadmapItemId, false, default)).ShouldSucceed();
+        (await roadmaps.SetTopicActiveAsync(mentor.UserId, second.RoadmapItemId, false, default)).ShouldSucceed();
+        var empty = (await progress.GetRoadmapProgressAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        empty.CompetencyProgress.ShouldBe(new CompetencyProgressDto(0, 0, 0));
+    }
+
+    [Fact]
     public async Task Progress_and_dashboard_are_isolated()
     {
         var a = await Data.MentorAsync();

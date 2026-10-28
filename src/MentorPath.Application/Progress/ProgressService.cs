@@ -20,7 +20,7 @@ internal sealed class ProgressService(
 
     private sealed record SubmissionRow(int AttemptNumber, SubmissionStatus Status, short ConfidenceBefore, short? ConfidenceAfter);
 
-    private sealed record ItemRow(Guid RoadmapItemId, Guid RoadmapId, string TopicTitle, int Position);
+    private sealed record ItemRow(Guid RoadmapItemId, Guid RoadmapId, string TopicTitle, int Position, CompetencyStatus CompetencyStatus);
 
     public async Task<Result<RoadmapProgressDto>> GetRoadmapProgressAsync(Guid actorUserId, Guid mentorshipId, CancellationToken ct)
     {
@@ -107,7 +107,7 @@ internal sealed class ProgressService(
         var items = await db.RoadmapItems.AsNoTracking()
             .Where(i => i.WorkspaceId == workspaceId && roadmapIds.Contains(i.RoadmapId) && i.IsActive)
             .OrderBy(i => i.Position)
-            .Select(i => new ItemRow(i.Id, i.RoadmapId, i.Topic!.Title, i.Position))
+            .Select(i => new ItemRow(i.Id, i.RoadmapId, i.Topic!.Title, i.Position, i.CompetencyStatus))
             .ToListAsync(ct);
         var itemIds = items.Select(i => i.RoadmapItemId).ToList();
         var assignments = await db.Assignments.AsNoTracking()
@@ -145,6 +145,10 @@ internal sealed class ProgressService(
 
         var counted = topics.Count(t => t.CountsTowardsProgress);
         var completed = topics.Count(t => t.CountsTowardsProgress && t.Status == TopicProgressStatus.Completed);
-        return new RoadmapProgressDto(mentorshipId, published, completed, counted, ProgressCalculator.Percent(completed, counted), topics);
+        var demonstrated = items.Count(i => i.CompetencyStatus == CompetencyStatus.Demonstrated);
+        var competencyProgress = new CompetencyProgressDto(demonstrated, items.Count,
+            ProgressCalculator.Percent(demonstrated, items.Count));
+        return new RoadmapProgressDto(mentorshipId, published, completed, counted,
+            ProgressCalculator.Percent(completed, counted), topics, competencyProgress);
     }
 }

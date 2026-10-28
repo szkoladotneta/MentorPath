@@ -37,6 +37,10 @@
                     @foreach (var item in roadmap.Items)
                     {
                         <Section Title="@($"{item.Position + 1}. {item.TopicTitle}")">
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                <span class="small text-secondary">Status kompetencji:</span>
+                                <Badge Value="item.Status" />
+                            </div>
                             <Markdown Value="@item.TopicDescriptionMarkdown" Class="small text-secondary mb-2" />
                             <a class="btn btn-outline-primary mb-3" href="@($"app/roadmap/{MentorshipId}/topics/{item.RoadmapItemId}")">Szczegóły tematu</a>
                             @if (!string.IsNullOrWhiteSpace(item.MentorNoteMarkdown))

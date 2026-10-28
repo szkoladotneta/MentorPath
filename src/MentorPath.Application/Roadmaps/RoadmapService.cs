@@ -63,15 +63,99 @@ internal sealed class RoadmapService(
             .Select(i => new MentorRoadmapItemDto(i.Id, i.TopicId, i.Topic!.Title, i.Position, i.IsActive, i.MentorNoteMarkdown,
                 i.Assignments.Any(a => a.Submissions.Any()),
                 i.Assignments.OrderBy(a => a.Position).Select(a => new MentorAssignmentDto(a.Id, a.ExerciseId, a.Exercise!.Title, a.Exercise.Type,
-                    a.Position, a.IsRequired, a.IsActive, a.DueAtUtc, a.Submissions.Count)).ToList()))
+                    a.Position, a.IsRequired, a.IsActive, a.DueAtUtc, a.Submissions.Count)).ToList(), i.CompetencyStatus))
             .ToListAsync(ct);
+        var itemIds = items.Select(i => i.RoadmapItemId).ToList();
+        if (itemIds.Count > 0)
+        {
+            var history = await db.CompetencyStatusHistory.AsNoTracking()
+                .Where(h => h.WorkspaceId == acc.WorkspaceId && itemIds.Contains(h.RoadmapItemId))
+                .OrderByDescending(h => h.ChangedAtUtc)
+                .Select(h => new
+                {
+                    h.RoadmapItemId,
+                    Entry = new CompetencyStatusHistoryDto(h.Id, h.PreviousStatus, h.NewStatus, h.ChangedByUserId,
+                        h.ChangedAtUtc, h.ManualJustification),
+                })
+                .ToListAsync(ct);
+            var evidence = await db.Submissions.AsNoTracking()
+                .Where(s => s.WorkspaceId == acc.WorkspaceId && itemIds.Contains(s.Assignment!.RoadmapItemId))
+                .OrderByDescending(s => s.SubmittedAtUtc)
+                .Select(s => new
+                {
+                    RoadmapItemId = s.Assignment!.RoadmapItemId,
+                    Entry = new CompetencyEvidenceDto(s.AssignmentId, s.Id, s.AttemptNumber, s.Status, s.SubmittedAtUtc),
+                })
+                .ToListAsync(ct);
+            items = items.Select(item =>
+            {
+                var itemEvidence = evidence.Where(e => e.RoadmapItemId == item.RoadmapItemId).Select(e => e.Entry).ToList();
+                var required = item.Assignments.Where(a => a.IsActive && a.IsRequired).ToList();
+                return item with
+                {
+                    SuggestedDemonstrated = item.IsActive && item.Status != CompetencyStatus.Demonstrated && required.Count > 0
+                        && required.All(a => itemEvidence.Any(e => e.AssignmentId == a.AssignmentId && e.Status == SubmissionStatus.Accepted)),
+                    StatusHistory = history.Where(h => h.RoadmapItemId == item.RoadmapItemId).Select(h => h.Entry).ToList(),
+                    Evidence = itemEvidence,
+                };
+            }).ToList();
+        }
         return new MentorRoadmapDto(roadmap.Id, roadmap.MentorshipId, roadmap.Title, roadmap.ObjectiveMarkdown, roadmap.Status,
             roadmap.PublishedAtUtc, items);
     }
 
-    // The feature PR replaces this compile-only placeholder.
-    public Task<Result> SetCompetencyStatusAsync(Guid actorUserId, Guid roadmapItemId, SetCompetencyStatusRequest request, CancellationToken ct) =>
-        Task.FromResult<Result>(Errors.NotFound(Module));
+    public async Task<Result> SetCompetencyStatusAsync(Guid actorUserId, Guid roadmapItemId,
+        SetCompetencyStatusRequest request, CancellationToken ct)
+    {
+        var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
+        if (ws is null) return Errors.NotFound(Module);
+        if (!Enum.IsDefined(request.Status))
+            return Errors.Validation("roadmap.invalid_competency_status", "Wybrany status kompetencji jest nieprawidłowy.");
+
+        var justification = Text.NullIfBlank(request.ManualJustification);
+        if (justification is { Length: > 1000 })
+            return Errors.Validation("roadmap.invalid_competency_justification", "Uzasadnienie może mieć maksymalnie 1000 znaków.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var current = await db.RoadmapItems.AsNoTracking()
+            .Where(i => i.Id == roadmapItemId && i.WorkspaceId == ws)
+            .Select(i => (CompetencyStatus?)i.CompetencyStatus)
+            .FirstOrDefaultAsync(ct);
+        if (current is null) return Errors.NotFound(Module);
+        if (current.Value == request.Status) return Result.Success();
+
+        if (request.Status == CompetencyStatus.Demonstrated)
+        {
+            var hasAcceptedAttempt = await db.Submissions.AsNoTracking()
+                .AnyAsync(s => s.WorkspaceId == ws && s.Assignment!.RoadmapItemId == roadmapItemId
+                    && s.Status == SubmissionStatus.Accepted, ct);
+            if (!hasAcceptedAttempt && justification is null)
+                return Errors.Validation("roadmap.competency_justification_required",
+                    "Podaj uzasadnienie, aby ręcznie oznaczyć kompetencję jako wykazaną bez zaakceptowanej próby.");
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var changed = await db.RoadmapItems
+            .Where(i => i.Id == roadmapItemId && i.WorkspaceId == ws && i.CompetencyStatus == current.Value)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.CompetencyStatus, request.Status), ct);
+        if (changed != 1)
+            return Errors.Conflict("roadmap.competency_status_changed", "Status kompetencji został zmieniony równolegle. Odśwież roadmapę.");
+
+        db.CompetencyStatusHistory.Add(new CompetencyStatusHistory
+        {
+            Id = Guid.CreateVersion7(),
+            WorkspaceId = ws.Value,
+            RoadmapItemId = roadmapItemId,
+            PreviousStatus = current.Value,
+            NewStatus = request.Status,
+            ChangedByUserId = actorUserId,
+            ChangedAtUtc = clock.GetUtcNow().UtcDateTime,
+            ManualJustification = justification,
+        });
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Result.Success();
+    }
 
     public async Task<Result> UpdateDetailsAsync(Guid actorUserId, Guid roadmapId, UpdateRoadmapRequest request, CancellationToken ct)
     {
@@ -173,6 +257,9 @@ internal sealed class RoadmapService(
         if (item is null) return Errors.NotFound(Module);
         if (await db.Submissions.AnyAsync(s => s.WorkspaceId == ws && s.Assignment!.RoadmapItemId == item.Id, ct))
             return HasHistory();
+        if (await db.CompetencyStatusHistory.AnyAsync(h => h.WorkspaceId == ws && h.RoadmapItemId == item.Id, ct))
+            return Errors.Conflict("roadmap.has_competency_history",
+                "Kompetencja ma historię statusów i nie może zostać usunięta. Oznacz ją jako nieaktywną.");
         db.Assignments.RemoveRange(item.Assignments);
         db.RoadmapItems.Remove(item);
         await db.SaveChangesAsync(ct);
@@ -308,7 +395,7 @@ internal sealed class RoadmapService(
                     .Select(a => new MenteeAssignmentListItem(a.Id, a.Exercise!.Title, a.Exercise.Type, a.IsRequired, a.DueAtUtc,
                         a.Submissions.OrderByDescending(s => s.AttemptNumber).Select(s => (SubmissionStatus?)s.Status).FirstOrDefault(),
                         a.Submissions.Count))
-                    .ToList()))
+                    .ToList(), i.CompetencyStatus))
             .ToListAsync(ct);
         return new MenteeRoadmapDto(roadmap.Id, roadmap.MentorshipId, roadmap.Title, roadmap.ObjectiveMarkdown, items);
     }
