@@ -4,6 +4,7 @@ using Azure.Identity;
 using MentorPath.Application.Common;
 using MentorPath.Data;
 using MentorPath.Data.Enums;
+using MentorPath.Web.BackgroundJobs;
 using MentorPath.Web.Components;
 using MentorPath.Web.Components.Account;
 using MentorPath.Web.Endpoints;
@@ -40,6 +41,16 @@ public static class WebComposition
         services.AddMentorPathData(configuration);
         services.AddMentorPathIdentity(builder.Environment);
         services.AddMentorPathModules(configuration);
+        services.AddOptions<BackgroundJobOptions>()
+            .Bind(configuration.GetSection(BackgroundJobOptions.SectionName))
+            .Validate(options => options.IntervalSeconds > 0, "BackgroundJobs:IntervalSeconds must be greater than zero.")
+            .ValidateOnStart();
+        services.AddSingleton<IPostgresAdvisoryLock>(_ =>
+            new PostgresAdvisoryLock(
+                configuration.GetConnectionString("Default")
+                    ?? throw new InvalidOperationException("Connection string 'Default' is not configured (ConnectionStrings__Default)."),
+                PostgresAdvisoryLock.SchedulerLockKey));
+        services.AddHostedService<BackgroundJobWorker>();
         if (builder.Environment.IsProduction() && configuration["Storage:Provider"] == "InMemory")
             throw new InvalidOperationException("InMemory storage is not allowed in Production.");
 
