@@ -7,6 +7,7 @@ public interface IRoadmapService
 {
     Task<Result<Guid>> CreateAsync(Guid actorUserId, CreateRoadmapRequest request, CancellationToken ct);
     Task<Result<MentorRoadmapDto?>> GetForMentorAsync(Guid actorUserId, Guid mentorshipId, CancellationToken ct);
+    Task<Result> SetCompetencyStatusAsync(Guid actorUserId, Guid roadmapItemId, SetCompetencyStatusRequest request, CancellationToken ct);
     Task<Result> UpdateDetailsAsync(Guid actorUserId, Guid roadmapId, UpdateRoadmapRequest request, CancellationToken ct);
     Task<Result<Guid>> AddTopicAsync(Guid actorUserId, AddRoadmapTopicRequest request, CancellationToken ct);
     Task<Result> UpdateTopicNoteAsync(Guid actorUserId, Guid roadmapItemId, string? mentorNoteMarkdown, CancellationToken ct);
@@ -34,13 +35,14 @@ public sealed record MentorRoadmapDto(Guid RoadmapId, Guid MentorshipId, string 
 public sealed record MentorRoadmapItemDto(Guid RoadmapItemId, Guid TopicId, string TopicTitle, int Position, bool IsActive,
     string? MentorNoteMarkdown, bool HasSubmissions, IReadOnlyList<MentorAssignmentDto> Assignments,
     CompetencyStatus Status = CompetencyStatus.NotAssessed,
+    bool SuggestedDemonstrated = false,
     IReadOnlyList<CompetencyStatusHistoryDto>? StatusHistory = null,
     IReadOnlyList<CompetencyEvidenceDto>? Evidence = null);
 public sealed record MentorAssignmentDto(Guid AssignmentId, Guid ExerciseId, string ExerciseTitle, ExerciseType Type,
     int Position, bool IsRequired, bool IsActive, DateTime? DueAtUtc, int SubmissionCount);
 public sealed record CompetencyStatusHistoryDto(Guid HistoryId, CompetencyStatus PreviousStatus, CompetencyStatus NewStatus,
     Guid ChangedByUserId, DateTime ChangedAtUtc, string? ManualJustification);
-public sealed record CompetencyEvidenceDto(Guid SubmissionId, int AttemptNumber, SubmissionStatus Status, DateTime SubmittedAtUtc);
+public sealed record CompetencyEvidenceDto(Guid AssignmentId, Guid SubmissionId, int AttemptNumber, SubmissionStatus Status, DateTime SubmittedAtUtc);
 
 public sealed record MenteeRoadmapDto(Guid RoadmapId, Guid MentorshipId, string Title, string ObjectiveMarkdown, IReadOnlyList<MenteeRoadmapItemDto> Items);
 public sealed record MenteeRoadmapItemDto(Guid RoadmapItemId, string TopicTitle, string TopicDescriptionMarkdown,
