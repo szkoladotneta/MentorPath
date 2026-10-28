@@ -497,9 +497,20 @@ Status: Adopted
 - Uzupełnienie T02: lokalny pełny stos i smoke CI pozostają w Production. Przed startem generują lokalny certyfikat PKCS#12 przez `scripts/create-local-dp-certificate.sh`, montowany jako read-only Compose secret do web i CLI. `.local/` jest ignorowany przez Git i Docker; certyfikat nie trafia do obrazu ani repozytorium. Zmiana workflow CI jest ograniczona do generowania tego certyfikatu i wymaga przeglądu CODEOWNERS. Nie wyłączamy walidacji Production na potrzeby smoke.
 - Uzupełnienie po review T02: wymóg certyfikatu w Production i zastosowanie skonfigurowanego certyfikatu nie zależą od ustawienia `KeysPath`/`BlobUri`; obejmują też magazyn wybrany domyślnie przez framework. Stała nazwa aplikacji `MentorPath` dotyczy również tej ścieżki (wcześniejsze cookies/tokeny hostów bez jawnej konfiguracji magazynu mogą wymagać ponownego wystawienia). Certyfikat nie zapewnia trwałości magazynu: operator nadal odpowiada za trwałe, wspólne przechowywanie kluczy web i CLI.
 
+## D-59 — Background job infrastructure and database coordination (T05)
+Status: Adopted (2026-10-28, confirmed by the user)
+
+Decision:
+- T05 provides reusable hosting infrastructure only. It does not include a concrete reminder, email, cleanup, or tenant-data job, queue, or event bus.
+- Jobs are registered through dependency injection and share one configurable interval, hosted by `BackgroundService` with `PeriodicTimer`.
+- Each scheduler tick uses a PostgreSQL session-level advisory lock shared across processes. Contending workers use a non-blocking try-lock and skip that tick. The lock is explicitly released on normal completion; PostgreSQL releases it when the owning session/process is lost. If acquisition fails ambiguously, discard the connection pool so an unknown lock holder cannot be reused. No persisted lock/lease table is added.
+- A failed job is logged and does not prevent other registered jobs or later ticks from running. Host shutdown cancellation propagates through the in-flight job.
+
+Impact: future job consumers register into the shared schedule and must account for skipped ticks while another process holds the lock. Individual job failures are visible in logs but do not stop the scheduler. T05 requires no schema migration or `Contracts/` prerequisite.
+
 ## D-60 — Cleanup osieroconych załączników (T03)
 Status: Adopted
 
-- One-shot cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
+- The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
 - Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
-- T03 supplies the one-shot operation. T05 owns recurring scheduling and single-run locking. No schema or `Contracts/` change is required.
+- T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
