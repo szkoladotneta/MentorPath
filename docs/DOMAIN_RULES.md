@@ -51,6 +51,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Mentorships | unique `(WorkspaceId, MenteeUserId)`; AK `(WorkspaceId, Id)` |
 | Invitations | unique `TokenHash`; index `(WorkspaceId, NormalizedEmail)` |
 | Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)`; nullable `ParentTopicId` — FK `(WorkspaceId, ParentTopicId)` → Topics AK (Restrict); check `ParentTopicId <> Id`; index `(WorkspaceId, ParentTopicId)`; cykle i głębokość ≤ 3 pilnuje serwis (D-45) |
+| CompetencyPrerequisites | PK `(WorkspaceId, TopicId, PrerequisiteTopicId)`; FKs `(WorkspaceId, TopicId)` and `(WorkspaceId, PrerequisiteTopicId)` → Topics AK (Restrict); check `TopicId <> PrerequisiteTopicId`; index `WorkspaceId`, `(WorkspaceId, PrerequisiteTopicId)`; cykle wielokrokowe pilnuje serwis |
 | TopicResources | FK `(WorkspaceId, TopicId)` → Topics AK (Restrict); FK `WorkspaceId` → Workspaces (Restrict); indexes `WorkspaceId`, `(WorkspaceId, TopicId, Position)`; CHECK `Position >= 0`; title ≤ 200, URL ≤ 2000, optional plain-text description ≤ 1000; `Kind` as string (`Article`/`Video`, validated by the service), D-52 |
 | Exercises | FK `(WorkspaceId, TopicId)` → Topics AK; AK `(WorkspaceId, Id)` |
 | QuizOptions | FK `ExerciseId` Cascade; partial unique `(ExerciseId) WHERE "IsCorrect"` |
@@ -91,7 +92,7 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Workspaces | Workspaces |
 | Mentorships | Mentorships |
 | Invitations | Invitations, Mentorships |
-| Catalog | Topics, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
+| Catalog | Topics, CompetencyPrerequisites, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
 | Roadmaps | Roadmaps, RoadmapItems, Assignments |
 | Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
