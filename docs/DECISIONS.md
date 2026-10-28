@@ -496,3 +496,10 @@ Status: Adopted
 - Istniejące niezaszyfrowane klucze nadal się odczytują; nowe są szyfrowane. Utrata certyfikatu = utrata kluczy (jak utrata key ringu). Certyfikat i hasło przechowuj w Key Vault/sekretach, wspólne dla web i CLI.
 - Uzupełnienie T02: lokalny pełny stos i smoke CI pozostają w Production. Przed startem generują lokalny certyfikat PKCS#12 przez `scripts/create-local-dp-certificate.sh`, montowany jako read-only Compose secret do web i CLI. `.local/` jest ignorowany przez Git i Docker; certyfikat nie trafia do obrazu ani repozytorium. Zmiana workflow CI jest ograniczona do generowania tego certyfikatu i wymaga przeglądu CODEOWNERS. Nie wyłączamy walidacji Production na potrzeby smoke.
 - Uzupełnienie po review T02: wymóg certyfikatu w Production i zastosowanie skonfigurowanego certyfikatu nie zależą od ustawienia `KeysPath`/`BlobUri`; obejmują też magazyn wybrany domyślnie przez framework. Stała nazwa aplikacji `MentorPath` dotyczy również tej ścieżki (wcześniejsze cookies/tokeny hostów bez jawnej konfiguracji magazynu mogą wymagać ponownego wystawienia). Certyfikat nie zapewnia trwałości magazynu: operator nadal odpowiada za trwałe, wspólne przechowywanie kluczy web i CLI.
+
+## D-60 — Cleanup osieroconych załączników (T03)
+Status: Adopted
+
+- One-shot cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
+- Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
+- T03 supplies the one-shot operation. T05 owns recurring scheduling and single-run locking. No schema or `Contracts/` change is required.
