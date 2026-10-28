@@ -44,6 +44,8 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | opcjonalne | 60 / 3000 / 50 |
 | `Database__MigrateOnStartup` | opcjonalne | Nie zalecane w produkcji — używaj kroku `migrate` |
 
+W Production certyfikat Data Protection jest wymagany także bez jawnego `KeysPath`/`BlobUri`; skonfigurowany certyfikat szyfruje klucze również w magazynie wybranym przez framework. Nie zastępuje to konfiguracji trwałego magazynu współdzielonego przez web i CLI.
+
 Brak konfiguracji Azure Blob to błąd walidacji przy starcie; nie ma automatycznego fallbacku do pamięci. Stare klucze `Storage__S3__*` nie są obsługiwane. Przed aktualizacją istniejącej instalacji przenieś obiekty i zmień konfigurację ([migracja](AZURE_DEPLOYMENT.md#existing-s3-data)).
 
 ## 3. Procedura wdrożenia

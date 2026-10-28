@@ -4,9 +4,12 @@ using System.Xml.Linq;
 using MentorPath.Web.Composition;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MentorPath.IntegrationTests.Common;
 
@@ -33,25 +36,33 @@ public sealed class StorageHostingTests
         error.Message.ShouldBe("DataProtection:BlobUri must be an HTTPS blob URI without a SAS token.");
     }
 
-    [Fact]
-    public void Production_rejects_persisted_keys_without_certificate()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("keys")]
+    public void Production_rejects_missing_certificate_with_or_without_explicit_store(string? keysPath)
     {
         var builder = Builder();
-        builder.Configuration["DataProtection:KeysPath"] = Path.GetTempPath();
+        builder.Configuration["DataProtection:KeysPath"] = keysPath;
         var error = Should.Throw<InvalidOperationException>(() => builder.AddMentorPathWeb());
         error.Message.ShouldBe("DataProtection:CertificatePath is required in Production to encrypt the key ring.");
     }
 
-    [Fact]
-    public void Development_allows_persisted_keys_without_certificate()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("keys")]
+    public void Development_allows_missing_certificate_with_or_without_explicit_store(string? keysPath)
     {
         var builder = Builder("Development");
-        builder.Configuration["DataProtection:KeysPath"] = Path.GetTempPath();
+        builder.Configuration["DataProtection:KeysPath"] = keysPath;
         Should.NotThrow(() => builder.AddMentorPathWeb());
     }
 
-    [Fact]
-    public void Production_encrypts_key_ring_and_reads_it_after_restart()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Production_encrypts_key_ring_and_reads_it_after_restart_with_or_without_explicit_store(bool explicitStore)
     {
         var directory = Directory.CreateTempSubdirectory("mentorpath-dp-");
         try
@@ -67,9 +78,16 @@ public sealed class StorageHostingTests
             WebApplication CreateApp()
             {
                 var builder = Builder();
-                builder.Configuration["DataProtection:KeysPath"] = keysPath;
+                if (explicitStore)
+                    builder.Configuration["DataProtection:KeysPath"] = keysPath;
                 builder.Configuration["DataProtection:CertificatePath"] = certificatePath;
                 builder.AddMentorPathWeb();
+                if (!explicitStore)
+                {
+                    // Isolate the framework-selected repository without supplying a persistence setting to the application.
+                    builder.Services.Configure<KeyManagementOptions>(options =>
+                        options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keysPath), NullLoggerFactory.Instance));
+                }
                 return builder.Build();
             }
 
@@ -103,6 +121,10 @@ public sealed class StorageHostingTests
             ["ConnectionStrings:Default"] = "Host=localhost;Database=configuration_only",
             ["Storage:Provider"] = "AzureBlob",
             ["Storage:AzureBlob:ServiceUri"] = "https://account.blob.core.windows.net",
+            ["DataProtection:KeysPath"] = null,
+            ["DataProtection:BlobUri"] = null,
+            ["DataProtection:CertificatePath"] = null,
+            ["DataProtection:CertificatePassword"] = null,
         });
         return builder;
     }

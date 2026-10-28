@@ -84,8 +84,6 @@ public static class WebComposition
         var keysPath = configuration["DataProtection:KeysPath"];
         var keysBlobUri = configuration["DataProtection:BlobUri"];
         var certificatePath = configuration["DataProtection:CertificatePath"];
-        var persisted = !string.IsNullOrWhiteSpace(keysBlobUri) || !string.IsNullOrWhiteSpace(keysPath);
-        if (!persisted) return;
         var builder = services.AddDataProtection().SetApplicationName("MentorPath");
         if (!string.IsNullOrWhiteSpace(keysBlobUri))
         {
@@ -94,8 +92,8 @@ public static class WebComposition
                 throw new InvalidOperationException("DataProtection:BlobUri must be an HTTPS blob URI without a SAS token.");
             builder.PersistKeysToAzureBlobStorage(uri, new DefaultAzureCredential());
         }
-        else
-            builder.PersistKeysToFileSystem(new DirectoryInfo(keysPath!));
+        else if (!string.IsNullOrWhiteSpace(keysPath))
+            builder.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 
         if (string.IsNullOrWhiteSpace(certificatePath) && environment.IsProduction())
             throw new InvalidOperationException("DataProtection:CertificatePath is required in Production to encrypt the key ring.");
