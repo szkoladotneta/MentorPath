@@ -660,7 +660,7 @@ Unique: (AssignmentId, AttemptNumber).
 
 Unique: (MenteeUserId, ClientRequestId).
 
-DecisionAnswerJson ma jawnie wersjonowany schemat DTO, zawierający sześć pól odpowiedzi architektonicznej.
+DecisionAnswerJson ma jawnie wersjonowany schemat DTO, zawierający sześć pól odpowiedzi architektonicznej. Bieżący schemat v2 zapisuje je w obiekcie `answer` pod `schemaVersion: 2`; wartości i wymagania pól pozostają bez zmian.
 
 ## 5.11. SubmissionAttachments
 

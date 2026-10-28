@@ -18,13 +18,19 @@ public sealed class ForeignActorIsolationTests(PostgresFixture db) : Integration
         var otherMentee = await Data.MenteeAsync(a);
         var quiz = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.QuizSingleChoice);
         var practical = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.PracticalTask);
+        var decision = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.ArchitecturalDecision);
         var svc = App.Get<ISubmissionService>();
+        var unknownUserId = Guid.NewGuid();
 
-        foreach (var actor in new[] { otherMentee.UserId, b.UserId, a.UserId })
+        foreach (var actor in new[] { otherMentee.UserId, b.UserId, a.UserId, unknownUserId })
         {
             (await svc.SubmitQuizAsync(actor, new(quiz.AssignmentId, Guid.NewGuid(), Guid.NewGuid(), "x", 3), default)).ShouldBeNotFound();
             (await svc.SubmitPracticalAsync(actor, new(practical.AssignmentId, Guid.NewGuid(), "x", 3, "https://example.com", null), default)).ShouldBeNotFound();
+            (await svc.SubmitDecisionAsync(actor, new(decision.AssignmentId, Guid.NewGuid(), new("D", "R", "A", "T", "Ri", "C"), 3), default)).ShouldBeNotFound();
         }
+
+        foreach (var actor in new[] { otherMentee.UserId, b.UserId, unknownUserId })
+            (await svc.GetHistoryAsync(actor, decision.AssignmentId, default)).ShouldBeNotFound();
     }
 
     [Fact]

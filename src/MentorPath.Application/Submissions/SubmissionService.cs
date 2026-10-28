@@ -23,8 +23,11 @@ internal sealed class SubmissionService(
 
     internal static readonly JsonSerializerOptions DecisionJson = new(JsonSerializerDefaults.Web);
 
-    private sealed record DecisionAnswerDocument(int SchemaVersion, string Decision, string Rationale, string Alternatives,
+    private sealed record DecisionAnswerDocumentV1(int SchemaVersion, string Decision, string Rationale, string Alternatives,
         string TradeOffs, string Risks, string ReconsiderationConditions);
+    private sealed record DecisionAnswerDocumentV2(int SchemaVersion, DecisionAnswerPayloadV2 Answer);
+    private sealed record DecisionAnswerPayloadV2(string Decision, string Rationale, string Alternatives, string TradeOffs,
+        string Risks, string ReconsiderationConditions);
 
     public async Task<Result<MenteeAssignmentDto>> GetAssignmentForMenteeAsync(Guid actorUserId, Guid assignmentId, CancellationToken ct)
     {
@@ -123,8 +126,10 @@ internal sealed class SubmissionService(
 
         var submission = NewSubmission(pre.Access!, actorUserId, request.ClientRequestId, request.ConfidenceBefore);
         submission.Status = SubmissionStatus.PendingReview;
-        submission.DecisionAnswerJson = JsonSerializer.Serialize(new DecisionAnswerDocument(1, a!.Decision.Trim(), a.Rationale.Trim(),
-            a.Alternatives.Trim(), a.TradeOffs.Trim(), a.Risks.Trim(), a.ReconsiderationConditions.Trim()), DecisionJson);
+        submission.DecisionAnswerJson = JsonSerializer.Serialize(
+            new DecisionAnswerDocumentV2(2, new DecisionAnswerPayloadV2(a!.Decision.Trim(), a.Rationale.Trim(),
+                a.Alternatives.Trim(), a.TradeOffs.Trim(), a.Risks.Trim(), a.ReconsiderationConditions.Trim())),
+            DecisionJson);
         return await InsertAsync(submission, request.AssignmentId, null, ct);
     }
 
@@ -378,9 +383,30 @@ internal sealed class SubmissionService(
     private static DecisionAnswerV1? ParseDecision(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;
-        var doc = JsonSerializer.Deserialize<DecisionAnswerDocument>(json, DecisionJson);
-        return doc is null ? null : new DecisionAnswerV1(doc.Decision, doc.Rationale, doc.Alternatives, doc.TradeOffs, doc.Risks, doc.ReconsiderationConditions);
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("schemaVersion", out var versionElement)
+            || !versionElement.TryGetInt32(out var schemaVersion))
+            throw new JsonException("DecisionAnswer schemaVersion is missing or invalid.");
+
+        return schemaVersion switch
+        {
+            1 => ToDecisionAnswer(JsonSerializer.Deserialize<DecisionAnswerDocumentV1>(json, DecisionJson)),
+            2 => ToDecisionAnswer(JsonSerializer.Deserialize<DecisionAnswerDocumentV2>(json, DecisionJson)?.Answer),
+            _ => throw new JsonException($"Unsupported DecisionAnswer schema version: {schemaVersion}."),
+        };
     }
+
+    private static DecisionAnswerV1 ToDecisionAnswer(DecisionAnswerDocumentV1? answer) =>
+        answer is null
+            ? throw new JsonException("DecisionAnswer v1 document is empty.")
+            : new DecisionAnswerV1(answer.Decision, answer.Rationale, answer.Alternatives, answer.TradeOffs, answer.Risks,
+                answer.ReconsiderationConditions);
+
+    private static DecisionAnswerV1 ToDecisionAnswer(DecisionAnswerPayloadV2? answer) =>
+        answer is null
+            ? throw new JsonException("DecisionAnswer v2 payload is empty.")
+            : new DecisionAnswerV1(answer.Decision, answer.Rationale, answer.Alternatives, answer.TradeOffs, answer.Risks,
+                answer.ReconsiderationConditions);
 
     private static async Task<byte[]?> ReadLimitedAsync(Stream stream, CancellationToken ct)
     {

@@ -75,14 +75,19 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 - Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions (RoadmapItem dodatkowo bez historii statusu kompetencji), `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-52), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
 - Enumy zapisywane jako string. Role Identity: `Mentor`, `Mentee`, `PlatformOperator`.
 
-## 4. `DecisionAnswerJson` (schemat v1)
+## 4. `DecisionAnswerJson` (schemat v2)
 
 ```json
-{ "schemaVersion": 1, "decision": "", "rationale": "", "alternatives": "",
-  "tradeOffs": "", "risks": "", "reconsiderationConditions": "" }
+{
+  "schemaVersion": 2,
+  "answer": {
+    "decision": "", "rationale": "", "alternatives": "",
+    "tradeOffs": "", "risks": "", "reconsiderationConditions": ""
+  }
+}
 ```
 
-Serializacja `System.Text.Json`, camelCase. Nowa wersja schematu = decyzja w `DECISIONS.md` + PR `schema-change`.
+Serializacja `System.Text.Json`, camelCase. Pola mentee pozostają niezmienione; v2 grupuje je pod `answer`. Odczyt obsługuje dokumenty v1 i v2, nowe zapisy używają v2, a migracja danych przekształca v1 bez zmiany wartości. Nowa wersja schematu wymaga decyzji w `DECISIONS.md` i osobnego PR `schema-change`.
 
 ## 5. Własność zapisu (per moduł)
 
