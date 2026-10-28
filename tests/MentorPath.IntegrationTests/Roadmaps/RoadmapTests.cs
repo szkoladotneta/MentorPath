@@ -87,12 +87,15 @@ public sealed class RoadmapTests(PostgresFixture db) : IntegrationTestBase(db)
         var a = await Data.MentorAsync();
         var b = await Data.MentorAsync();
         var mentee = await Data.MenteeAsync(a);
-        var otherMentee = await Data.MenteeAsync(a);
+        var unrelatedMentee = await Data.MenteeAsync(b);
         var asg = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.QuizSingleChoice);
         var bTopic = await Data.TopicAsync(b);
         var bExercise = await Data.PublishedExerciseAsync(b, bTopic, ExerciseType.QuizSingleChoice);
         var svc = App.Get<IRoadmapService>();
 
+        (await svc.SetCompetencyStatusAsync(b.UserId, asg.RoadmapItemId, new(CompetencyStatus.Learning, null), default)).ShouldBeNotFound();
+        (await svc.SetCompetencyStatusAsync(unrelatedMentee.UserId, asg.RoadmapItemId, new(CompetencyStatus.Learning, null), default)).ShouldBeNotFound();
+        (await svc.SetCompetencyStatusAsync(Guid.NewGuid(), asg.RoadmapItemId, new(CompetencyStatus.Learning, null), default)).ShouldBeNotFound();
         (await svc.GetForMentorAsync(b.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
         (await svc.CreateAsync(b.UserId, new(mentee.MentorshipId, "x", "x"), default)).ShouldBeNotFound();
         (await svc.UpdateDetailsAsync(b.UserId, asg.RoadmapId, new("x", "x"), default)).ShouldBeNotFound();
@@ -107,7 +110,7 @@ public sealed class RoadmapTests(PostgresFixture db) : IntegrationTestBase(db)
         (await svc.RemoveTopicAsync(b.UserId, asg.RoadmapItemId, default)).ShouldBeNotFound();
         (await svc.ReorderTopicsAsync(b.UserId, asg.RoadmapId, [asg.RoadmapItemId], default)).ShouldBeNotFound();
         (await svc.PublishAsync(b.UserId, asg.RoadmapId, default)).ShouldBeNotFound();
-        (await svc.GetForMenteeAsync(otherMentee.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
+        (await svc.GetForMenteeAsync(unrelatedMentee.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
         (await svc.GetForMenteeAsync(b.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
         (await svc.GetForMentorAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldBeNotFound();
     }

@@ -524,7 +524,7 @@ Status: Adopted (2026-10-28, owner-confirmed on issue #7)
 - Competency progress is the percentage of active roadmap items whose status is `Demonstrated`; with no active items the percentage is zero. Keep the existing assignment-completion progress alongside it.
 - Do not hard-delete a roadmap item after it has status history; deactivate it instead, preserving the append-only audit trail.
 
-Impact: add `RoadmapItems.CompetencyStatus` and `CompetencyStatusHistory` in the schema-change PR, alongside additive Roadmaps/Progress contract DTOs. Implement status authorization, evidence/history reads, suggestions, progress calculation, and UI only after the schema-change PR is merged.
+Impact: add `RoadmapItems.CompetencyStatus`, `CompetencyStatusHistory`, additive Roadmaps/Progress contract DTOs (including the `SuggestedDemonstrated` and evidence `AssignmentId` fields), and the `IRoadmapService.SetCompetencyStatusAsync` signature in the schema-change PR. Implement the method behavior, status authorization, evidence/history reads, suggestions, progress calculation, and UI only after the schema-change PR is merged.
 
 ## D-62 — Microsoft .NET 10.0.14 package updates
 Status: Adopted (2026-10-28; maintenance update)

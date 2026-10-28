@@ -69,6 +69,10 @@ internal sealed class RoadmapService(
             roadmap.PublishedAtUtc, items);
     }
 
+    // The feature PR replaces this compile-only placeholder.
+    public Task<Result> SetCompetencyStatusAsync(Guid actorUserId, Guid roadmapItemId, SetCompetencyStatusRequest request, CancellationToken ct) =>
+        Task.FromResult<Result>(Errors.NotFound(Module));
+
     public async Task<Result> UpdateDetailsAsync(Guid actorUserId, Guid roadmapId, UpdateRoadmapRequest request, CancellationToken ct)
     {
         var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
