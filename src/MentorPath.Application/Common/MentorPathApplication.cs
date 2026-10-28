@@ -35,6 +35,7 @@ public static class MentorPathApplication
         services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
         services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
         services.AddFileStorage(configuration);
+        services.AddScoped<IOrphanedBlobCleanup, OrphanedBlobCleanup>();
 
         services.AddWorkspacesModule();
         services.AddMentorshipsModule();

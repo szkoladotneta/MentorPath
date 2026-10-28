@@ -60,7 +60,7 @@ public sealed class TestApp : IAsyncDisposable
         services.AddMentorPathModules(config);
 
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero));
-        var storage = new InMemoryFileStorage();
+        var storage = new InMemoryFileStorage(clock);
         services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton<IFileStorage>(storage);
         overrides?.Invoke(services);
