@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -10,7 +11,10 @@ public interface IFileStorage
     Task SaveAsync(string objectKey, Stream content, string contentType, CancellationToken ct);
     Task<Stream> OpenReadAsync(string objectKey, CancellationToken ct);
     Task DeleteAsync(string objectKey, CancellationToken ct);
+    IAsyncEnumerable<StoredBlobInfo> ListAsync(CancellationToken ct);
 }
+
+public sealed record StoredBlobInfo(string ObjectKey, DateTimeOffset? LastModifiedUtc);
 
 public sealed class AzureBlobStorageOptions
 {
@@ -54,13 +58,20 @@ internal sealed class AzureBlobFileStorage(BlobContainerClient container) : IFil
         }
     }
 
+    public async IAsyncEnumerable<StoredBlobInfo> ListAsync([EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var blob in container.GetBlobsAsync(cancellationToken: ct))
+            yield return new StoredBlobInfo(blob.Name, blob.Properties.LastModified);
+    }
+
     public async Task EnsureContainerAsync(CancellationToken ct) =>
         await container.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: ct);
 }
 
-public sealed class InMemoryFileStorage : IFileStorage
+public sealed class InMemoryFileStorage(TimeProvider? timeProvider = null) : IFileStorage
 {
-    private readonly ConcurrentDictionary<string, (byte[] Data, string ContentType)> _objects = new();
+    private readonly ConcurrentDictionary<string, (byte[] Data, string ContentType, DateTimeOffset LastModifiedUtc)> _objects = new();
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public IReadOnlyCollection<string> Keys => _objects.Keys.ToArray();
 
@@ -68,7 +79,7 @@ public sealed class InMemoryFileStorage : IFileStorage
     {
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms, ct);
-        _objects[objectKey] = (ms.ToArray(), contentType);
+        _objects[objectKey] = (ms.ToArray(), contentType, _timeProvider.GetUtcNow());
     }
 
     public Task<Stream> OpenReadAsync(string objectKey, CancellationToken ct) =>
@@ -78,7 +89,19 @@ public sealed class InMemoryFileStorage : IFileStorage
 
     public Task DeleteAsync(string objectKey, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         _objects.TryRemove(objectKey, out _);
         return Task.CompletedTask;
+    }
+
+    public async IAsyncEnumerable<StoredBlobInfo> ListAsync([EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var (objectKey, value) in _objects.ToArray())
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return new StoredBlobInfo(objectKey, value.LastModifiedUtc);
+        }
+
+        await Task.CompletedTask;
     }
 }

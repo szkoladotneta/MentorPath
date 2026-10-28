@@ -508,7 +508,14 @@ Decision:
 
 Impact: future job consumers register into the shared schedule and must account for skipped ticks while another process holds the lock. Individual job failures are visible in logs but do not stop the scheduler. T05 requires no schema migration or `Contracts/` prerequisite.
 
-## D-60 — Status kompetencji per roadmap item (N12)
+## D-60 — Cleanup osieroconych załączników (T03)
+Status: Adopted
+
+- The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
+- Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
+- T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
+
+## D-61 — Status kompetencji per roadmap item (N12)
 Status: Adopted (2026-10-28, owner-confirmed on issue #7)
 
 - Persist one mentor-assigned status per roadmap item: `NotAssessed`, `Learning`, `Practicing`, `Demonstrated`, or `NeedsRevisit`; new items default to `NotAssessed`.

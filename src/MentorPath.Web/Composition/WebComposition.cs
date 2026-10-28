@@ -41,6 +41,7 @@ public static class WebComposition
         services.AddMentorPathData(configuration);
         services.AddMentorPathIdentity(builder.Environment);
         services.AddMentorPathModules(configuration);
+        services.AddScoped<IBackgroundJob, OrphanedBlobCleanupJob>();
         services.AddOptions<BackgroundJobOptions>()
             .Bind(configuration.GetSection(BackgroundJobOptions.SectionName))
             .Validate(options => options.IntervalSeconds > 0, "BackgroundJobs:IntervalSeconds must be greater than zero.")

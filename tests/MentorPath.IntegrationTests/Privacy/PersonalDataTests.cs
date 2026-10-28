@@ -444,6 +444,7 @@ public sealed class PersonalDataTests(PostgresFixture db) : IntegrationTestBase(
 
         public Task SaveAsync(string objectKey, Stream content, string contentType, CancellationToken ct) => Inner.SaveAsync(objectKey, content, contentType, ct);
         public Task<Stream> OpenReadAsync(string objectKey, CancellationToken ct) => Inner.OpenReadAsync(objectKey, ct);
+        public IAsyncEnumerable<StoredBlobInfo> ListAsync(CancellationToken ct) => Inner.ListAsync(ct);
 
         public Task DeleteAsync(string objectKey, CancellationToken ct) =>
             FailDeletes ? throw new IOException("storage unavailable") : Inner.DeleteAsync(objectKey, ct);

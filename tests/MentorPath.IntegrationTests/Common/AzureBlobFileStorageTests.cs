@@ -56,6 +56,20 @@ public sealed class AzureBlobFileStorageTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task List_returns_current_blob_keys_and_last_modified_times()
+    {
+        const string key = "ws/00000000000000000000000000000001/sub/listed";
+        await _storage.SaveAsync(key, new MemoryStream("attachment"u8.ToArray()), "text/plain", CancellationToken.None);
+
+        var listed = new List<StoredBlobInfo>();
+        await foreach (var blob in _storage.ListAsync(CancellationToken.None))
+            listed.Add(blob);
+
+        var result = listed.Single(blob => blob.ObjectKey == key);
+        result.LastModifiedUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task Container_is_private_and_creation_is_idempotent()
     {
         await _storage.EnsureContainerAsync(CancellationToken.None);
