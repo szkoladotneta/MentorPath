@@ -53,7 +53,7 @@ public sealed class ConventionTests
         ["Invitations"] = ["Invitations", "Mentorships"],
         ["Catalog"] = ["Topics", "CompetencyPrerequisites", "TopicResources", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
         ["AiAuthoring"] = ["AiGenerationRequests"],
-        ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
+        ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "CompetencyStatusHistory", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments", "ActivityEvents"],
         ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
         ["Feedback"] = ["ProductFeedback"],

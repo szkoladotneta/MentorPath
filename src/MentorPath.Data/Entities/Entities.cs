@@ -145,10 +145,27 @@ public sealed class RoadmapItem : IWorkspaceScoped
     public int Position { get; set; }
     public string? MentorNoteMarkdown { get; set; }
     public bool IsActive { get; set; }
+    public CompetencyStatus CompetencyStatus { get; set; }
 
     public Roadmap? Roadmap { get; set; }
     public Topic? Topic { get; set; }
     public List<Assignment> Assignments { get; set; } = [];
+    public List<CompetencyStatusHistory> CompetencyStatusHistory { get; set; } = [];
+}
+
+public sealed class CompetencyStatusHistory : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid RoadmapItemId { get; set; }
+    public CompetencyStatus PreviousStatus { get; set; }
+    public CompetencyStatus NewStatus { get; set; }
+    public Guid ChangedByUserId { get; set; }
+    public DateTime ChangedAtUtc { get; set; }
+    public string? ManualJustification { get; set; }
+
+    public RoadmapItem? RoadmapItem { get; set; }
+    public AppUser? ChangedByUser { get; set; }
 }
 
 public sealed class Assignment : IWorkspaceScoped

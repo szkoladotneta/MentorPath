@@ -514,3 +514,14 @@ Status: Adopted
 - The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
 - Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
 - T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
+
+## D-61 — Status kompetencji per roadmap item (N12)
+Status: Adopted (2026-10-28, owner-confirmed on issue #7)
+
+- Persist one mentor-assigned status per roadmap item: `NotAssessed`, `Learning`, `Practicing`, `Demonstrated`, or `NeedsRevisit`; new items default to `NotAssessed`.
+- The system only suggests `Demonstrated` when all active required assignments are `Accepted`; it never changes the status. A mentor may set `Demonstrated` without an `Accepted` attempt only with a non-empty plain-text justification, limited to 1000 characters.
+- Record each status change as an append-only history entry containing previous status, new status, mentor user ID, UTC timestamp, and any manual justification. The mentee sees the current status; attempt evidence and status history are mentor-only on the mentor roadmap.
+- Competency progress is the percentage of active roadmap items whose status is `Demonstrated`; with no active items the percentage is zero. Keep the existing assignment-completion progress alongside it.
+- Do not hard-delete a roadmap item after it has status history; deactivate it instead, preserving the append-only audit trail.
+
+Impact: add `RoadmapItems.CompetencyStatus` and `CompetencyStatusHistory` in the schema-change PR, alongside additive Roadmaps/Progress contract DTOs. Implement status authorization, evidence/history reads, suggestions, progress calculation, and UI only after the schema-change PR is merged.

@@ -27,16 +27,24 @@ public sealed record UpdateRoadmapRequest(string Title, string ObjectiveMarkdown
 public sealed record AddRoadmapTopicRequest(Guid RoadmapId, Guid TopicId, string? MentorNoteMarkdown);
 public sealed record AssignExerciseRequest(Guid RoadmapItemId, Guid ExerciseId, bool IsRequired, DateTime? DueAtUtc);
 public sealed record UpdateAssignmentRequest(bool IsRequired, DateTime? DueAtUtc);
+public sealed record SetCompetencyStatusRequest(CompetencyStatus Status, string? ManualJustification);
 
 public sealed record MentorRoadmapDto(Guid RoadmapId, Guid MentorshipId, string Title, string ObjectiveMarkdown, RoadmapStatus Status,
     DateTime? PublishedAtUtc, IReadOnlyList<MentorRoadmapItemDto> Items);
 public sealed record MentorRoadmapItemDto(Guid RoadmapItemId, Guid TopicId, string TopicTitle, int Position, bool IsActive,
-    string? MentorNoteMarkdown, bool HasSubmissions, IReadOnlyList<MentorAssignmentDto> Assignments);
+    string? MentorNoteMarkdown, bool HasSubmissions, IReadOnlyList<MentorAssignmentDto> Assignments,
+    CompetencyStatus Status = CompetencyStatus.NotAssessed,
+    IReadOnlyList<CompetencyStatusHistoryDto>? StatusHistory = null,
+    IReadOnlyList<CompetencyEvidenceDto>? Evidence = null);
 public sealed record MentorAssignmentDto(Guid AssignmentId, Guid ExerciseId, string ExerciseTitle, ExerciseType Type,
     int Position, bool IsRequired, bool IsActive, DateTime? DueAtUtc, int SubmissionCount);
+public sealed record CompetencyStatusHistoryDto(Guid HistoryId, CompetencyStatus PreviousStatus, CompetencyStatus NewStatus,
+    Guid ChangedByUserId, DateTime ChangedAtUtc, string? ManualJustification);
+public sealed record CompetencyEvidenceDto(Guid SubmissionId, int AttemptNumber, SubmissionStatus Status, DateTime SubmittedAtUtc);
 
 public sealed record MenteeRoadmapDto(Guid RoadmapId, Guid MentorshipId, string Title, string ObjectiveMarkdown, IReadOnlyList<MenteeRoadmapItemDto> Items);
 public sealed record MenteeRoadmapItemDto(Guid RoadmapItemId, string TopicTitle, string TopicDescriptionMarkdown,
-    string? MentorNoteMarkdown, int Position, IReadOnlyList<MenteeAssignmentListItem> Assignments);
+    string? MentorNoteMarkdown, int Position, IReadOnlyList<MenteeAssignmentListItem> Assignments,
+    CompetencyStatus Status = CompetencyStatus.NotAssessed);
 public sealed record MenteeAssignmentListItem(Guid AssignmentId, string ExerciseTitle, ExerciseType Type, bool IsRequired,
     DateTime? DueAtUtc, SubmissionStatus? LatestStatus, int AttemptCount);
