@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Common;
 using MentorPath.Application.Mentorships.Contracts;
@@ -110,7 +111,33 @@ public sealed class SubmissionTests(PostgresFixture db) : IntegrationTestBase(db
         var history = (await App.Get<ISubmissionService>().GetHistoryAsync(mentee.UserId, asg.AssignmentId, default)).ShouldSucceed();
         history.Attempts.Single().DecisionAnswer!.TradeOffs.ShouldBe("Prostota vs skalowanie");
         var json = await App.Db(ctx => ctx.Submissions.Where(s => s.Id == first.SubmissionId).Select(s => s.DecisionAnswerJson).SingleAsync());
-        json!.Replace(" ", "").ShouldContain("\"schemaVersion\":1");
+        using var document = JsonDocument.Parse(json!);
+        document.RootElement.GetProperty("schemaVersion").GetInt32().ShouldBe(2);
+        var answer = document.RootElement.GetProperty("answer");
+        answer.GetProperty("decision").GetString().ShouldBe("Modularny monolit");
+        answer.GetProperty("tradeOffs").GetString().ShouldBe("Prostota vs skalowanie");
+    }
+
+    [Fact]
+    public async Task Decision_history_reads_legacy_v1_json()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+
+        const string v1Json = """{"schemaVersion":1,"decision":"Stara decyzja","rationale":"Stare uzasadnienie","alternatives":"","tradeOffs":"Kompromis","risks":"Ryzyko","reconsiderationConditions":"Warunek"}""";
+        await App.Db(ctx => ctx.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Submissions\" SET \"DecisionAnswerJson\" = CAST({v1Json} AS jsonb) WHERE \"Id\" = {submission.SubmissionId}"));
+
+        var history = (await Submissions.GetHistoryAsync(mentee.UserId, assignment.AssignmentId, default)).ShouldSucceed();
+        var answer = history.Attempts.Single().DecisionAnswer!;
+        answer.Decision.ShouldBe("Stara decyzja");
+        answer.Rationale.ShouldBe("Stare uzasadnienie");
+        answer.Alternatives.ShouldBe("");
+        answer.TradeOffs.ShouldBe("Kompromis");
+        answer.Risks.ShouldBe("Ryzyko");
+        answer.ReconsiderationConditions.ShouldBe("Warunek");
     }
 
     [Fact]

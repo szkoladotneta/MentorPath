@@ -514,3 +514,15 @@ Status: Adopted
 - The scheduled cleanup compares current objects in the private attachment container with all `SubmissionAttachments.ObjectKey` values. It deletes only unreferenced objects whose Azure last-modified time is at least 24 hours old, and rechecks database references before deletion.
 - Complete the blob inventory and database reference reads before deleting any candidate. Propagate storage/database errors and cancellation; an incomplete inventory must never trigger partial cleanup.
 - T03 registers the cleanup with the shared T05 background-job scheduler and PostgreSQL advisory lock. No schema or `Contracts/` change is required.
+
+## D-61 — DecisionAnswer JSON v2 envelope (T04)
+Status: Adopted (2026-10-28, confirmed by the user)
+
+Context: `DecisionAnswerJson` v1 stores six architectural-answer fields at the document root. T04 needs a concrete v1-to-v2 migration pattern without changing the MVP answer required from mentees.
+
+Decision:
+- Keep the six fields and their meanings unchanged, and group them under an `answer` object in a document with `schemaVersion: 2`.
+- Migrate v1 JSON by moving each existing value unchanged into `answer`; do not transform `null` values or documents with another version.
+- New writes use v2; history reads both v1 and v2 into the existing mentee-facing six-field DTO.
+
+Impact: the persisted JSON contract changes through a separate `schema-change` PR. No form fields or UI behavior change.
