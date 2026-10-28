@@ -220,6 +220,18 @@ internal sealed class MentorFeedbackConfiguration : IEntityTypeConfiguration<Men
     }
 }
 
+internal sealed class ProductFeedbackConfiguration : IEntityTypeConfiguration<ProductFeedback>
+{
+    public void Configure(EntityTypeBuilder<ProductFeedback> e)
+    {
+        e.Property(x => x.MessageText).HasMaxLength(2000).IsRequired();
+        e.Property(x => x.PageContext).HasMaxLength(2000);
+        e.HasIndex(x => new { x.AuthorUserId, x.CreatedAtUtc });
+        e.HasIndex(x => x.CreatedAtUtc);
+        e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class RubricCriterionConfiguration : IEntityTypeConfiguration<RubricCriterion>
 {
     public void Configure(EntityTypeBuilder<RubricCriterion> e)

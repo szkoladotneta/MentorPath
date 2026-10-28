@@ -466,7 +466,29 @@ Decision:
 
 Impact: this supersedes D-33's manual-only and non-blocking CI policy. No application schema, service contract, or product behavior changes.
 
-## D-56 — CSP `script-src 'self'` i szyfrowanie key ringu Data Protection (T02)
+## D-56 — Global product feedback and redaction (N03)
+Status: Adopted (2026-10-26, confirmed by the user)
+
+Decision:
+- Mentors and mentees can submit global product feedback without associating the row with a workspace. Submission authorization still requires a real workspace relationship, checked through `IWorkspaceAccessService`: a mentor owns a workspace or a mentee has a mentorship in any status, including `Closed`. Identity role alone is insufficient.
+- Store the author user ID, required plain-text message (maximum 2000 characters), optional page path without query string (maximum 2000 characters), and UTC creation time. Do not store a workspace ID, author role, category, or rate-limit state. The operator follows up using the author ID.
+- The operator lists feedback through the CLI only, newest first; users cannot read submissions back in the web app.
+- Anonymization retains the feedback row and author ID but blanks the message. Database storage permits an empty message for that redacted state; submission validation rejects empty or whitespace-only text.
+- Place “Uwaga do produktu” in the top-bar user menu. No rate limit is added for the MVP.
+
+Impact: add a global `ProductFeedback` table in a schema-change PR. `Feedback` owns inserts and `Privacy` owns message redaction. Update `DOMAIN_RULES.md`, `DATA_RETENTION.md` and write-ownership convention tests; implement submission, operator CLI and privacy behavior only after the schema PR is merged.
+
+## D-57 — Product feedback page context and export schema (N03)
+Status: Adopted (2026-10-27, clarification during PR review)
+
+Decision:
+- Store `PageContext` only when it is a local application path beginning with one `/`; reject network-path forms (`//` and `/\`), external URLs, and control characters. Remove query strings and fragments before storage.
+- Anonymization clears the feedback message but retains the local page path, author ID and timestamp for product context and operator follow-up. The privacy export includes this context.
+- Increment the personal-data export `schemaVersion` to 2 when adding the feedback collection.
+
+Impact: page context cannot carry a query-string secret or external destination, but may contain route identifiers and remains associated with the retained author ID after anonymization. Document this retention in `DATA_RETENTION.md`.
+
+## D-58 — CSP `script-src 'self'` i szyfrowanie key ringu Data Protection (T02)
 Status: Adopted
 
 - CSP zawiera `script-src 'self' 'nonce-<per request>'` (nonce generowany per żądanie, tylko dla inline `<script type="importmap">` Blazora). Jedyny inline script (stan rail w `App.razor`) przeniesiony do `wwwroot/js/rail-init.js`. Test sprawdza nagłówek i że jedynym inline `<script>` jest import map z nonce. `style-src` bez zmian (poza zakresem).

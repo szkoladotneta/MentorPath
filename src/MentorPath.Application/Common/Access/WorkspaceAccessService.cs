@@ -15,6 +15,13 @@ internal sealed class WorkspaceAccessService(IDbContextFactory<AppDbContext> dbF
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<bool> HasWorkspaceRelationshipAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Workspaces.AsNoTracking().AnyAsync(w => w.OwnerUserId == userId, ct)
+               || await db.Mentorships.AsNoTracking().AnyAsync(m => m.MenteeUserId == userId, ct);
+    }
+
     public async Task<bool> CanManageWorkspaceAsync(Guid userId, Guid workspaceId, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

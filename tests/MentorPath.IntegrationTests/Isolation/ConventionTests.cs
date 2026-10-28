@@ -21,6 +21,7 @@ public sealed class ConventionTests
         "IMentorProvisioningService.ProvisionMentorAsync",
         "IPersonalDataService.ExportAsync",
         "IPersonalDataService.AnonymizeAsync",
+        "IProductFeedbackOperatorService.ListAsync",
     ];
 
     // Actorless methods with no resource to probe, so no NotFound contract. Every other actorless method
@@ -30,16 +31,18 @@ public sealed class ConventionTests
         "IInvitationService.PreviewAsync",
         "IInvitationService.AcceptWithNewAccountAsync",
         "IMentorProvisioningService.ProvisionMentorAsync",
+        "IProductFeedbackOperatorService.ListAsync",
     ];
 
     // Actorless services bypass IWorkspaceAccessService, so only operator CLI commands may call them.
-    private static readonly string[] OperatorServices = ["IMentorProvisioningService", "IPersonalDataService"];
+    private static readonly string[] OperatorServices = ["IMentorProvisioningService", "IPersonalDataService", "IProductFeedbackOperatorService"];
 
     private static readonly string[] OperatorServiceAllowedDirs =
     [
         "src/MentorPath.Web/Cli/",
         "src/MentorPath.Application/Workspaces/",
         "src/MentorPath.Application/Privacy/",
+        "src/MentorPath.Application/Feedback/",
     ];
 
     // Which module may insert/update/delete which tables (docs/DOMAIN_RULES.md, write ownership).
@@ -53,8 +56,9 @@ public sealed class ConventionTests
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments", "ActivityEvents"],
         ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
+        ["Feedback"] = ["ProductFeedback"],
         ["Progress"] = [],
-        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Invitations"],
+        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "ProductFeedback", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.
