@@ -199,7 +199,7 @@ async function expectText(page, text, timeout = 10000) {
     await addTopic('Spójność danych i transakcje');
     const assign = async (topic, exerciseLabelPart) => {
       const card = mentor.locator(`.card:has(.card-header:has-text("${topic}"))`);
-      const select = card.locator('select');
+      const select = card.locator('select[id^="asg-"]');
       const value = await select.locator('option', { hasText: exerciseLabelPart }).first().getAttribute('value');
       await select.selectOption(value);
       await card.locator('button:has-text("Przypisz")').click();
