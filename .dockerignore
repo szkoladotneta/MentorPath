@@ -6,4 +6,5 @@
 docs/
 tests/
 infra/
+.local/
 *.md

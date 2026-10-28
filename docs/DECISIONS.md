@@ -487,3 +487,12 @@ Decision:
 - Increment the personal-data export `schemaVersion` to 2 when adding the feedback collection.
 
 Impact: page context cannot carry a query-string secret or external destination, but may contain route identifiers and remains associated with the retained author ID after anonymization. Document this retention in `DATA_RETENTION.md`.
+
+## D-58 — CSP `script-src 'self'` i szyfrowanie key ringu Data Protection (T02)
+Status: Adopted
+
+- CSP zawiera `script-src 'self' 'nonce-<per request>'` (nonce generowany per żądanie, tylko dla inline `<script type="importmap">` Blazora). Jedyny inline script (stan rail w `App.razor`) przeniesiony do `wwwroot/js/rail-init.js`. Test sprawdza nagłówek i że jedynym inline `<script>` jest import map z nonce. `style-src` bez zmian (poza zakresem).
+- Klucze Data Protection szyfrowane certyfikatem X.509 (`DataProtection:CertificatePath`, `DataProtection:CertificatePassword`; PKCS#12) przez `ProtectKeysWithCertificate`, bez nowego pakietu. W Production brak certyfikatu przy trwałym key ringu przerywa start.
+- Istniejące niezaszyfrowane klucze nadal się odczytują; nowe są szyfrowane. Utrata certyfikatu = utrata kluczy (jak utrata key ringu). Certyfikat i hasło przechowuj w Key Vault/sekretach, wspólne dla web i CLI.
+- Uzupełnienie T02: lokalny pełny stos i smoke CI pozostają w Production. Przed startem generują lokalny certyfikat PKCS#12 przez `scripts/create-local-dp-certificate.sh`, montowany jako read-only Compose secret do web i CLI. `.local/` jest ignorowany przez Git i Docker; certyfikat nie trafia do obrazu ani repozytorium. Zmiana workflow CI jest ograniczona do generowania tego certyfikatu i wymaga przeglądu CODEOWNERS. Nie wyłączamy walidacji Production na potrzeby smoke.
+- Uzupełnienie po review T02: wymóg certyfikatu w Production i zastosowanie skonfigurowanego certyfikatu nie zależą od ustawienia `KeysPath`/`BlobUri`; obejmują też magazyn wybrany domyślnie przez framework. Stała nazwa aplikacji `MentorPath` dotyczy również tej ścieżki (wcześniejsze cookies/tokeny hostów bez jawnej konfiguracji magazynu mogą wymagać ponownego wystawienia). Certyfikat nie zapewnia trwałości magazynu: operator nadal odpowiada za trwałe, wspólne przechowywanie kluczy web i CLI.

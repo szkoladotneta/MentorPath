@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using Azure.Identity;
 using MentorPath.Application.Common;
@@ -18,6 +19,7 @@ namespace MentorPath.Web.Composition;
 public static class WebComposition
 {
     public const string UploadsRateLimit = "uploads";
+    public const string CspNonceKey = "csp-nonce";
 
     public static void AddMentorPathWeb(this WebApplicationBuilder builder)
     {
@@ -41,18 +43,7 @@ public static class WebComposition
         if (builder.Environment.IsProduction() && configuration["Storage:Provider"] == "InMemory")
             throw new InvalidOperationException("InMemory storage is not allowed in Production.");
 
-        var keysPath = configuration["DataProtection:KeysPath"];
-        var keysBlobUri = configuration["DataProtection:BlobUri"];
-        if (!string.IsNullOrWhiteSpace(keysBlobUri))
-        {
-            if (!Uri.TryCreate(keysBlobUri, UriKind.Absolute, out var uri)
-                || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.Query))
-                throw new InvalidOperationException("DataProtection:BlobUri must be an HTTPS blob URI without a SAS token.");
-            services.AddDataProtection().SetApplicationName("MentorPath")
-                .PersistKeysToAzureBlobStorage(uri, new DefaultAzureCredential());
-        }
-        else if (!string.IsNullOrWhiteSpace(keysPath))
-            services.AddDataProtection().SetApplicationName("MentorPath").PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        AddKeyRing(services, configuration, builder.Environment);
 
         services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
         services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
@@ -85,6 +76,32 @@ public static class WebComposition
                 o.KnownIPNetworks.Clear();
                 o.KnownProxies.Clear();
             });
+        }
+    }
+
+    private static void AddKeyRing(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
+    {
+        var keysPath = configuration["DataProtection:KeysPath"];
+        var keysBlobUri = configuration["DataProtection:BlobUri"];
+        var certificatePath = configuration["DataProtection:CertificatePath"];
+        var builder = services.AddDataProtection().SetApplicationName("MentorPath");
+        if (!string.IsNullOrWhiteSpace(keysBlobUri))
+        {
+            if (!Uri.TryCreate(keysBlobUri, UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.Query))
+                throw new InvalidOperationException("DataProtection:BlobUri must be an HTTPS blob URI without a SAS token.");
+            builder.PersistKeysToAzureBlobStorage(uri, new DefaultAzureCredential());
+        }
+        else if (!string.IsNullOrWhiteSpace(keysPath))
+            builder.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+
+        if (string.IsNullOrWhiteSpace(certificatePath) && environment.IsProduction())
+            throw new InvalidOperationException("DataProtection:CertificatePath is required in Production to encrypt the key ring.");
+
+        if (!string.IsNullOrWhiteSpace(certificatePath))
+        {
+            var password = configuration["DataProtection:CertificatePassword"];
+            builder.ProtectKeysWithCertificate(X509CertificateLoader.LoadPkcs12FromFile(certificatePath, password));
         }
     }
 
@@ -180,10 +197,12 @@ public static class WebComposition
         app.Use(async (ctx, next) =>
         {
             var h = ctx.Response.Headers;
+            var nonce = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            ctx.Items[CspNonceKey] = nonce;
             h.XContentTypeOptions = "nosniff";
             h["Referrer-Policy"] = "strict-origin-when-cross-origin";
             h["X-Frame-Options"] = "DENY";
-            h.ContentSecurityPolicy = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com";
+            h.ContentSecurityPolicy = $"frame-ancestors 'none'; object-src 'none'; base-uri 'self'; script-src 'self' 'nonce-{nonce}'; form-action 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com";
             h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
             await next();
         });

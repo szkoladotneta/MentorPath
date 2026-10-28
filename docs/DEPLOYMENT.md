@@ -13,6 +13,12 @@
 ```
 Jeden obraz Docker zawiera aplikację i komendy administracyjne (`migrate`, `create-mentor`, `seed-demo`).
 
+### Lokalny pełny stos i smoke CI
+
+Przed `docker compose --profile app up -d --build` uruchom `bash scripts/create-local-dp-certificate.sh` (wymaga OpenSSL). Skrypt tworzy certyfikat PKCS#12 bez hasła w ignorowanym `.local/`, poza kontekstem budowania obrazu. Compose montuje go tylko do odczytu jako secret w `migrate` i `app`, a `seed-demo` uruchamiane przez `exec app` używa tego samego certyfikatu i wolumenu `/keys`. Smoke CI wykonuje ten sam krok na jednorazowym runnerze i nadal testuje środowisko Production.
+
+To certyfikat **wyłącznie lokalny/CI**, nie do Azure ani prawdziwych danych. Skrypt zachowuje istniejący plik: nie usuwaj go, jeśli chcesz nadal odczytywać klucze z istniejącego wolumenu `dpkeys`. Do rzeczywistych wdrożeń dostarcz własny certyfikat przez bezpieczny magazyn i konfigurację poniżej.
+
 ## 2. Konfiguracja (zmienne środowiskowe)
 
 Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium nie ma sekretów produkcyjnych (wartości w `docker-compose.yml` i `appsettings.Development.json` są lokalne).
@@ -26,6 +32,7 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `App__DisableHttpsRedirection` | opcjonalne | `true`, jeśli TLS kończy się na proxy i proxy samo przekierowuje |
 | `DataProtection__BlobUri` | Azure: tak | Pełny HTTPS URI prywatnego bloba z kluczami, bez SAS; `DefaultAzureCredential`; pierwszeństwo przed `KeysPath`; kontener tworzy operator |
 | `DataProtection__KeysPath` | poza Azure | Trwały katalog kluczy współdzielony z CLI (wolumen), domyślnie w obrazie `/keys` — sam katalog w obrazie nie jest trwały |
+| `DataProtection__CertificatePath` | Production | Ścieżka do PKCS#12 szyfrującego key ring (hasło: `DataProtection__CertificatePassword`); wspólny z CLI; brak = start przerwany w Production |
 | `Storage__Provider` | domyślnie `AzureBlob` | `InMemory` wyłącznie w testach; start Production jest odrzucany |
 | `Storage__AzureBlob__ServiceUri` | Azure: tak | `https://<konto>.blob.core.windows.net`, bez SAS; dostęp managed identity |
 | `Storage__AzureBlob__ContainerName` | domyślnie `mentorpath` | Prywatny kontener załączników |
@@ -36,6 +43,8 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey` | gdy `OpenAiCompatible` | Endpoint zgodny z OpenAI Chat Completions + structured output |
 | `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | opcjonalne | 60 / 3000 / 50 |
 | `Database__MigrateOnStartup` | opcjonalne | Nie zalecane w produkcji — używaj kroku `migrate` |
+
+W Production certyfikat Data Protection jest wymagany także bez jawnego `KeysPath`/`BlobUri`; skonfigurowany certyfikat szyfruje klucze również w magazynie wybranym przez framework. Nie zastępuje to konfiguracji trwałego magazynu współdzielonego przez web i CLI.
 
 Brak konfiguracji Azure Blob to błąd walidacji przy starcie; nie ma automatycznego fallbacku do pamięci. Stare klucze `Storage__S3__*` nie są obsługiwane. Przed aktualizacją istniejącej instalacji przenieś obiekty i zmień konfigurację ([migracja](AZURE_DEPLOYMENT.md#existing-s3-data)).
 

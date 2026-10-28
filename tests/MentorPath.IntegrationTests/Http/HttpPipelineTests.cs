@@ -37,6 +37,20 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
     }
 
     [Fact]
+    public async Task Login_page_has_no_inline_scripts()
+    {
+        using var client = _factory.Client();
+        var response = await client.GetAsync("/Account/Login");
+        var html = await response.Content.ReadAsStringAsync();
+        var csp = response.Headers.GetValues("Content-Security-Policy").Single();
+        var inline = System.Text.RegularExpressions.Regex.Matches(html, @"<script(?![^>]*\ssrc=)[^>]*>")
+            .Select(m => m.Value).ToList();
+        // Only the nonce-protected import map may be inline.
+        inline.ShouldAllBe(tag => tag.Contains("type=\"importmap\"") && tag.Contains("nonce="));
+        csp.ShouldContain("'nonce-");
+    }
+
+    [Fact]
     public async Task Health_endpoints_and_security_headers()
     {
         using var client = _factory.Client();
@@ -47,6 +61,7 @@ public sealed class HttpPipelineTests(PostgresFixture db) : IntegrationTestBase(
         page.Headers.GetValues("X-Frame-Options").ShouldContain("DENY");
         var contentSecurityPolicy = page.Headers.GetValues("Content-Security-Policy").ShouldHaveSingleItem();
         contentSecurityPolicy.ShouldContain("frame-ancestors 'none'");
+        contentSecurityPolicy.ShouldContain("script-src 'self'");
         contentSecurityPolicy.ShouldContain("frame-src https://www.youtube-nocookie.com https://player.vimeo.com");
     }
 
