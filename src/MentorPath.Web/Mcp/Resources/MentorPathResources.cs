@@ -18,7 +18,7 @@ public sealed class MentorPathResources
         var id = McpResults.ParseId(mentorshipId, nameof(mentorshipId));
         var m = McpResults.Unwrap(await mentorships.GetForMentorAsync(actor.ActorUserId, id, ct));
         var sb = new StringBuilder();
-        sb.AppendLine($"# Mentee: {m.MenteeDisplayName}");
+        sb.AppendLine($"# Mentee: {OneLine(m.MenteeDisplayName)}");
         sb.AppendLine();
         sb.AppendLine($"- mentorshipId: `{m.MentorshipId}`");
         sb.AppendLine($"- Status: {m.Status}");
@@ -36,10 +36,16 @@ public sealed class MentorPathResources
     {
         sb.AppendLine($"## {heading} (the mentee's own words)");
         sb.AppendLine("<mentee-text>");
-        sb.AppendLine(string.IsNullOrWhiteSpace(text) ? "_not provided_" : text);
+        sb.AppendLine(Escape(text));
         sb.AppendLine("</mentee-text>");
         sb.AppendLine();
     }
+
+    /// <summary>Mentee text cannot close the delimiter or forge server lines: angle brackets are escaped, so "&lt;/mentee-text&gt;" stays inside the block.</summary>
+    private static string Escape(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? "_not provided_" : text.Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal);
+
+    private static string OneLine(string? text) => Escape(text).ReplaceLineEndings(" ");
 
     [McpServerResource(UriTemplate = "mentorpath://catalog", Name = "catalog", MimeType = "text/markdown")]
     [Description("The mentor's whole catalog as Markdown: every active topic with its difficulty, learning objectives and exercises grouped by status. Published exercises are the ones that can be assigned to a roadmap.")]

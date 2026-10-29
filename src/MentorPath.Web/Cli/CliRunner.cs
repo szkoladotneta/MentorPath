@@ -8,10 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.Web.Cli;
 
-/// <summary>Administrative commands executed from the same binary (D-24, D-64): migrate, create-mentor, seed-demo, export-user, anonymize-user, list-feedback, mcp-stdio, mcp-token.</summary>
+/// <summary>Administrative commands executed from the same binary (D-24, D-64): migrate, create-mentor, seed-demo, export-user, anonymize-user, list-feedback, mcp-stdio, mcp-token, mcp-key.</summary>
 public static class CliRunner
 {
-    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user", "list-feedback", "mcp-stdio", "mcp-token"];
+    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user", "list-feedback", "mcp-stdio", "mcp-token", "mcp-key"];
 
     public static bool IsCliCommand(string[] args) => args.Length > 0 && Commands.Contains(args[0], StringComparer.OrdinalIgnoreCase);
 
@@ -19,6 +19,11 @@ public static class CliRunner
     {
         var command = args[0].ToLowerInvariant();
         if (command == "mcp-stdio") return await McpStdioCommand.RunAsync(args.Skip(1).ToArray()); // generic host, no Kestrel
+        if (command == "mcp-key") // needs no host and no database: prints a fresh Mcp:SigningKey value
+        {
+            Console.WriteLine(McpTokens.GenerateKey());
+            return 0;
+        }
         var options = ParseOptions(args.Skip(1).ToArray());
         var builder = WebApplication.CreateBuilder(args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('=')).ToArray());
         builder.Configuration["Storage:EnsureContainerOnStartup"] = "false";
@@ -100,7 +105,7 @@ public static class CliRunner
                     var signingKey = app.Configuration[McpComposition.SigningKeySetting];
                     if (string.IsNullOrWhiteSpace(signingKey))
                     {
-                        Console.Error.WriteLine($"{McpComposition.SigningKeySetting} is not configured (user-secrets or Mcp__SigningKey: at least 32 random bytes in Base64, e.g. `openssl rand -base64 32`).");
+                        Console.Error.WriteLine($"{McpComposition.SigningKeySetting} is not configured (user-secrets or Mcp__SigningKey; generate the value with the `mcp-key` command).");
                         return 2;
                     }
                     try { McpTokens.SecurityKey(signingKey); }

@@ -1,5 +1,7 @@
 using System.Reflection;
 using MentorPath.Application.Catalog.Contracts;
+using MentorPath.Application.Mentorships.Contracts;
+using MentorPath.Application.Progress.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Data;
 using MentorPath.Web.Mcp;
@@ -12,6 +14,10 @@ namespace MentorPath.IntegrationTests.Isolation;
 public sealed class ArchitectureTests
 {
     private static readonly Assembly WebAssembly = typeof(Program).Assembly;
+
+    /// <summary>The only services an MCP entry point may receive (D-64). Operator-only services, which take no actor, are deliberately absent.</summary>
+    private static readonly Type[] McpAllowedServices =
+        [typeof(IMentorshipService), typeof(IProgressService), typeof(ITopicService), typeof(IExerciseAuthoringService), typeof(IRoadmapService)];
 
     [Fact]
     public void Razor_components_never_inject_db_context_or_factory()
@@ -52,6 +58,10 @@ public sealed class ArchitectureTests
                         || m.GetCustomAttribute<McpServerPromptAttribute>() is not null)
             .ToList();
         methods.Count.ShouldBe(19, "15 tools, 2 resources, 2 prompts");
+        methods.ShouldAllBe(m => m.IsStatic, "entry points are static, so the SDK never constructs the classes and nothing can arrive through a constructor");
+        methods.Select(m => m.DeclaringType!).Distinct().ShouldAllBe(t => t.GetConstructors().All(c => c.GetParameters().Length == 0));
+        methods.Where(m => UnwrapTask(m.ReturnType) == typeof(object)).Select(m => m.Name)
+            .ShouldBeEmpty("results are named types, so the result walker below can inspect every field an agent receives");
 
         var offenders = methods
             .SelectMany(m => m.GetParameters().Where(p => !IsAllowed(p.ParameterType))
@@ -69,12 +79,15 @@ public sealed class ArchitectureTests
                 var element = t.GetGenericArguments()[0];
                 return IsAllowed(element) || (!element.IsInterface && IsContractsType(element));
             }
-            if (t.IsInterface) return IsContractsType(t);
+            if (t.IsInterface) return McpAllowedServices.Contains(t);
             return t.IsPrimitive || t.IsEnum || t == typeof(string) || t == typeof(Guid) || t == typeof(DateTime);
         }
 
         static bool IsContractsType(Type t) =>
             t.Namespace?.StartsWith("MentorPath.Application.", StringComparison.Ordinal) == true && t.Namespace.EndsWith(".Contracts", StringComparison.Ordinal);
+
+        static Type UnwrapTask(Type t) =>
+            t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Task<>) ? t.GetGenericArguments()[0] : t;
     }
 
     [Fact]

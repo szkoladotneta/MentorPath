@@ -10,8 +10,8 @@ namespace MentorPath.IntegrationTests.Mcp;
 public sealed class McpTokensTests
 {
     /// <summary>64 bytes, so that a token signed with HS512 and the same key is rejected by the algorithm allow-list, not by key size.</summary>
-    public static readonly string Key = Convert.ToBase64String(Enumerable.Range(0, 64).Select(i => (byte)(i * 37 + 11)).ToArray());
-    public static readonly string OtherKey = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)(i * 53 + 7)).ToArray());
+    public static readonly string Key = McpTokens.KeyPrefix + Convert.ToBase64String(Enumerable.Range(0, 64).Select(i => (byte)(i * 37 + 11)).ToArray());
+    public static readonly string OtherKey = McpTokens.KeyPrefix + Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)(i * 53 + 7)).ToArray());
     private static readonly FakeTimeProvider Clock = new(new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero));
 
     [Fact]
@@ -39,13 +39,26 @@ public sealed class McpTokensTests
     }
 
     [Theory]
-    [InlineData("too-short")]                                       // not Base64
-    [InlineData("unit-test-signing-key-with-at-least-32-bytes")]    // a passphrase, not Base64
-    [InlineData("AAAAAAAAAAAAAAAAAAAAAA==")]                         // 16 bytes
-    [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")]     // 32 bytes, all zero
-    public void Weak_signing_keys_are_refused(string key)
+    [InlineData("too-short")]                                                 // no tag
+    [InlineData("unit-test-signing-key-with-at-least-32-bytes")]              // a passphrase
+    [InlineData("mentorpathmcpsigningkeymentorpathmcpsigningkeyAB")]          // a passphrase that happens to be valid Base64 of 36 bytes
+    [InlineData("mpk1:not-base64!")]                                          // tagged, not Base64
+    [InlineData("mpk1:AAAAAAAAAAAAAAAAAAAAAA==")]                              // tagged, 16 bytes
+    [InlineData("mpk1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")]          // tagged, 32 bytes, all zero
+    public void Keys_not_generated_by_mcp_key_are_refused(string key)
     {
-        Should.Throw<InvalidOperationException>(() => McpTokens.SecurityKey(key)).Message.ShouldContain("openssl rand -base64 32");
+        Should.Throw<InvalidOperationException>(() => McpTokens.SecurityKey(key)).Message.ShouldContain("mcp-key");
+    }
+
+    [Fact]
+    public void Generated_keys_are_accepted_and_unique()
+    {
+        var first = McpTokens.GenerateKey();
+        var second = McpTokens.GenerateKey();
+
+        first.ShouldStartWith(McpTokens.KeyPrefix);
+        first.ShouldNotBe(second);
+        McpTokens.SecurityKey(first).KeySize.ShouldBe(McpTokens.MinKeyBytes * 8);
     }
 
     [Theory]

@@ -25,7 +25,7 @@ public sealed class CatalogTools
 
     [McpServerTool(Name = "create_topic", Idempotent = false, Destructive = false)]
     [Description("Creates a new topic in the mentor's catalog. Use only when list_topics has no topic for a competency the mentee needs; a duplicate slug fails with catalog.slug_taken. Returns the new topicId. A new topic has no exercises, so it cannot be completed until an exercise is drafted and published.")]
-    public static async Task<object> CreateTopic(
+    public static async Task<McpTopicCreated> CreateTopic(
         ITopicService topics, IActorContext actor, CancellationToken ct,
         [Description("Title, max 200 characters")] string title,
         [Description("URL-friendly slug, unique in the workspace, max 150 characters, e.g. 'idempotencja-api'")] string slug,
@@ -36,7 +36,7 @@ public sealed class CatalogTools
     {
         var id = McpResults.Unwrap(await topics.CreateAsync(actor.ActorUserId,
             new UpsertTopicRequest(title, slug, category, difficulty, descriptionMarkdown, learningObjectivesMarkdown), ct));
-        return new { topicId = id, title, slug };
+        return new McpTopicCreated(id, title, slug);
     }
 
     [McpServerTool(Name = "list_exercises", ReadOnly = true, Idempotent = true)]
@@ -60,7 +60,7 @@ public sealed class CatalogTools
                  "Types: QuizSingleChoice (needs 2-6 quizOptions with exactly one isCorrect, plus explanationMarkdown), " +
                  "ArchitecturalDecision (scenario + instructionsMarkdown with constraints; the mentee answers with decision, rationale, alternatives, trade-offs, risks, conditions for reconsideration), " +
                  "PracticalTask (task description in scenarioMarkdown, requirements in instructionsMarkdown, expected artifacts in expectedOutcomeMarkdown). Fails with catalog.topic_archived for an archived topic. Returns the new exerciseId; it cannot be assigned to a roadmap until the mentor publishes it.")]
-    public static async Task<object> CreateExerciseDraft(
+    public static async Task<McpExerciseDraftCreated> CreateExerciseDraft(
         IExerciseAuthoringService exercises, IActorContext actor, CancellationToken ct,
         [Description("The topic the exercise belongs to")] Guid topicId,
         [Description("QuizSingleChoice, ArchitecturalDecision or PracticalTask")] ExerciseType type,
@@ -79,12 +79,7 @@ public sealed class CatalogTools
             discussionQuestionsMarkdown, explanationMarkdown, mentorGuideMarkdown, estimatedMinutes, quizOptions ?? []);
         var id = McpResults.Unwrap(await exercises.CreateDraftAsync(actor.ActorUserId,
             new CreateExerciseDraftRequest(topicId, type, content), ExerciseSource.AI, ct));
-        return new
-        {
-            exerciseId = id,
-            status = nameof(ExerciseStatus.Draft),
-            source = nameof(ExerciseSource.AI),
-            nextStep = $"The mentor reviews and publishes it at /mentor/exercises/{id}/edit. It cannot be assigned to a roadmap until published.",
-        };
+        return new McpExerciseDraftCreated(id, ExerciseStatus.Draft, ExerciseSource.AI,
+            $"The mentor reviews and publishes it at /mentor/exercises/{id}/edit. It cannot be assigned to a roadmap until published.");
     }
 }
