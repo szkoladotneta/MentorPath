@@ -18,7 +18,7 @@ internal sealed class ExerciseAuthoringService(
     public Task<Result<Guid>> CreateDraftAsync(Guid actorUserId, CreateExerciseDraftRequest request, CancellationToken ct) =>
         CreateDraftAsync(actorUserId, request, ExerciseSource.Manual, ct);
 
-    internal async Task<Result<Guid>> CreateDraftAsync(Guid actorUserId, CreateExerciseDraftRequest request, ExerciseSource source, CancellationToken ct)
+    public async Task<Result<Guid>> CreateDraftAsync(Guid actorUserId, CreateExerciseDraftRequest request, ExerciseSource source, CancellationToken ct)
     {
         var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
         if (ws is null) return Errors.NotFound(Module);
