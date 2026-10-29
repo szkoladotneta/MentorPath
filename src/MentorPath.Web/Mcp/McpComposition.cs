@@ -1,8 +1,11 @@
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using MentorPath.Data;
+using MentorPath.Data.Enums;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using MentorPath.Web.Mcp.Prompts;
 using MentorPath.Web.Mcp.Resources;
 using MentorPath.Web.Mcp.Tools;
@@ -44,20 +47,24 @@ public static class McpComposition
         var key = configuration[SigningKeySetting];
         if (string.IsNullOrWhiteSpace(key)) return services;
 
+        var securityKey = McpTokens.SecurityKey(key); // validated here, at start-up: a weak key stops the host, not the first agent
+        var audience = McpTokens.ResolveAudience(configuration);
         services.AddAuthentication().AddJwtBearer(BearerScheme, o =>
         {
             o.MapInboundClaims = true; // "sub" -> ClaimTypes.NameIdentifier, the same claim the UI and /api use
             o.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidIssuer = McpTokens.Issuer,
-                ValidAudience = McpTokens.Audience,
-                IssuerSigningKey = McpTokens.SecurityKey(key),
+                ValidAudience = audience,
+                IssuerSigningKey = securityKey,
+                ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                 ValidateIssuer = true,
                 ValidateAudience = true,
                 ValidateIssuerSigningKey = true,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.FromMinutes(1),
             };
+            o.Events = new JwtBearerEvents { OnTokenValidated = McpTokens.RejectRevokedAsync };
         });
         services.AddAuthorizationBuilder()
             .AddPolicy(Policy, p => p.AddAuthenticationSchemes(BearerScheme).RequireAuthenticatedUser().RequireClaim(ClaimTypes.NameIdentifier));
@@ -97,34 +104,75 @@ public static class McpComposition
     }
 }
 
-/// <summary>Bearer tokens for agents: HS256 JWT, subject = AppUser.Id, issued by the <c>mcp-token</c> CLI command.</summary>
+/// <summary>
+/// Bearer tokens for agents (D-64): HS256 JWT, subject = AppUser.Id, bound to one instance by the audience and to the account by its
+/// security stamp, issued by the <c>mcp-token</c> CLI command. A password reset, a lockout or a lost Mentor role ends the token.
+/// </summary>
 public static class McpTokens
 {
     public const string Issuer = "mentorpath-mcp";
-    public const string Audience = "mentorpath-mcp";
+    public const string DefaultAudience = "mentorpath-mcp";
+    public const string AudienceSetting = "Mcp:Audience";
+    /// <summary>Identity's security stamp of the user at issue time; any stamp refresh (password reset included) revokes the token.</summary>
+    public const string SecurityStampClaim = "security_stamp";
+    public const int MinKeyBytes = 32;
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(30);
+    public static readonly TimeSpan MaxLifetime = TimeSpan.FromDays(90);
 
+    /// <summary>The audience ties a token to one instance: <c>Mcp:Audience</c>, else the public base URL, else a fixed name (tests).</summary>
+    public static string ResolveAudience(IConfiguration configuration) =>
+        configuration[AudienceSetting] is { Length: > 0 } configured ? configured
+        : configuration["App:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/')
+        : DefaultAudience;
+
+    /// <summary>The key is at least 32 random bytes, Base64-encoded (<c>openssl rand -base64 32</c>). Passphrases are refused.</summary>
     public static SymmetricSecurityKey SecurityKey(string configuredKey)
     {
-        var bytes = Encoding.UTF8.GetBytes(configuredKey);
-        if (bytes.Length < 32)
-            throw new InvalidOperationException($"{McpComposition.SigningKeySetting} must be at least 32 bytes long.");
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(configuredKey.Trim()); }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException($"{McpComposition.SigningKeySetting} must be Base64 of at least {MinKeyBytes} random bytes, e.g. the output of `openssl rand -base64 32`.");
+        }
+        if (bytes.Length < MinKeyBytes)
+            throw new InvalidOperationException($"{McpComposition.SigningKeySetting} decodes to {bytes.Length} bytes; at least {MinKeyBytes} random bytes are required (`openssl rand -base64 32`).");
+        if (bytes.Distinct().Count() < 16)
+            throw new InvalidOperationException($"{McpComposition.SigningKeySetting} does not look random; generate it with `openssl rand -base64 32`.");
         return new SymmetricSecurityKey(bytes);
     }
 
-    public static string Create(Guid userId, TimeSpan lifetime, string configuredKey, TimeProvider clock)
+    public static string Create(Guid userId, string securityStamp, string audience, TimeSpan lifetime, string configuredKey, TimeProvider clock)
     {
+        if (lifetime <= TimeSpan.Zero || lifetime > MaxLifetime)
+            throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, $"Token lifetime must be between 1 second and {MaxLifetime.TotalDays:0} days.");
         var now = clock.GetUtcNow().UtcDateTime;
         var descriptor = new SecurityTokenDescriptor
         {
             Issuer = Issuer,
-            Audience = Audience,
-            Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, userId.ToString())]),
+            Audience = audience,
+            Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim(SecurityStampClaim, securityStamp)]),
             IssuedAt = now,
             NotBefore = now,
             Expires = now.Add(lifetime),
             SigningCredentials = new SigningCredentials(SecurityKey(configuredKey), SecurityAlgorithms.HmacSha256),
         };
         return new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false }.CreateToken(descriptor);
+    }
+
+    /// <summary>
+    /// Runs after signature, issuer, audience and lifetime passed. A token is only as valid as the account behind it: the user must still
+    /// exist, not be locked out, still be a Mentor and carry the security stamp the token was issued with. One user query per request.
+    /// </summary>
+    public static async Task RejectRevokedAsync(TokenValidatedContext context)
+    {
+        var principal = context.Principal;
+        var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
+        var user = Guid.TryParse(principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? await users.FindByIdAsync(id.ToString()) : null;
+        var valid = user is not null
+            && !await users.IsLockedOutAsync(user)
+            && await users.IsInRoleAsync(user, AppRoles.Mentor)
+            && principal!.FindFirstValue(SecurityStampClaim) is { Length: > 0 } stamp
+            && stamp == await users.GetSecurityStampAsync(user);
+        if (!valid) context.Fail("The token does not match an active mentor account."); // one message for every case, nothing to enumerate
     }
 }

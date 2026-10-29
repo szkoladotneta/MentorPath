@@ -22,8 +22,18 @@ public static class CliRunner
         var options = ParseOptions(args.Skip(1).ToArray());
         var builder = WebApplication.CreateBuilder(args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('=')).ToArray());
         builder.Configuration["Storage:EnsureContainerOnStartup"] = "false";
-        builder.AddMentorPathWeb();
-        await using var app = builder.Build();
+        WebApplication app;
+        try
+        {
+            builder.AddMentorPathWeb();
+            app = builder.Build();
+        }
+        catch (InvalidOperationException ex) // configuration errors (missing connection string, weak Mcp:SigningKey, ...): a message, not a stack trace
+        {
+            Console.Error.WriteLine($"Configuration error: {ex.Message}");
+            return 2;
+        }
+        await using var _ = app;
         await using var scope = app.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
 
@@ -84,17 +94,31 @@ public static class CliRunner
                 {
                     if (!options.TryGetValue("email", out var tokenEmail))
                     {
-                        Console.Error.WriteLine("Usage: mcp-token --email <mentor e-mail> [--days <lifetime, default 30>]");
+                        Console.Error.WriteLine($"Usage: mcp-token --email <mentor e-mail> [--days <1-{McpTokens.MaxLifetime.TotalDays:0}, default {McpTokens.DefaultLifetime.TotalDays:0}>]");
                         return 2;
                     }
                     var signingKey = app.Configuration[McpComposition.SigningKeySetting];
                     if (string.IsNullOrWhiteSpace(signingKey))
                     {
-                        Console.Error.WriteLine($"{McpComposition.SigningKeySetting} is not configured (user-secrets or Mcp__SigningKey, at least 32 characters).");
+                        Console.Error.WriteLine($"{McpComposition.SigningKeySetting} is not configured (user-secrets or Mcp__SigningKey: at least 32 random bytes in Base64, e.g. `openssl rand -base64 32`).");
                         return 2;
                     }
-                    var lifetime = options.TryGetValue("days", out var d) && int.TryParse(d, out var days) && days is > 0 and <= 365
-                        ? TimeSpan.FromDays(days) : McpTokens.DefaultLifetime;
+                    try { McpTokens.SecurityKey(signingKey); }
+                    catch (InvalidOperationException ex)
+                    {
+                        Console.Error.WriteLine(ex.Message);
+                        return 2;
+                    }
+                    var lifetime = McpTokens.DefaultLifetime;
+                    if (options.TryGetValue("days", out var d))
+                    {
+                        if (!int.TryParse(d, out var days) || days < 1 || days > McpTokens.MaxLifetime.TotalDays)
+                        {
+                            Console.Error.WriteLine($"--days must be a whole number between 1 and {McpTokens.MaxLifetime.TotalDays:0}.");
+                            return 2;
+                        }
+                        lifetime = TimeSpan.FromDays(days);
+                    }
                     var users = sp.GetRequiredService<UserManager<AppUser>>();
                     var user = await users.FindByEmailAsync(tokenEmail);
                     if (user is null || !await users.IsInRoleAsync(user, AppRoles.Mentor))
@@ -102,8 +126,9 @@ public static class CliRunner
                         Console.Error.WriteLine("No mentor account with that e-mail.");
                         return 1;
                     }
-                    var token = McpTokens.Create(user.Id, lifetime, signingKey, sp.GetRequiredService<TimeProvider>());
-                    Console.Error.WriteLine($"MCP bearer token for user {user.Id}, valid {lifetime.TotalDays:0} days. Keep it secret; it has the mentor's full rights.");
+                    var audience = McpTokens.ResolveAudience(app.Configuration);
+                    var token = McpTokens.Create(user.Id, await users.GetSecurityStampAsync(user), audience, lifetime, signingKey, sp.GetRequiredService<TimeProvider>());
+                    Console.Error.WriteLine($"MCP bearer token for user {user.Id}, valid {lifetime.TotalDays:0} days, audience {audience}. Keep it secret; it has the mentor's full rights. A password reset of that mentor revokes it.");
                     Console.WriteLine(token);
                     return 0;
                 }

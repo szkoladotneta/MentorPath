@@ -1,50 +1,78 @@
 using MentorPath.Web.Mcp;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace MentorPath.IntegrationTests.Mcp;
 
-/// <summary>Bearer tokens for the /mcp endpoint (D-64). No database needed.</summary>
+/// <summary>Bearer tokens for the /mcp endpoint (D-64). No database needed; the real pipeline is covered by <see cref="McpHttpTests"/>.</summary>
 public sealed class McpTokensTests
 {
-    private const string Key = "unit-test-signing-key-with-at-least-32-bytes";
+    /// <summary>64 bytes, so that a token signed with HS512 and the same key is rejected by the algorithm allow-list, not by key size.</summary>
+    public static readonly string Key = Convert.ToBase64String(Enumerable.Range(0, 64).Select(i => (byte)(i * 37 + 11)).ToArray());
+    public static readonly string OtherKey = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)(i * 53 + 7)).ToArray());
     private static readonly FakeTimeProvider Clock = new(new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero));
 
     [Fact]
-    public async Task Token_carries_the_user_id_as_subject_and_validates_with_the_same_key()
+    public async Task Token_carries_user_id_and_security_stamp_and_validates_with_the_same_key()
     {
         var userId = Guid.NewGuid();
-        var token = McpTokens.Create(userId, TimeSpan.FromDays(365), Key, Clock);
+        var token = McpTokens.Create(userId, "stamp-1", McpTokens.DefaultAudience, TimeSpan.FromDays(90), Key, Clock);
 
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, Parameters(Key));
 
         result.IsValid.ShouldBeTrue(result.Exception?.Message);
         result.ClaimsIdentity.FindFirst(JwtRegisteredClaimNames.Sub)!.Value.ShouldBe(userId.ToString());
-        result.SecurityToken.ShouldBeOfType<JsonWebToken>().ValidTo.ShouldBe(Clock.GetUtcNow().UtcDateTime.AddDays(365));
+        result.ClaimsIdentity.FindFirst(McpTokens.SecurityStampClaim)!.Value.ShouldBe("stamp-1");
+        result.SecurityToken.ShouldBeOfType<JsonWebToken>().ValidTo.ShouldBe(Clock.GetUtcNow().UtcDateTime.AddDays(90));
     }
 
     [Fact]
     public async Task Token_signed_with_another_key_is_rejected()
     {
-        var token = McpTokens.Create(Guid.NewGuid(), TimeSpan.FromDays(1), Key, Clock);
+        var token = McpTokens.Create(Guid.NewGuid(), "stamp", McpTokens.DefaultAudience, TimeSpan.FromDays(1), Key, Clock);
 
-        var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, Parameters("another-signing-key-with-at-least-32-bytes"));
+        var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, Parameters(OtherKey));
 
         result.IsValid.ShouldBeFalse();
     }
 
-    [Fact]
-    public void Short_signing_keys_are_refused()
+    [Theory]
+    [InlineData("too-short")]                                       // not Base64
+    [InlineData("unit-test-signing-key-with-at-least-32-bytes")]    // a passphrase, not Base64
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA==")]                         // 16 bytes
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")]     // 32 bytes, all zero
+    public void Weak_signing_keys_are_refused(string key)
     {
-        Should.Throw<InvalidOperationException>(() => { McpTokens.Create(Guid.NewGuid(), TimeSpan.FromDays(1), "too-short", Clock); });
+        Should.Throw<InvalidOperationException>(() => McpTokens.SecurityKey(key)).Message.ShouldContain("openssl rand -base64 32");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(91)]
+    public void Lifetimes_outside_one_second_to_ninety_days_are_refused(int days)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => McpTokens.Create(Guid.NewGuid(), "stamp", McpTokens.DefaultAudience, TimeSpan.FromDays(days), Key, Clock));
+    }
+
+    [Fact]
+    public void Audience_is_the_configured_value_then_the_public_base_url_then_the_default()
+    {
+        static string Resolve(params (string Key, string Value)[] pairs) => McpTokens.ResolveAudience(
+            new ConfigurationBuilder().AddInMemoryCollection(pairs.ToDictionary(p => p.Key, p => (string?)p.Value)).Build());
+
+        Resolve(("Mcp:Audience", "mcp-prod"), ("App:PublicBaseUrl", "https://x/")).ShouldBe("mcp-prod");
+        Resolve(("App:PublicBaseUrl", "https://mentorpath.example/")).ShouldBe("https://mentorpath.example");
+        Resolve().ShouldBe(McpTokens.DefaultAudience);
     }
 
     private static TokenValidationParameters Parameters(string key) => new()
     {
         ValidIssuer = McpTokens.Issuer,
-        ValidAudience = McpTokens.Audience,
+        ValidAudience = McpTokens.DefaultAudience,
         IssuerSigningKey = McpTokens.SecurityKey(key),
+        ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
         ValidateLifetime = false, // the fake clock is not the validator's clock
     };
 }

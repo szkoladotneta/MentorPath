@@ -67,7 +67,8 @@ MentorPath wystawia serwer [Model Context Protocol](https://modelcontextprotocol
 dotnet build src/MentorPath.Web -c Release                       # binarium używane przez .mcp.json i .vscode/mcp.json
 # Claude Code / VS Code (lokalnie, stdio, tylko Development):
 dotnet src/MentorPath.Web/bin/Release/net10.0/MentorPath.Web.dll mcp-stdio --actor mentor.a@mentorpath.local
-# Instancja z /mcp (Streamable HTTP, bearer JWT; wymaga Mcp__SigningKey):
+# Instancja z /mcp (Streamable HTTP, bearer JWT; wymaga Mcp__SigningKey = co najmniej 32 losowe bajty w Base64):
+dotnet user-secrets set "Mcp:SigningKey" "$(openssl rand -base64 32)" --project src/MentorPath.Web
 dotnet run --project src/MentorPath.Web -- mcp-token --email mentor.a@mentorpath.local --days 30
 claude mcp add --transport http mentorpath https://<host>/mcp --header "Authorization: Bearer <token>"
 ```
