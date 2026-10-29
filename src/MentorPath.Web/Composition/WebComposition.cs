@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using Azure.Identity;
@@ -80,6 +81,10 @@ public static class WebComposition
             o.AddPolicy(UploadsRateLimit, ctx => RateLimitPartition.GetFixedWindowLimiter(
                 ctx.User.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "anon",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+            // /mcp: authorization (bearer) already ran, so the partition is the mentor behind the token (D-64).
+            o.AddPolicy(McpComposition.RateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+                "mcp:" + (ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "anon"),
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = McpComposition.RateLimitPerMinute, Window = TimeSpan.FromMinutes(1) }));
         });
 
         if (configuration.GetValue<bool>("App:BehindProxy"))

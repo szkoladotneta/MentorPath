@@ -24,6 +24,8 @@ internal sealed class ExerciseAuthoringService(
         if (ws is null) return Errors.NotFound(Module);
         var errors = ExerciseValidator.ValidateDraft(request.Type, request.Content);
         if (errors.HasErrors) return errors.ToError("catalog.invalid_exercise");
+        if (source == ExerciseSource.AI && ExerciseValidator.ContainsHtml(request.Content)) // the rule AiDraftValidator applies to in-app AI drafts
+            return Errors.Validation("catalog.html_not_allowed", "Treść wygenerowana przez AI nie może zawierać HTML.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var topic = await db.Topics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TopicId && t.WorkspaceId == ws, ct);

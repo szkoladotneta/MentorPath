@@ -58,6 +58,18 @@ public sealed class McpServerTests
     }
 
     [Fact]
+    public void No_tool_asks_the_agent_for_an_actor_user_or_workspace_id()
+    {
+        using var sp = BuildServer();
+        foreach (var tool in sp.GetServices<McpServerTool>().Select(t => t.ProtocolTool))
+        {
+            if (!tool.InputSchema.TryGetProperty("properties", out var properties)) continue;
+            foreach (var property in properties.EnumerateObject())
+                property.Name.ShouldNotMatch("(?i)actor|workspace|userid", $"{tool.Name}.{property.Name} would let the agent choose whose data it touches");
+        }
+    }
+
+    [Fact]
     public void Every_tool_and_parameter_is_described_and_enums_are_listed_as_strings()
     {
         using var sp = BuildServer();

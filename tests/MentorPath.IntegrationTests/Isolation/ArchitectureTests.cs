@@ -2,6 +2,7 @@ using System.Reflection;
 using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Data;
+using MentorPath.Web.Mcp;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
@@ -38,6 +39,42 @@ public sealed class ArchitectureTests
                 .Select(p => $"{t.FullName}.{p.Member.Name}({p.Name})"))
             .ToList();
         offenders.ShouldBeEmpty("MCP code calls Contracts/ interfaces with actorUserId, never the database (D-64)");
+    }
+
+    [Fact]
+    public void Mcp_entry_points_take_only_contracts_services_the_actor_and_plain_data()
+    {
+        var methods = WebAssembly.GetTypes()
+            .Where(t => t.Namespace?.StartsWith("MentorPath.Web.Mcp", StringComparison.Ordinal) == true)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null
+                        || m.GetCustomAttribute<McpServerResourceAttribute>() is not null
+                        || m.GetCustomAttribute<McpServerPromptAttribute>() is not null)
+            .ToList();
+        methods.Count.ShouldBe(19, "15 tools, 2 resources, 2 prompts");
+
+        var offenders = methods
+            .SelectMany(m => m.GetParameters().Where(p => !IsAllowed(p.ParameterType))
+                .Select(p => $"{m.DeclaringType!.Name}.{m.Name}({p.ParameterType.Name} {p.Name})"))
+            .ToList();
+        offenders.ShouldBeEmpty("MCP entry points receive services only through Contracts/ interfaces and the actor only through IActorContext; "
+                                + "no IServiceProvider, McpServer, RequestContext, HttpContext or DbContext, which could reach the database or another user (D-64)");
+
+        static bool IsAllowed(Type t)
+        {
+            t = Nullable.GetUnderlyingType(t) ?? t;
+            if (t == typeof(IActorContext) || t == typeof(CancellationToken)) return true;
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
+            {
+                var element = t.GetGenericArguments()[0];
+                return IsAllowed(element) || (!element.IsInterface && IsContractsType(element));
+            }
+            if (t.IsInterface) return IsContractsType(t);
+            return t.IsPrimitive || t.IsEnum || t == typeof(string) || t == typeof(Guid) || t == typeof(DateTime);
+        }
+
+        static bool IsContractsType(Type t) =>
+            t.Namespace?.StartsWith("MentorPath.Application.", StringComparison.Ordinal) == true && t.Namespace.EndsWith(".Contracts", StringComparison.Ordinal);
     }
 
     [Fact]

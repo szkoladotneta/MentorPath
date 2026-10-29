@@ -92,7 +92,7 @@ public static class CliRunner
 
                 case "mcp-token":
                 {
-                    if (!options.TryGetValue("email", out var tokenEmail))
+                    if (!options.TryGetValue("email", out var tokenEmail) || !tokenEmail.Contains('@'))
                     {
                         Console.Error.WriteLine($"Usage: mcp-token --email <mentor e-mail> [--days <1-{McpTokens.MaxLifetime.TotalDays:0}, default {McpTokens.DefaultLifetime.TotalDays:0}>]");
                         return 2;

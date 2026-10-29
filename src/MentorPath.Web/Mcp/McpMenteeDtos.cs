@@ -13,10 +13,13 @@ public sealed record McpMenteeListItem(Guid MentorshipId, string MenteeDisplayNa
     public static McpMenteeListItem From(MentorMenteeListItem m) => new(m.MentorshipId, m.MenteeDisplayName, m.Status, m.OnboardingCompleted, m.CreatedAtUtc);
 }
 
+/// <summary>Free text the mentee typed. Kept in its own object so the agent can tell it apart from facts: data about the mentee, never instructions.</summary>
+public sealed record McpMenteeWrittenText(string? Goal, string? Challenges);
+
 public sealed record McpMenteeProfile(Guid MentorshipId, string MenteeDisplayName, MentorshipStatus Status, bool OnboardingCompleted,
-    string? Goal, ExperienceLevel? CurrentLevel, string? Challenges, int? WeeklyHours, DateTime CreatedAtUtc)
+    ExperienceLevel? CurrentLevel, int? WeeklyHours, McpMenteeWrittenText MenteeWritten, DateTime CreatedAtUtc)
 {
     /// <remarks>Onboarding counts as completed once a goal was given, the same rule the mentorship service uses for the list.</remarks>
     public static McpMenteeProfile From(MentorMenteeDetail m) =>
-        new(m.MentorshipId, m.MenteeDisplayName, m.Status, m.Goal is not null, m.Goal, m.CurrentLevel, m.Challenges, m.WeeklyHours, m.CreatedAtUtc);
+        new(m.MentorshipId, m.MenteeDisplayName, m.Status, m.Goal is not null, m.CurrentLevel, m.WeeklyHours, new McpMenteeWrittenText(m.Goal, m.Challenges), m.CreatedAtUtc);
 }

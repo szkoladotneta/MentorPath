@@ -95,6 +95,21 @@ public sealed class McpHttpTests(PostgresFixture db) : IntegrationTestBase(db)
     }
 
     [Fact]
+    public async Task Requests_are_rate_limited_per_mentor()
+    {
+        var a = await Data.MentorAsync();
+        var b = await Data.MentorAsync();
+        using var client = _withKey.Client(); // one client (one IP) for both mentors: the partition must be the mentor, not the address
+        var tokenA = await TokenAsync(a.UserId);
+        var tokenB = await TokenAsync(b.UserId);
+
+        for (var i = 0; i < McpComposition.RateLimitPerMinute; i++)
+            (await StatusAsync(client, tokenA)).ShouldBe(HttpStatusCode.OK, $"request {i + 1}");
+        (await StatusAsync(client, tokenA)).ShouldBe(HttpStatusCode.TooManyRequests, "mentor A over the limit");
+        (await StatusAsync(client, tokenB)).ShouldBe(HttpStatusCode.OK, "mentor B has their own budget");
+    }
+
+    [Fact]
     public async Task A_valid_token_sees_only_that_mentors_mentees()
     {
         var a = await Data.MentorAsync();

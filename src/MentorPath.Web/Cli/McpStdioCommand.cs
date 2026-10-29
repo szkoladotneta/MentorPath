@@ -1,9 +1,9 @@
 using MentorPath.Application.Common;
 using MentorPath.Data;
+using MentorPath.Data.Enums;
 using MentorPath.Web.Composition;
 using MentorPath.Web.Mcp;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.Web.Cli;
 
@@ -16,7 +16,7 @@ internal static class McpStdioCommand
     public static async Task<int> RunAsync(string[] args)
     {
         var options = CliRunner.ParseOptions(args);
-        if (!options.TryGetValue("actor", out var actorEmail) || string.IsNullOrWhiteSpace(actorEmail))
+        if (!options.TryGetValue("actor", out var actorEmail) || !actorEmail.Contains('@'))
         {
             Console.Error.WriteLine("Usage: mcp-stdio --actor <mentor e-mail>");
             return 2;
@@ -50,16 +50,16 @@ internal static class McpStdioCommand
 
         using var host = builder.Build();
         var actor = host.Services.GetRequiredService<McpActorOptions>();
-        await using (var db = await host.Services.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync())
+        await using (var scope = host.Services.CreateAsyncScope())
         {
-            var normalized = actorEmail.Trim().ToUpperInvariant();
-            var userId = await db.Users.AsNoTracking().Where(u => u.NormalizedEmail == normalized).Select(u => (Guid?)u.Id).FirstOrDefaultAsync();
-            if (userId is null)
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = await users.FindByEmailAsync(actorEmail.Trim());
+            if (user is null || !await users.IsInRoleAsync(user, AppRoles.Mentor)) // the same rule as mcp-token: only a mentor can be the actor
             {
-                Console.Error.WriteLine("Actor not found. Run seed-demo or pass the e-mail of an existing mentor.");
+                Console.Error.WriteLine("Actor must be an existing mentor account. Run seed-demo or pass a mentor's e-mail.");
                 return 1;
             }
-            actor.FixedActorUserId = userId;
+            actor.FixedActorUserId = user.Id;
         }
 
         await host.RunAsync();
