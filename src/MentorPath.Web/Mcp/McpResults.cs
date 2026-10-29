@@ -17,6 +17,9 @@ internal static class McpResults
         if (!result.IsSuccess) throw ToException(result.Error!);
     }
 
+    /// <summary>For rules the MCP layer adds on top of the services (D-64); same "code: message" shape as a failed Result.</summary>
+    public static McpException From(AppError error) => ToException(error);
+
     public static Guid ParseId(string value, string name) =>
         Guid.TryParse(value, out var id) ? id : throw new McpException($"{name} must be a GUID.");
 

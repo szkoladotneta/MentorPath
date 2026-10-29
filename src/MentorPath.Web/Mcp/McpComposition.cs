@@ -90,6 +90,8 @@ public static class McpComposition
             "MentorPath is a mentoring platform for backend (.NET) architecture. You act as the mentor who owns this workspace. " +
             "Tools read mentees, their profiles and progress, the catalog of topics and exercises, and roadmaps; write tools create topics, " +
             "exercise drafts and roadmap drafts. Nothing you create is published: the mentor publishes in the UI. " +
+            "About mentees you see their onboarding answers and progress, never their e-mail or the mentor's private notes. " +
+            "You may change only Draft roadmaps; a Published roadmap is live for the mentee and only the mentor edits it in the UI. " +
             "All ids are GUIDs returned by the list tools; never invent them. A mentorship has at most one roadmap, so check get_roadmap before create_roadmap. " +
             "Errors come back as '<module>.<code>: <message>'; not_found also covers resources that belong to another mentor. Content is in Polish unless the mentor asks otherwise.";
     }

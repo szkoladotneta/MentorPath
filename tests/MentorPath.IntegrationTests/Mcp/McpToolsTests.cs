@@ -59,9 +59,9 @@ public sealed class McpToolsTests(PostgresFixture db) : IntegrationTestBase(db)
             await ShouldFail("roadmap.not_found", () => RoadmapTools.GetRoadmap(App.Get<IRoadmapService>(), foreign, default, mentee.MentorshipId));
             await ShouldFail("progress.not_found", () => RoadmapTools.GetRoadmapProgress(App.Get<IProgressService>(), foreign, default, mentee.MentorshipId));
             await ShouldFail("roadmap.not_found", () => RoadmapTools.CreateRoadmap(App.Get<IRoadmapService>(), foreign, default, mentee.MentorshipId, "Tytuł", "Cel"));
-            await ShouldFail("roadmap.not_found", () => RoadmapTools.AddRoadmapTopic(App.Get<IRoadmapService>(), foreign, default, asg.RoadmapId, asg.TopicId));
-            await ShouldFail("roadmap.not_found", () => RoadmapTools.AssignExercise(App.Get<IRoadmapService>(), foreign, default, asg.RoadmapItemId, asg.ExerciseId));
-            await ShouldFail("roadmap.not_found", () => RoadmapTools.ReorderRoadmapTopics(App.Get<IRoadmapService>(), foreign, default, asg.RoadmapId, [asg.RoadmapItemId]));
+            await ShouldFail("roadmap.not_found", () => RoadmapTools.AddRoadmapTopic(App.Get<IRoadmapService>(), foreign, default, mentee.MentorshipId, asg.RoadmapId, asg.TopicId));
+            await ShouldFail("roadmap.not_found", () => RoadmapTools.AssignExercise(App.Get<IRoadmapService>(), foreign, default, mentee.MentorshipId, asg.RoadmapItemId, asg.ExerciseId));
+            await ShouldFail("roadmap.not_found", () => RoadmapTools.ReorderRoadmapTopics(App.Get<IRoadmapService>(), foreign, default, mentee.MentorshipId, asg.RoadmapId, [asg.RoadmapItemId]));
             await ShouldFail("mentorship.not_found", () => MentorPathResources.MenteeProfile(App.Get<IMentorshipService>(), foreign, default, mentee.MentorshipId.ToString()));
         }
     }
@@ -84,7 +84,72 @@ public sealed class McpToolsTests(PostgresFixture db) : IntegrationTestBase(db)
         exercise.Source.ShouldBe(ExerciseSource.AI);
         exercise.Status.ShouldBe(ExerciseStatus.Draft);
 
-        await ShouldFail("roadmap.exercise_not_published", () => RoadmapTools.AssignExercise(App.Get<IRoadmapService>(), actor, default, asg.RoadmapItemId, exerciseId));
+        await ShouldFail("roadmap.exercise_not_published", () => RoadmapTools.AssignExercise(App.Get<IRoadmapService>(), actor, default, mentee.MentorshipId, asg.RoadmapItemId, exerciseId));
+    }
+
+    [Fact]
+    public async Task Write_tools_change_only_draft_roadmaps()
+    {
+        var a = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(a);
+        var live = await Data.PublishedAssignmentAsync(a, mentee, ExerciseType.QuizSingleChoice); // publishes the roadmap
+        var otherTopic = await Data.TopicAsync(a, "Inny temat");
+        var otherExercise = await Data.PublishedExerciseAsync(a, live.TopicId, ExerciseType.PracticalTask);
+        var actor = new FixedActor(a.UserId);
+        var roadmaps = App.Get<IRoadmapService>();
+
+        await ShouldFail("roadmap.published", () => RoadmapTools.AddRoadmapTopic(roadmaps, actor, default, mentee.MentorshipId, live.RoadmapId, otherTopic));
+        await ShouldFail("roadmap.published", () => RoadmapTools.AssignExercise(roadmaps, actor, default, mentee.MentorshipId, live.RoadmapItemId, otherExercise));
+        await ShouldFail("roadmap.published", () => RoadmapTools.ReorderRoadmapTopics(roadmaps, actor, default, mentee.MentorshipId, live.RoadmapId, [live.RoadmapItemId]));
+        var untouched = (MentorRoadmapDto)await RoadmapTools.GetRoadmap(roadmaps, actor, default, mentee.MentorshipId);
+        untouched.Items.Count.ShouldBe(1);
+        untouched.Items[0].Assignments.Count.ShouldBe(1);
+
+        // The same calls work on a Draft roadmap of another mentee.
+        var mentee2 = await Data.MenteeAsync(a);
+        var draft = await Data.PublishedAssignmentAsync(a, mentee2, ExerciseType.QuizSingleChoice, publish: false); // its own topic
+        var draftTopicExercise = await Data.PublishedExerciseAsync(a, draft.TopicId, ExerciseType.PracticalTask);
+        await RoadmapTools.AddRoadmapTopic(roadmaps, actor, default, mentee2.MentorshipId, draft.RoadmapId, otherTopic);
+        await RoadmapTools.AssignExercise(roadmaps, actor, default, mentee2.MentorshipId, draft.RoadmapItemId, draftTopicExercise);
+        var items = ((MentorRoadmapDto)await RoadmapTools.GetRoadmap(roadmaps, actor, default, mentee2.MentorshipId)).Items.Select(i => i.RoadmapItemId).Reverse().ToList();
+        await RoadmapTools.ReorderRoadmapTopics(roadmaps, actor, default, mentee2.MentorshipId, draft.RoadmapId, items);
+        ((MentorRoadmapDto)await RoadmapTools.GetRoadmap(roadmaps, actor, default, mentee2.MentorshipId)).Items.Select(i => i.RoadmapItemId).ShouldBe(items);
+    }
+
+    [Fact]
+    public async Task Write_tools_reject_roadmap_ids_of_another_mentorship()
+    {
+        var a = await Data.MentorAsync();
+        var m1 = await Data.MenteeAsync(a);
+        var m2 = await Data.MenteeAsync(a);
+        var d1 = await Data.PublishedAssignmentAsync(a, m1, ExerciseType.QuizSingleChoice, publish: false);
+        await Data.PublishedAssignmentAsync(a, m2, ExerciseType.QuizSingleChoice, publish: false);
+        var topic = await Data.TopicAsync(a, "Temat");
+        var actor = new FixedActor(a.UserId);
+        var roadmaps = App.Get<IRoadmapService>();
+
+        await ShouldFail("roadmap.not_found", () => RoadmapTools.AddRoadmapTopic(roadmaps, actor, default, m2.MentorshipId, d1.RoadmapId, topic));
+        await ShouldFail("roadmap.not_found", () => RoadmapTools.AssignExercise(roadmaps, actor, default, m2.MentorshipId, d1.RoadmapItemId, d1.ExerciseId));
+        await ShouldFail("roadmap.not_found", () => RoadmapTools.ReorderRoadmapTopics(roadmaps, actor, default, m2.MentorshipId, d1.RoadmapId, [d1.RoadmapItemId]));
+    }
+
+    [Fact]
+    public async Task Mentee_email_and_mentor_private_notes_never_reach_the_agent()
+    {
+        var a = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(a);
+        (await App.Get<IMentorshipService>().UpdatePrivateNotesAsync(a.UserId, mentee.MentorshipId, "NOTATKA-PRYWATNA-123", default)).ShouldSucceed();
+        var actor = new FixedActor(a.UserId);
+
+        var list = await MenteeTools.ListMentees(App.Get<IMentorshipService>(), actor, default);
+        var profile = await MenteeTools.GetMenteeProfile(App.Get<IMentorshipService>(), actor, default, mentee.MentorshipId);
+        var markdown = await MentorPathResources.MenteeProfile(App.Get<IMentorshipService>(), actor, default, mentee.MentorshipId.ToString());
+
+        foreach (var type in new[] { list[0].GetType(), profile.GetType() })
+            type.GetProperties().Select(p => p.Name).ShouldNotContain(n => n.Contains("Email") || n.Contains("PrivateNotes"), type.Name);
+        markdown.ShouldNotContain(mentee.Email);
+        markdown.ShouldNotContain("NOTATKA-PRYWATNA-123");
+        profile.OnboardingCompleted.ShouldBe(list.Single(m => m.MentorshipId == mentee.MentorshipId).OnboardingCompleted);
     }
 
     [Fact]

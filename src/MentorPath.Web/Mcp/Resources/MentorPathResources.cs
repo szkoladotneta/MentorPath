@@ -12,7 +12,7 @@ namespace MentorPath.Web.Mcp.Resources;
 public sealed class MentorPathResources
 {
     [McpServerResource(UriTemplate = "mentorpath://mentees/{mentorshipId}/profile", Name = "mentee_profile", MimeType = "text/markdown")]
-    [Description("A mentee's onboarding profile (goal, level, challenges, weekly hours) and the mentor's private notes, as Markdown. mentorshipId comes from list_mentees.")]
+    [Description("A mentee's onboarding profile (goal, level, challenges, weekly hours) as Markdown; never the e-mail or the mentor's private notes. mentorshipId comes from list_mentees.")]
     public static async Task<string> MenteeProfile(IMentorshipService mentorships, IActorContext actor, CancellationToken ct, string mentorshipId)
     {
         var id = McpResults.ParseId(mentorshipId, nameof(mentorshipId));
@@ -22,7 +22,7 @@ public sealed class MentorPathResources
         sb.AppendLine();
         sb.AppendLine($"- mentorshipId: `{m.MentorshipId}`");
         sb.AppendLine($"- Status: {m.Status}");
-        sb.AppendLine($"- Onboarding: {(m.CurrentLevel is null ? "not completed" : "completed")}");
+        sb.AppendLine($"- Onboarding: {(m.Goal is null ? "not completed" : "completed")}");
         sb.AppendLine($"- Experience level: {m.CurrentLevel?.ToString() ?? "unknown"}");
         sb.AppendLine($"- Weekly hours: {m.WeeklyHours?.ToString() ?? "unknown"}");
         sb.AppendLine();
@@ -31,10 +31,7 @@ public sealed class MentorPathResources
         sb.AppendLine();
         sb.AppendLine("## Challenges");
         sb.AppendLine(string.IsNullOrWhiteSpace(m.Challenges) ? "_not provided_" : m.Challenges);
-        sb.AppendLine();
-        sb.AppendLine("## Mentor's private notes");
-        sb.AppendLine(string.IsNullOrWhiteSpace(m.MentorPrivateNotesMarkdown) ? "_none_" : m.MentorPrivateNotesMarkdown);
-        return sb.ToString();
+        return sb.ToString(); // deliberately no e-mail and no mentor's private notes (D-64)
     }
 
     [McpServerResource(UriTemplate = "mentorpath://catalog", Name = "catalog", MimeType = "text/markdown")]

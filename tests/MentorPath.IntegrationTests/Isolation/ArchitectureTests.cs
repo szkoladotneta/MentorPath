@@ -4,6 +4,7 @@ using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Data;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using ModelContextProtocol.Server;
 
 namespace MentorPath.IntegrationTests.Isolation;
 
@@ -37,6 +38,43 @@ public sealed class ArchitectureTests
                 .Select(p => $"{t.FullName}.{p.Member.Name}({p.Name})"))
             .ToList();
         offenders.ShouldBeEmpty("MCP code calls Contracts/ interfaces with actorUserId, never the database (D-64)");
+    }
+
+    [Fact]
+    public void Mcp_result_types_never_expose_mentee_email_or_private_notes()
+    {
+        var offenders = new List<string>();
+        var visited = new HashSet<Type>();
+        var roots = WebAssembly.GetTypes()
+            .Where(t => t.Namespace?.StartsWith("MentorPath.Web.Mcp", StringComparison.Ordinal) == true)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null || m.GetCustomAttribute<McpServerResourceAttribute>() is not null)
+            .Select(m => m.ReturnType);
+        foreach (var root in roots) Walk(root);
+        offenders.ShouldBeEmpty("agents never receive a mentee's e-mail or the mentor's private notes (D-64)");
+
+        void Walk(Type type)
+        {
+            type = Unwrap(type);
+            if (type.Namespace?.StartsWith("MentorPath.", StringComparison.Ordinal) != true || !visited.Add(type)) return;
+            foreach (var p in type.GetProperties())
+            {
+                if (p.Name.Contains("Email", StringComparison.Ordinal) || p.Name.Contains("PrivateNotes", StringComparison.Ordinal))
+                    offenders.Add($"{type.Name}.{p.Name}");
+                Walk(p.PropertyType);
+            }
+        }
+
+        static Type Unwrap(Type t)
+        {
+            while (true)
+            {
+                if (Nullable.GetUnderlyingType(t) is { } underlying) { t = underlying; continue; }
+                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Task<>)) { t = t.GetGenericArguments()[0]; continue; }
+                if (t != typeof(string) && t.IsGenericType && typeof(System.Collections.IEnumerable).IsAssignableFrom(t)) { t = t.GetGenericArguments()[^1]; continue; }
+                return t;
+            }
+        }
     }
 
     [Fact]
