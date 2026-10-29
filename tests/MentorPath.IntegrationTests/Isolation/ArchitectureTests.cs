@@ -25,6 +25,21 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void Mcp_tools_resources_and_prompts_never_touch_the_db_context()
+    {
+        var offenders = WebAssembly.GetTypes()
+            .Where(t => t.Namespace?.StartsWith("MentorPath.Web.Mcp", StringComparison.Ordinal) == true)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Cast<MethodBase>()
+                .Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                .SelectMany(m => m.GetParameters())
+                .Where(p => p.ParameterType == typeof(AppDbContext) || p.ParameterType == typeof(IDbContextFactory<AppDbContext>))
+                .Select(p => $"{t.FullName}.{p.Member.Name}({p.Name})"))
+            .ToList();
+        offenders.ShouldBeEmpty("MCP code calls Contracts/ interfaces with actorUserId, never the database (D-64)");
+    }
+
+    [Fact]
     public void Mentee_dto_types_do_not_expose_private_mentor_data_or_answers()
     {
         string[] forbidden = ["IsCorrect", "MentorGuide", "MentorPrivateNotes", "ExplanationMarkdown"];

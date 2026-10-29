@@ -59,6 +59,21 @@ dotnet run --project src/MentorPath.Web -- seed-demo        # tylko Development 
 ```
 `create-mentor` wypisuje jednorazowy link do ustawienia hasła. Publicznej rejestracji mentorów nie ma.
 
+## Agenci AI (MCP)
+
+MentorPath wystawia serwer [Model Context Protocol](https://modelcontextprotocol.io) (D-64): narzędzia do czytania mentees, katalogu, roadmap i postępu oraz do tworzenia tematów, szkiców ćwiczeń i roadmap (zawsze jako `Draft` — publikuje mentor).
+
+```bash
+dotnet build src/MentorPath.Web -c Release                       # binarium używane przez .mcp.json i .vscode/mcp.json
+# Claude Code / VS Code (lokalnie, stdio, tylko Development):
+dotnet src/MentorPath.Web/bin/Release/net10.0/MentorPath.Web.dll mcp-stdio --actor mentor.a@mentorpath.local
+# Instancja z /mcp (Streamable HTTP, bearer JWT; wymaga Mcp__SigningKey):
+dotnet run --project src/MentorPath.Web -- mcp-token --email mentor.a@mentorpath.local --days 30
+claude mcp add --transport http mentorpath https://<host>/mcp --header "Authorization: Bearer <token>"
+```
+
+`scripts/demo-reset.sh` odtwarza stan demo (świeża baza, `seed-demo`, build Release).
+
 ## Testy
 
 ```bash

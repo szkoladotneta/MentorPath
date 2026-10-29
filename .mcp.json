@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mentorpath": {
+      "command": "dotnet",
+      "args": ["src/MentorPath.Web/bin/Release/net10.0/MentorPath.Web.dll", "mcp-stdio", "--actor", "mentor.a@mentorpath.local"],
+      "env": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    },
+    "mentorpath-live": {
+      "type": "http",
+      "url": "https://mentorpath-kd261022.azurewebsites.net/mcp",
+      "headers": { "Authorization": "Bearer ${MENTORPATH_MCP_TOKEN}" }
+    }
+  }
+}

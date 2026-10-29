@@ -1,20 +1,24 @@
 using MentorPath.Application.Workspaces.Contracts;
 using MentorPath.Data;
+using MentorPath.Data.Enums;
 using MentorPath.Web.Composition;
+using MentorPath.Web.Mcp;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentorPath.Web.Cli;
 
-/// <summary>Administrative commands executed from the same binary (D-24): migrate, create-mentor, seed-demo, export-user, anonymize-user, list-feedback.</summary>
+/// <summary>Administrative commands executed from the same binary (D-24, D-64): migrate, create-mentor, seed-demo, export-user, anonymize-user, list-feedback, mcp-stdio, mcp-token.</summary>
 public static class CliRunner
 {
-    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user", "list-feedback"];
+    private static readonly string[] Commands = ["migrate", "create-mentor", "seed-demo", "export-user", "anonymize-user", "list-feedback", "mcp-stdio", "mcp-token"];
 
     public static bool IsCliCommand(string[] args) => args.Length > 0 && Commands.Contains(args[0], StringComparer.OrdinalIgnoreCase);
 
     public static async Task<int> RunAsync(string[] args)
     {
         var command = args[0].ToLowerInvariant();
+        if (command == "mcp-stdio") return await McpStdioCommand.RunAsync(args.Skip(1).ToArray()); // generic host, no Kestrel
         var options = ParseOptions(args.Skip(1).ToArray());
         var builder = WebApplication.CreateBuilder(args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('=')).ToArray());
         builder.Configuration["Storage:EnsureContainerOnStartup"] = "false";
@@ -75,6 +79,34 @@ public static class CliRunner
 
                 case "list-feedback":
                     return await FeedbackCommands.ListAsync(sp, options, Console.Out, Console.Error, CancellationToken.None);
+
+                case "mcp-token":
+                {
+                    if (!options.TryGetValue("email", out var tokenEmail))
+                    {
+                        Console.Error.WriteLine("Usage: mcp-token --email <mentor e-mail> [--days <lifetime, default 30>]");
+                        return 2;
+                    }
+                    var signingKey = app.Configuration[McpComposition.SigningKeySetting];
+                    if (string.IsNullOrWhiteSpace(signingKey))
+                    {
+                        Console.Error.WriteLine($"{McpComposition.SigningKeySetting} is not configured (user-secrets or Mcp__SigningKey, at least 32 characters).");
+                        return 2;
+                    }
+                    var lifetime = options.TryGetValue("days", out var d) && int.TryParse(d, out var days) && days is > 0 and <= 365
+                        ? TimeSpan.FromDays(days) : McpTokens.DefaultLifetime;
+                    var users = sp.GetRequiredService<UserManager<AppUser>>();
+                    var user = await users.FindByEmailAsync(tokenEmail);
+                    if (user is null || !await users.IsInRoleAsync(user, AppRoles.Mentor))
+                    {
+                        Console.Error.WriteLine("No mentor account with that e-mail.");
+                        return 1;
+                    }
+                    var token = McpTokens.Create(user.Id, lifetime, signingKey, sp.GetRequiredService<TimeProvider>());
+                    Console.Error.WriteLine($"MCP bearer token for user {user.Id}, valid {lifetime.TotalDays:0} days. Keep it secret; it has the mentor's full rights.");
+                    Console.WriteLine(token);
+                    return 0;
+                }
             }
         }
         catch (Exception ex)
@@ -85,7 +117,7 @@ public static class CliRunner
         return 2;
     }
 
-    private static Dictionary<string, string> ParseOptions(string[] args)
+    internal static Dictionary<string, string> ParseOptions(string[] args)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Length; i++)

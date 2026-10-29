@@ -8,6 +8,7 @@ using MentorPath.Web.BackgroundJobs;
 using MentorPath.Web.Components;
 using MentorPath.Web.Components.Account;
 using MentorPath.Web.Endpoints;
+using MentorPath.Web.Mcp;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -41,6 +42,7 @@ public static class WebComposition
         services.AddMentorPathData(configuration);
         services.AddMentorPathIdentity(builder.Environment);
         services.AddMentorPathModules(configuration);
+        services.AddMentorPathMcp(configuration);
         services.AddScoped<IBackgroundJob, OrphanedBlobCleanupJob>();
         services.AddOptions<BackgroundJobOptions>()
             .Bind(configuration.GetSection(BackgroundJobOptions.SectionName))
@@ -219,7 +221,8 @@ public static class WebComposition
             await next();
         });
 
-        app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api") && !ctx.Request.Path.StartsWithSegments("/health"),
+        app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api") && !ctx.Request.Path.StartsWithSegments("/health")
+                           && !ctx.Request.Path.StartsWithSegments(McpComposition.EndpointPath),
             branch => branch.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
         if (!app.Configuration.GetValue<bool>("App:DisableHttpsRedirection")) app.UseHttpsRedirection();
         app.UseRateLimiter();
@@ -231,6 +234,7 @@ public static class WebComposition
         app.MapAdditionalIdentityEndpoints();
         app.MapAttachmentEndpoints();
         app.MapPracticalSubmissionEndpoints();
+        app.MapMentorPathMcp();
         app.MapHealthChecks("/health/live", new() { Predicate = _ => false });
         app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("ready") });
     }
