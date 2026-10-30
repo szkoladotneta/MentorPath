@@ -11,7 +11,7 @@
     <PageState Loading="Loading" NotFound="NotFound">
         @if (progress is not null)
         {
-            <PageHeader Title="Postęp" Subtitle="Postęp jest wyliczany z zaliczonych wymaganych zadań. Pewność to Twoja samoocena."
+            <PageHeader Title="Postęp" Subtitle="Postęp zadań wynika z zaliczonych wymaganych ćwiczeń; status kompetencji nadaje mentor. Pewność to Twoja samoocena."
                         Crumbs="@(new Crumb[] { new("Moje mentoringi", "app/mentorships"), new("Roadmapa", $"app/roadmap/{MentorshipId}"), new("Postęp") })" />
             @if (!progress.HasPublishedRoadmap)
             {
@@ -26,6 +26,19 @@
                     </div>
                     <div class="progress"><div class="progress-bar" style="width:@(progress.PercentComplete)%"></div></div>
                 </Section>
+                @if (progress.CompetencyProgress is { } competencyProgress)
+                {
+                    <Section Title="Status kompetencji">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Wykazane kompetencje: <strong>@competencyProgress.DemonstratedCompetencies / @competencyProgress.ActiveCompetencies</strong></span>
+                            <strong>@competencyProgress.PercentComplete%</strong>
+                        </div>
+                        <div class="progress" role="progressbar" aria-label="Wykazane kompetencje"
+                             aria-valuenow="@competencyProgress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width:@(competencyProgress.PercentComplete)%"></div>
+                        </div>
+                    </Section>
+                }
                 @foreach (var t in progress.Topics)
                 {
                     <Section Title="@t.TopicTitle" Flush="true">

@@ -5,6 +5,7 @@
 @using MentorPath.Application.Catalog.Contracts
 @using MentorPath.Application.Mentorships.Contracts
 @using MentorPath.Application.Roadmaps.Contracts
+@using MentorPath.Data.Enums
 @using MentorPath.Web.Components.Modules.Roadmaps
 @inject IRoadmapService Roadmaps
 @inject ITopicService Topics
@@ -76,7 +77,7 @@
                             <button class="btn btn-outline-secondary" title="W górę" aria-label="Przesuń temat w górę" @onclick="() => MoveTopicAsync(item, -1)" disabled="@(item.Position == 0)"><Icon Name="chevron-down" Size="16" Class="mp-flip" /></button>
                             <button class="btn btn-outline-secondary" title="W dół" aria-label="Przesuń temat w dół" @onclick="() => MoveTopicAsync(item, 1)" disabled="@(item.Position == roadmap.Items.Count - 1)"><Icon Name="chevron-down" Size="16" /></button>
                             <button class="btn btn-outline-secondary" @onclick="() => ToggleTopicAsync(item)">@(item.IsActive ? "Wycofaj" : "Przywróć")</button>
-                            @if (!item.HasSubmissions)
+                            @if (!item.HasSubmissions && item.StatusHistory is not { Count: > 0 })
                             {
                                 <button class="btn btn-outline-danger" @onclick="() => RemoveTopicAsync(item)">Usuń</button>
                             }
@@ -87,6 +88,76 @@
                         {
                             <div class="small mb-2"><span class="section-title">Notatka dla mentee</span><Markdown Value="@item.MentorNoteMarkdown" /></div>
                         }
+                        <div class="border-top mt-3 pt-3">
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                <span class="fw-semibold">Status kompetencji</span>
+                                <Badge Value="item.Status" />
+                            </div>
+                            @if (item.SuggestedDemonstrated)
+                            {
+                                <div class="alert alert-info py-2" role="status">
+                                    Wszystkie aktywne wymagane ćwiczenia zostały zaakceptowane. Możesz oznaczyć kompetencję jako wykazaną.
+                                    <button class="btn btn-sm btn-outline-primary ms-2" @onclick="() => SuggestDemonstrated(item)">Ustaw sugestię</button>
+                                </div>
+                            }
+                            <div class="d-flex flex-wrap gap-2 align-items-end">
+                                <div class="field-medium">
+                                    <label class="form-label small mb-0" for="@($"competency-status-{item.RoadmapItemId}")">Status</label>
+                                    <select id="@($"competency-status-{item.RoadmapItemId}")" class="form-select form-select-sm"
+                                            @bind="competencyStatus[item.RoadmapItemId]">
+                                        @foreach (var status in Enum.GetValues<CompetencyStatus>())
+                                        {
+                                            <option value="@status">@Labels.Of(status)</option>
+                                        }
+                                    </select>
+                                </div>
+                                @if (competencyStatus.GetValueOrDefault(item.RoadmapItemId) == CompetencyStatus.Demonstrated)
+                                {
+                                    <div class="flex-grow-1">
+                                        <label class="form-label small mb-0" for="@($"competency-justification-{item.RoadmapItemId}")">Uzasadnienie (wymagane bez zaakceptowanej próby)</label>
+                                        <textarea id="@($"competency-justification-{item.RoadmapItemId}")" class="form-control form-control-sm"
+                                                  maxlength="1000" rows="2" @bind="competencyJustification[item.RoadmapItemId]"></textarea>
+                                    </div>
+                                }
+                                <button class="btn btn-sm btn-primary" @onclick="() => SaveCompetencyStatusAsync(item)" disabled="@busy">Zapisz status</button>
+                            </div>
+                            @if (item.Evidence is { Count: > 0 })
+                            {
+                                <div class="mt-3">
+                                    <span class="section-title">Próby mentee</span>
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach (var evidence in item.Evidence)
+                                        {
+                                            <li class="list-row px-0">
+                                                <span>Próba @evidence.AttemptNumber · @Labels.Date(evidence.SubmittedAtUtc)</span>
+                                                <Badge Value="evidence.Status" />
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (item.StatusHistory is { Count: > 0 })
+                            {
+                                <div class="mt-3">
+                                    <span class="section-title">Historia statusów</span>
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach (var entry in item.StatusHistory)
+                                        {
+                                            <li class="list-row px-0 align-items-start">
+                                                <div>
+                                                    <div><Badge Value="entry.PreviousStatus" /> → <Badge Value="entry.NewStatus" /></div>
+                                                    <div class="small text-secondary">Mentor · @Labels.Date(entry.ChangedAtUtc)</div>
+                                                    @if (!string.IsNullOrWhiteSpace(entry.ManualJustification))
+                                                    {
+                                                        <div class="small mt-1">@entry.ManualJustification</div>
+                                                    }
+                                                </div>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
                         @if (item.Assignments.Count == 0)
                         {
                             <div class="small text-secondary mb-2">Brak przypisanych ćwiczeń.</div>
@@ -188,6 +259,8 @@
     private readonly Dictionary<Guid, Guid> assignExercise = [];
     private readonly Dictionary<Guid, bool> assignRequired = [];
     private readonly Dictionary<Guid, DateTime?> assignDue = [];
+    private readonly Dictionary<Guid, CompetencyStatus> competencyStatus = [];
+    private readonly Dictionary<Guid, string?> competencyJustification = [];
     private string newTitle = "Ścieżka rozwoju";
     private string newObjective = "";
     private Guid addTopicId;
@@ -231,6 +304,8 @@
             assignExercise.TryAdd(item.RoadmapItemId, Guid.Empty);
             assignRequired.TryAdd(item.RoadmapItemId, true);
             assignDue.TryAdd(item.RoadmapItemId, null);
+            competencyStatus[item.RoadmapItemId] = item.Status;
+            competencyJustification.TryAdd(item.RoadmapItemId, null);
         }
     }
 
@@ -280,6 +355,14 @@
     private Task ToggleTopicAsync(MentorRoadmapItemDto item) => Run(u => Roadmaps.SetTopicActiveAsync(u, item.RoadmapItemId, !item.IsActive, Ct));
 
     private Task RemoveTopicAsync(MentorRoadmapItemDto item) => Run(u => Roadmaps.RemoveTopicAsync(u, item.RoadmapItemId, Ct));
+
+    private void SuggestDemonstrated(MentorRoadmapItemDto item) =>
+        competencyStatus[item.RoadmapItemId] = CompetencyStatus.Demonstrated;
+
+    private Task SaveCompetencyStatusAsync(MentorRoadmapItemDto item) =>
+        Run(u => Roadmaps.SetCompetencyStatusAsync(u, item.RoadmapItemId,
+            new SetCompetencyStatusRequest(competencyStatus[item.RoadmapItemId],
+                competencyJustification.GetValueOrDefault(item.RoadmapItemId)), Ct), "Status kompetencji zapisany.");
 
     private async Task AssignAsync(MentorRoadmapItemDto item)
     {
