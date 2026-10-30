@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -44,8 +45,7 @@ public static class McpComposition
     public static IServiceCollection AddMentorPathMcp(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHttpContextAccessor();
-        services.AddSingleton<McpActorOptions>();
-        services.AddScoped<IActorContext, ActorContext>();
+        services.AddScoped<IActorContext, HttpActorContext>(); // the bearer subject only; the stdio host registers FixedActorContext instead
         services.AddMcpServer(ConfigureServer).WithHttpTransport().WithMentorPathCapabilities();
 
         var key = configuration[SigningKeySetting];
@@ -119,11 +119,13 @@ public static class McpTokens
     public const string Issuer = "mentorpath-mcp";
     public const string DefaultAudience = "mentorpath-mcp";
     public const string AudienceSetting = "Mcp:Audience";
-    /// <summary>Identity's security stamp of the user at issue time; any stamp refresh (password reset included) revokes the token.</summary>
-    public const string SecurityStampClaim = "security_stamp";
+    /// <summary>SHA-256 of Identity's security stamp at issue time (never the stamp itself); any stamp refresh, a password reset included, revokes the token.</summary>
+    public const string SecurityStampClaim = "security_stamp_sha256";
     public const int MinKeyBytes = 32;
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(30);
     public static readonly TimeSpan MaxLifetime = TimeSpan.FromDays(90);
+
+    public static string HashStamp(string securityStamp) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(securityStamp)));
 
     /// <summary>The audience ties a token to one instance: <c>Mcp:Audience</c>, else the public base URL, else a fixed name (tests).</summary>
     public static string ResolveAudience(IConfiguration configuration) =>
@@ -165,7 +167,7 @@ public static class McpTokens
         {
             Issuer = Issuer,
             Audience = audience,
-            Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim(SecurityStampClaim, securityStamp)]),
+            Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim(SecurityStampClaim, HashStamp(securityStamp))]),
             IssuedAt = now,
             NotBefore = now,
             Expires = now.Add(lifetime),
@@ -187,7 +189,7 @@ public static class McpTokens
             && !await users.IsLockedOutAsync(user)
             && await users.IsInRoleAsync(user, AppRoles.Mentor)
             && principal!.FindFirstValue(SecurityStampClaim) is { Length: > 0 } stamp
-            && stamp == await users.GetSecurityStampAsync(user);
+            && stamp == HashStamp(await users.GetSecurityStampAsync(user));
         if (!valid) context.Fail("The token does not match an active mentor account."); // one message for every case, nothing to enumerate
     }
 }

@@ -1,10 +1,14 @@
+using System.Security.Claims;
 using System.Text.Json;
 using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Mentorships.Contracts;
 using MentorPath.Application.Progress.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
 using MentorPath.Web.Mcp;
+using MentorPath.Web.Mcp.Prompts;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
 namespace MentorPath.IntegrationTests.Mcp;
@@ -67,6 +71,42 @@ public sealed class McpServerTests
             foreach (var property in properties.EnumerateObject())
                 property.Name.ShouldNotMatch("(?i)actor|workspace|userid", $"{tool.Name}.{property.Name} would let the agent choose whose data it touches");
         }
+    }
+
+    [Fact]
+    public void Prompts_validate_their_arguments()
+    {
+        var mentorshipId = Guid.NewGuid().ToString();
+
+        MentorPathPrompts.PlanRoadmap(mentorshipId, null).ShouldContain("Choose 4 topics");
+        MentorPathPrompts.PlanRoadmap(mentorshipId, "6").ShouldContain("Choose 6 topics");
+        Should.Throw<McpException>(() => MentorPathPrompts.PlanRoadmap("not-a-guid", null)).Message.ShouldContain("GUID");
+        Should.Throw<McpException>(() => MentorPathPrompts.PlanRoadmap(mentorshipId, "0")).Message.ShouldContain("between 1 and 10");
+
+        MentorPathPrompts.DraftExercise(Guid.NewGuid().ToString(), "quizsinglechoice").ShouldContain("type QuizSingleChoice");
+        Should.Throw<McpException>(() => MentorPathPrompts.DraftExercise(Guid.NewGuid().ToString(), "Essay")).Message.ShouldContain("type must be");
+        Should.Throw<McpException>(() => MentorPathPrompts.DraftExercise("42", "PracticalTask")).Message.ShouldContain("GUID");
+    }
+
+    [Fact]
+    public void Http_actor_is_the_bearer_subject_and_nothing_else()
+    {
+        var id = Guid.NewGuid();
+        new HttpActorContext(new Accessor(WithUser(id.ToString()))).ActorUserId.ShouldBe(id);
+
+        Should.Throw<McpException>(() => new HttpActorContext(new Accessor(null)).ActorUserId);
+        Should.Throw<McpException>(() => new HttpActorContext(new Accessor(new DefaultHttpContext())).ActorUserId);
+        Should.Throw<McpException>(() => new HttpActorContext(new Accessor(WithUser(Guid.Empty.ToString()))).ActorUserId);
+        Should.Throw<McpException>(() => new HttpActorContext(new Accessor(WithUser("not-a-guid"))).ActorUserId);
+
+        static DefaultHttpContext WithUser(string nameIdentifier) =>
+            new() { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, nameIdentifier)], "test")) };
+    }
+
+    /// <summary>The real HttpContextAccessor shares one async-local across instances, which would leak a context between the cases above.</summary>
+    private sealed class Accessor(HttpContext? context) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = context;
     }
 
     [Fact]

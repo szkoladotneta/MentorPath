@@ -71,7 +71,8 @@ dotnet src/MentorPath.Web/bin/Release/net10.0/MentorPath.Web.dll mcp-stdio --act
 dotnet run --project src/MentorPath.Web -- mcp-key                 # wypisuje mpk1:...
 dotnet user-secrets set "Mcp:SigningKey" "mpk1:..." --project src/MentorPath.Web
 dotnet run --project src/MentorPath.Web -- mcp-token --email mentor.a@mentorpath.local --days 30
-claude mcp add --transport http mentorpath https://<host>/mcp --header "Authorization: Bearer <token>"
+read -s MENTORPATH_MCP_TOKEN && export MENTORPATH_MCP_TOKEN                    # wklej token bez echa; nie trafia do historii powłoki
+claude mcp add --transport http mentorpath https://<host>/mcp --header "Authorization: Bearer $MENTORPATH_MCP_TOKEN"
 ```
 
 `scripts/demo-reset.sh` odtwarza stan demo (świeża baza, `seed-demo`, build Release).

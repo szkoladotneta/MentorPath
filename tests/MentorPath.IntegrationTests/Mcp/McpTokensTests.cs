@@ -24,7 +24,8 @@ public sealed class McpTokensTests
 
         result.IsValid.ShouldBeTrue(result.Exception?.Message);
         result.ClaimsIdentity.FindFirst(JwtRegisteredClaimNames.Sub)!.Value.ShouldBe(userId.ToString());
-        result.ClaimsIdentity.FindFirst(McpTokens.SecurityStampClaim)!.Value.ShouldBe("stamp-1");
+        result.ClaimsIdentity.FindFirst(McpTokens.SecurityStampClaim)!.Value.ShouldBe(McpTokens.HashStamp("stamp-1"));
+        token.ShouldNotContain("stamp-1", customMessage: "the stamp itself never travels in the token");
         result.SecurityToken.ShouldBeOfType<JsonWebToken>().ValidTo.ShouldBe(Clock.GetUtcNow().UtcDateTime.AddDays(90));
     }
 

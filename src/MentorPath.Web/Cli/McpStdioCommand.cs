@@ -44,12 +44,13 @@ internal static class McpStdioCommand
         services.AddMentorPathData(builder.Configuration);
         services.AddIdentityCore<AppUser>().AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<AppDbContext>();
         services.AddMentorPathModules(builder.Configuration);
-        services.AddSingleton<McpActorOptions>();
-        services.AddScoped<IActorContext, ActorContext>();
+        var actorUserId = Guid.Empty; // resolved below, once the host is built and before it starts serving
+        services.AddScoped<IActorContext>(_ => actorUserId == Guid.Empty
+            ? throw new InvalidOperationException("The stdio actor is not resolved yet.")
+            : new FixedActorContext(actorUserId));
         services.AddMcpServer(McpComposition.ConfigureServer).WithStdioServerTransport().WithMentorPathCapabilities();
 
         using var host = builder.Build();
-        var actor = host.Services.GetRequiredService<McpActorOptions>();
         await using (var scope = host.Services.CreateAsyncScope())
         {
             var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
@@ -59,7 +60,7 @@ internal static class McpStdioCommand
                 Console.Error.WriteLine("Actor must be an existing mentor account. Run seed-demo or pass a mentor's e-mail.");
                 return 1;
             }
-            actor.FixedActorUserId = user.Id;
+            actorUserId = user.Id;
         }
 
         await host.RunAsync();
