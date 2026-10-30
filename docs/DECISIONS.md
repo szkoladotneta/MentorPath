@@ -543,3 +543,19 @@ Decision:
 - New writes use v2; history reads both v1 and v2 into the existing mentee-facing six-field DTO.
 
 Impact: the persisted JSON contract changes through a separate `schema-change` PR. No form fields or UI behavior change.
+
+## D-64 — Serwer MCP w MentorPath.Web: agent jako kolejny klient serwisów aplikacyjnych
+Status: Proposed (2026-10-29; do akceptacji w PR `schema-change` z kontraktem)
+
+Kontekst: Mentor chce, aby agent AI (Claude Code, VS Code Copilot, własny agent w C#) czytał cele i postęp mentee, przeglądał katalog, szkicował ćwiczenia i składał roadmapę. Model Context Protocol (MCP) jest otwartym standardem takiego dostępu; oficjalny C# SDK (`ModelContextProtocol` 2.3.0, rewizja specyfikacji 2026-07-28: bezstanowy Streamable HTTP) jest utrzymywany wspólnie z Microsoftem. Serwer MCP jest jednocześnie demem na konferencję (12.11.2026) i narzędziem codziennej pracy mentora na instancji produkcyjnej (Azure App Service).
+
+Decyzja:
+- **Bez nowego projektu.** Serwer MCP to folder `src/MentorPath.Web/Mcp/` (Tools, Resources, Prompts, Actor, `McpResults`, `McpComposition`) w istniejącym hoście — tak jak `Endpoints/` i `Cli/`. Wdraża się z tym samym obrazem Docker i tym samym App Service. Nowe pakiety w `Directory.Packages.props`: `ModelContextProtocol.AspNetCore` 2.3.0 (serwer MCP) i `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.14 (tokeny dla agentów; wersja zgodna z D-62).
+- **Narzędzia wołają wyłącznie interfejsy z `Contracts/`** z `actorUserId` — autoryzacja i izolacja workspace'u pozostają w serwisach (D-01, D-08). Brak dostępu = `NotFound`, tak jak w UI. Narzędzia nie używają `AppDbContext`.
+- **Lista narzędzi jest powierzchnią uprawnień agenta.** Odczyty: mentees, profil, dashboard, roadmapa, postęp, tematy, ćwiczenia. Zapisy: `create_topic`, `create_exercise_draft`, `create_roadmap`, `add_roadmap_topic`, `assign_exercise`, `reorder_roadmap_topics`. **Nie są wystawione**: publikacja ćwiczeń i roadmap, feedback, zaproszenia, notatki prywatne, operacje po stronie mentee. Zasoby: `mentorpath://mentees/{mentorshipId}/profile`, `mentorpath://catalog`. Prompty: `plan_roadmap`, `draft_exercise`.
+- **Szkice tworzone przez agenta mają `ExerciseSource.AI`** (D-03 obowiązuje: zawsze `Draft`, publikuje człowiek). Wymaga to wystawienia w `IExerciseAuthoringService` istniejącego przeciążenia `CreateDraftAsync(actorUserId, request, ExerciseSource, ct)` — zmiana `Contracts/`, osobny PR `schema-change`, bez migracji.
+- **Transport HTTP (produkcja):** `app.MapMcp("/mcp").RequireAuthorization(...)` z bearer JWT (HS256, klucz `Mcp:SigningKey` ≥ 32 bajty, `sub` = `AppUser.Id`, `iss`/`aud` = `mentorpath-mcp`, domyślna ważność 30 dni). Token wydaje komenda CLI `mcp-token --email <e-mail> [--days N]` w tym samym binarium (jak `create-mentor`); na produkcji uruchamiana w kontenerze App Service. Ścieżka `/mcp` jest wyłączona z re-execution stron statusu (jak `/api`). Docelowo: OAuth 2.1 z zewnętrznym serwerem autoryzacji — poza zakresem.
+- **Transport stdio (lokalnie):** komenda CLI `mcp-stdio --actor <e-mail>` uruchamia ten sam zestaw narzędzi w procesie potomnym klienta (Claude Code, VS Code) na lokalnej bazie; dozwolona wyłącznie w `Development`. Cały logging idzie na stderr (stdout jest kanałem JSON-RPC).
+- Serwer jest bezstanowy (domyślny tryb SDK); bez samplingu, roots i logowania MCP (zdeprecjonowane w 2026-07-28).
+
+Wpływ: dwa pakiety i folder `Mcp/` w `MentorPath.Web`; dwie komendy CLI (`mcp-stdio`, `mcp-token`); zmienna `Mcp__SigningKey` w konfiguracji App Service (`DEPLOYMENT.md` §2); testy: izolacja każdego narzędzia (obcy mentor → `NotFound`) oraz test konwencji, że narzędzia nie używają `AppDbContext`/`IDbContextFactory`; `ARCHITECTURE.md` §2, §5 i §9, `README.md`. Pliki konfiguracji klientów w repo: `.mcp.json` (Claude Code), `.vscode/mcp.json` (VS Code).

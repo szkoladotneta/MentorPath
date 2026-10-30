@@ -24,6 +24,8 @@ public sealed record TopicDetail(Guid TopicId, string Title, string Slug, string
 public interface IExerciseAuthoringService
 {
     Task<Result<Guid>> CreateDraftAsync(Guid actorUserId, CreateExerciseDraftRequest request, CancellationToken ct);
+    /// <summary>Creates a draft and records where it came from (<see cref="ExerciseSource.AI"/> for AI authoring and MCP agents). The draft is never published automatically (D-03).</summary>
+    Task<Result<Guid>> CreateDraftAsync(Guid actorUserId, CreateExerciseDraftRequest request, ExerciseSource source, CancellationToken ct);
     Task<Result> UpdateDraftAsync(Guid actorUserId, Guid exerciseId, ExerciseContent content, CancellationToken ct);
     Task<Result> PublishAsync(Guid actorUserId, Guid exerciseId, CancellationToken ct);
     Task<Result<Guid>> CloneAsDraftAsync(Guid actorUserId, Guid exerciseId, CancellationToken ct);
