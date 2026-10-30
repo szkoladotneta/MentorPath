@@ -211,7 +211,19 @@ Recheck the outbound list after changing plan/tier/region. For a fixed egress IP
 
 ## 5. Configure the app
 
+### Stable Data Protection certificate (D-58, D-65)
+
+**Verification status:** the App Service private-certificate mount is a delivery candidate, not yet verified for this application image or approved for production use. Microsoft documents the App Service mechanism, but the disposable rehearsal below is still required to establish the mounted P12 path, private-key access as the non-root runtime user, password behavior, restart persistence and recovery. Do not treat this procedure as operationally validated until that rehearsal is recorded.
+
+Use a stable private X.509 certificate with its private key, issued by an operator-controlled private PKI or created and held by the trusted operator. Do not use an App Service managed TLS certificate: its key can change during renewal, which is not an approved Data Protection key-encryption rotation. The certificate is for key-ring encryption only; it does not need a TLS binding or public hostname. Keep its private key and password-protected PKCS#12 backup in a separately access-controlled encrypted/offline backup, with a named custodian and expiry alert. Loss of this certificate can make encrypted key-ring entries, cookies and Identity tokens unreadable; never delete or regenerate the key ring as a repair.
+
+The documented App Service private-certificate upload accepts a password-protected PFX. In the Azure portal, open **App Service → Certificates → Bring your own certificates (.pfx) → Add certificate**, upload the PFX, enter its export password, validate and add it, then record the certificate thumbprint. This upload-time password is not the app's runtime password. Microsoft's Linux custom-container example describes the private-key-bearing certificate at `/var/ssl/private/<thumbprint>.p12`; if the disposable rehearsal confirms this path for the deployed image and its non-root user, configure the exact thumbprint in `WEBSITE_LOAD_CERTIFICATES` and set `DataProtection__CertificatePath` to that path. The example loads this mounted P12 without an app password; leave `DataProtection__CertificatePassword` unset only if the rehearsal confirms that behavior. If a separately validated certificate delivery requires a runtime password, provide it only to the app through a Key Vault reference; never pass or retrieve it in GitHub Actions.
+
+Uploaded private certificates are shared within the App Service deployment unit (webspace), not isolated to one app. Restrict who can add apps to that webspace and who can upload/read private certificates. The deployment runner does not list or download App Service settings. Before maintenance it calls the running application's `/health/ready`; in Azure configuration, the endpoint checks that Production has a certificate path and valid HTTPS key-ring URI, then performs a Data Protection protect/unprotect round-trip against the configured ring. A healthy response proves the active container can use the configured private key and key ring at that time; it does not prove the App Service mount mechanism, restart persistence or recovery behavior. Those must be established in the disposable rehearsal as the container's non-root user, without production resources.
+
 ```bash
+DP_CERT_THUMBPRINT="<thumbprint-from-App-Service-Certificates>"
+
 DB_SECRET_URI="$(az keyvault secret show --vault-name "$VAULT" --name db-connection --query id -o tsv)"
 SMTP_SECRET_URI="$(az keyvault secret show --vault-name "$VAULT" --name smtp-password --query id -o tsv)"
 # Strip the secret version so future rotation can resolve the latest version.
@@ -226,6 +238,8 @@ az webapp config appsettings set -g "$RG" -n "$APP" --settings \
   "App__PublicBaseUrl=$PUBLIC_URL" App__BehindProxy=true \
   "AllowedHosts=$PUBLIC_HOST" \
   "DataProtection__BlobUri=$KEYS_URI" \
+  "DataProtection__CertificatePath=/var/ssl/private/$DP_CERT_THUMBPRINT.p12" \
+  "WEBSITE_LOAD_CERTIFICATES=$DP_CERT_THUMBPRINT" \
   Storage__Provider=AzureBlob \
   "Storage__AzureBlob__ServiceUri=$BLOB_SERVICE" \
   "Storage__AzureBlob__ContainerName=$ATTACHMENTS" \
@@ -260,21 +274,24 @@ ADMIN_DIR="$(mktemp -d)"
 dotnet publish src/MentorPath.Web -c Release -o "$ADMIN_DIR" /p:UseAppHost=false
 export ASPNETCORE_ENVIRONMENT=Production
 export ConnectionStrings__Default="$DB_CONNECTION"
-export App__PublicBaseUrl="$PUBLIC_URL"
-export Storage__Provider=AzureBlob
-export Storage__AzureBlob__ServiceUri="$BLOB_SERVICE"
-export Storage__AzureBlob__ContainerName="$ATTACHMENTS"
-export DataProtection__BlobUri="$KEYS_URI"
-export Email__Smtp__Host="$SMTP_HOST" Email__Smtp__Port=587 Email__Smtp__EnableSsl=true
-export Email__Smtp__User="$SMTP_USER" Email__Smtp__From="$SMTP_FROM"
-export Email__Smtp__Password="$SMTP_PASSWORD"
-unset Storage__AzureBlob__ConnectionString
 
 # For an existing installation: take and verify backups FIRST (step 9).
+# The migration CLI uses only PostgreSQL and Identity role services; it does not
+# read the Data Protection certificate, key ring, Blob, SMTP, AI or MCP settings.
 dotnet "$ADMIN_DIR/MentorPath.Web.dll" migrate
+
+# Full-composition administrative commands (for example create-mentor/mcp-token)
+# must share the web app's ring, application name and public URL.
+read -r -p "Path to the operator's protected Data Protection PFX: " DP_CERT_PFX
+export App__PublicBaseUrl="$PUBLIC_URL"
+export DataProtection__BlobUri="$KEYS_URI"
+export DataProtection__CertificatePath="$DP_CERT_PFX"
+read -r -s -p "Data Protection PFX password: " DataProtection__CertificatePassword; printf '\n'
+export DataProtection__CertificatePassword
+unset Storage__AzureBlob__ConnectionString
 ```
 
-The operator's `az login` credentials and Blob role allow administrative commands to share the app's key ring. The workstation IP must be allowed by the database firewall. In a later terminal session, reload names and retrieve `DB_CONNECTION` / `SMTP_PASSWORD` from Key Vault into variables (use `az keyvault secret show --query value -o tsv` in command substitution, never print them). Recreate the exports and publish the chosen release. Do not run concurrent migrations or use `Database__MigrateOnStartup=true` in production.
+The operator's `az login` credentials and Blob role allow token-producing administrative commands to share the app's key ring. `DP_CERT_PFX` is the trusted operator's protected local copy of the same private certificate uploaded to App Service; its password comes from the operator's secret manager and is entered without echo. The workstation IP must be allowed by the database firewall. In a later terminal session, reload names and retrieve `DB_CONNECTION` from Key Vault into a variable (use `az keyvault secret show --query value -o tsv` in command substitution, never print it). Recreate the exports and publish the chosen release. Do not run concurrent migrations or use `Database__MigrateOnStartup=true` in production.
 
 ## 7. Start and create the first mentor
 
@@ -310,12 +327,33 @@ For a custom domain, configure DNS and an App Service managed certificate, bind 
 
 ## 8. Updates and rollback
 
-Use an immutable new image tag for each reviewed release; do not overwrite an old tag.
+Use an immutable new image tag for each reviewed release; do not overwrite an old tag. The GitHub workflow gates maintenance on a successful live readiness check, then saves a readable PostgreSQL backup before stopping the app. It runs the exact checked-out revision's migration CLI once, updates the image only after migrations succeed, and does not automatically restart, roll back an image, or reverse schema changes.
 
-1. Record the current image with `az webapp config container show -g "$RG" -n "$APP"` (treat configuration output as sensitive). Back up the database, attachments and key ring.
-2. Schedule a maintenance window, stop the web app, build the new image, publish the same revision locally, and run `migrate` once as in step 6.
-3. Set the new image as in step 7, start the app and repeat health/upload/login checks. A single-instance B1 deployment has downtime; clients must reconnect.
-4. For an application-only failure with a backward-compatible schema, set the previous image tag and restart. **Rolling back an image does not undo a database migration.** For incompatible migrations, restore to a new PostgreSQL server, validate, update the Key Vault connection secret, and restart against the restored database with the matching application version. Restore attachments consistently if necessary.
+### Recovery branches
+
+Use the failed workflow's step outcomes and summary, App Service state/image, PostgreSQL migration history, and the pre-migration backup as evidence. Never dispatch again against an unexplained stopped/unhealthy app. Do not delete the Data Protection certificate or regenerate/replace the key ring during recovery.
+
+#### Proven failure before migration
+
+Evidence: the preflight or backup failed, or the workflow shows **Apply migrations once** was skipped; the migration command did not start. Confirm the database's `__EFMigrationsHistory` matches the pre-run state and no migration DDL was applied. Confirm the current container image is still the recorded previous image. If the app is stopped, start only that unchanged image after confirming the database is unchanged, then require `/health/live`, `/health/ready`, the login page and `/_framework/blazor.web.js` to pass. If any evidence is uncertain, use the partial-migration branch instead. Fix the preflight/configuration issue before a new release attempt.
+
+#### Migration may have started or partially applied
+
+Evidence: the migration step started or its result is unknown; inspect its full non-secret log, the live app state and image, `__EFMigrationsHistory`, and the database schema. Query history using the trusted database operator credentials, without placing passwords in commands or logs:
+
+```sql
+SELECT "MigrationId", "ProductVersion"
+FROM "__EFMigrationsHistory"
+ORDER BY "MigrationId";
+```
+
+Treat a migration as partial if the process failed or was interrupted, or if history and schema cannot prove a clean boundary; EF history alone does not prove that no non-transactional DDL ran. Keep the app stopped while deciding. Inspect the migration code and the saved backup. Do not rerun migrations or start the old image until an operator has established that the schema is complete and backward-compatible with that exact image. Otherwise restore the pre-migration backup to a **new isolated PostgreSQL 17 server/database**, apply the matching schema/image there, and validate before considering a controlled production recovery. Never restore over production automatically.
+
+#### Image updated but startup/readiness failed
+
+Evidence: the image-update step completed; record the old and new immutable tags, current App Service state, container logs, readiness/liveness results, login response and Blazor asset result. Keep the app in its observed state until the cause and schema compatibility are known. An old-image restart is permitted only after proving the migrated schema is backward-compatible with that exact old revision. If it is not, restore the pre-migration backup to a new PostgreSQL server and pair that restored database with the compatible application revision; restore attachments consistently if their data changed.
+
+After any recovery, require `/health/live`, `/health/ready`, the login page, `/_framework/blazor.web.js`, an authenticated login, a real Blazor circuit/WebSocket, and a password-setup/reset-token continuity check using a controlled account in the disposable rehearsal. Confirm the private certificate and exact shared ring remain unchanged. Production operators must not expose token values in logs or tickets. Only dispatch a follow-up release once the app is healthy and Running, firewall cleanup is verified, and the intended image/schema pair is documented.
 
 Versionless Key Vault references are cached by App Service (up to 24 hours); a configuration change/restart refreshes resolution. Rotate the PostgreSQL role password and Key Vault secret together during a maintenance window. Never delete the identity key blob during an update or rotation.
 
@@ -432,11 +470,13 @@ All nine GitHub values are **environment variables, not secrets**; none is a pas
 gh workflow run deploy-azure.yml --repo szkoladotneta/MentorPath --ref main
 ```
 
-The workflow builds/tests before touching the live app. It validates Blazor assets inside the image, publishes an immutable ACR tag, opens only the runner's current IPv4, and takes a PostgreSQL 17 custom-format backup over verified TLS. It checks archive readability and uploads it to the private `deployment-backups/releases/<date>/<tag>.dump` blob **before stopping the app**. Backup or upload failure leaves the app running. Backups are encrypted at rest by Azure; they contain personal data and must not become public or GitHub artifacts. This is a release checkpoint, **not** a tested restore, scheduled backup or independent disaster-recovery copy. Retain release backups for 90 days using an account lifecycle rule restricted to the prefix `deployment-backups/releases/`; merge this rule into existing policies rather than replacing them. Never target `identity-keys` with that rule.
+The workflow builds/tests before maintenance. It validates Blazor assets inside the image, publishes an immutable ACR tag, then runs the pre-maintenance certificate/key-ring gate against the existing Running app. The runner reads the app's Running/Stopped state and calls `/health/ready`; it does not list App Service settings. The readiness check validates the configured Production store mode and performs the cryptographic Data Protection round-trip inside the active non-root web container against its configured private key and key ring. This proves current runtime access, not the App Service mount mechanism or restart/recovery behavior; see the unverified-delivery notice in section 5. Neither certificate bytes nor certificate passwords are downloaded to the runner, and the deployment identity gets no certificate/key-ring/attachment/SMTP data-plane access. A failed gate prevents the stop, migration and App Service image update.
 
-After the backup, the workflow stops the app, waits for `Stopped`, applies `migrate` from the same source revision (including Identity roles), updates only the container image, starts the app, and checks readiness/liveness, the login page and `blazor.web.js`. Allow downtime on the single B1 instance. The migration process receives masked database credentials but needs no key-ring access: it neither creates users nor produces Identity tokens. Existing shared Data Protection configuration remains unchanged on the web app.
+After the gate, the workflow opens only the runner's current IPv4 and takes a PostgreSQL 17 custom-format backup over verified TLS. It checks archive readability and uploads it to the private `deployment-backups/releases/<date>/<tag>.dump` blob **before stopping the app**. Backup or upload failure leaves the app running. Backups are encrypted at rest by Azure; they contain personal data and must not become public or GitHub artifacts. This is a release checkpoint, **not** a tested restore, scheduled backup or independent disaster-recovery copy. Retain release backups for 90 days using an account lifecycle rule restricted to the prefix `deployment-backups/releases/`; merge this rule into existing policies rather than replacing them. Never target `identity-keys` with that rule.
 
-**Failure/recovery:** consult the run summary for the previous image and backup object. After maintenance starts, **there is no automatic rollback or restart of the old image**: a partial migration may already have changed the schema. Inspect migration output and app state; use section 8's compatibility/restore procedure. A failed post-start check can leave the new app running but unhealthy. After fixing it, bring the target back to a known healthy `Running` state before dispatching again. Never rerun against an unexplained stopped app.
+After the backup, the workflow stops the app, waits for `Stopped`, applies `migrate` from the same source revision (including Identity roles), updates only the container image, starts the app, and checks readiness/liveness, the login page and `blazor.web.js`. Allow downtime on the single B1 instance. The migration process receives only database credentials and needs no certificate, key-ring, Blob, SMTP, AI or MCP services; it neither creates users nor produces Identity tokens. Token-producing administrative commands continue to use full Production composition and the same certificate, ring and application name as the web app.
+
+Exercise each recovery branch in section 8 against disposable infrastructure before relying on this procedure. The rehearsal must verify the uploaded PFX mount and private-key readability as the image's non-root user, password behavior, encrypted key-ring round-trip across independently constructed hosts/restart, existing unencrypted-key readability, and token continuity. Do not use the production app or data for this rehearsal.
 
 The `always()` cleanup removes only this run's PostgreSQL rule and its local backup; Azure login also cleans up its session. Forced termination or runner loss can bypass cleanup. In that case remove the exact `github-<run-id>-<attempt>` rule manually, inspect whether the app is stopped, and follow the same recovery procedure. Deployment success is not proof of attachment authorization, SMTP delivery, WebSockets or token continuity; retain the functional checks from section 7 after material application changes.
 
@@ -474,7 +514,7 @@ Exports contain personal data; transfer securely and delete the operator copy af
 
 ```bash
 unset PGADMIN_PASSWORD PGAPP_PASSWORD DB_CONNECTION SMTP_PASSWORD
-unset ConnectionStrings__Default Email__Smtp__Password
+unset ConnectionStrings__Default Email__Smtp__Password DataProtection__CertificatePassword
 ```
 
 Remove the workstation PostgreSQL firewall rule in Azure Portal when not administering; reopen **only your current IP** for later CLI/backup work. Do not remove the App Service outbound rules. Remove the exact temporary publish directory `$ADMIN_DIR` after use; never delete a repository or a shared directory as cleanup.
@@ -517,6 +557,8 @@ Entra application registrations/service principals are tenant objects, not resou
 ## Official references
 
 - [App Service custom containers, managed image pull and port settings](https://learn.microsoft.com/azure/app-service/configure-custom-container)
+- [Add and manage TLS/SSL certificates in Azure App Service](https://learn.microsoft.com/azure/app-service/configure-ssl-certificate)
+- [Use TLS/SSL certificates in application code, including Linux custom containers](https://learn.microsoft.com/azure/app-service/configure-ssl-certificate-in-code)
 - [Key Vault references in App Service](https://learn.microsoft.com/azure/app-service/app-service-key-vault-references)
 - [Azure Blob .NET authentication and upload](https://learn.microsoft.com/azure/storage/blobs/storage-blob-upload)
 - [ASP.NET Core Data Protection configuration](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)

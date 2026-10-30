@@ -106,8 +106,12 @@ jobs:
             echo "::error::Expected an existing classic custom-container app."
             exit 1
           fi
-          az webapp config appsettings list -g "$RG" -n "$APP" -o json |
-            python3 -c 'import json,sys; c={x["name"]:x["value"] for x in json.load(sys.stdin)}; assert c.get("Database__MigrateOnStartup", "").lower()=="false", "Disable startup migrations before deploying"'
+          MIGRATE_ON_STARTUP="$(az webapp config appsettings list -g "$RG" -n "$APP" \
+            --query "[?name=='Database__MigrateOnStartup'].value | [0]" -o tsv)"
+          if [[ "$MIGRATE_ON_STARTUP" != false ]]; then
+            echo "::error::Set Database__MigrateOnStartup=false before deploying."
+            exit 1
+          fi
           LOGIN_SERVER="$(az acr show -g "$RG" -n "$ACR" --query loginServer -o tsv)"
           echo "PUBLIC_URL=https://$HOST" >> "$GITHUB_ENV"
           echo "LOGIN_SERVER=$LOGIN_SERVER" >> "$GITHUB_ENV"
@@ -124,6 +128,22 @@ jobs:
             -c 'test -s /app/wwwroot/_framework/blazor.web.js'
           docker push "$LOGIN_SERVER/mentorpath:$IMAGE_TAG"
           echo "IMAGE=$LOGIN_SERVER/mentorpath:$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Pre-maintenance Data Protection preflight
+        run: |
+          set -euo pipefail
+          STATE="$(az webapp show -g "$RG" -n "$APP" --query state -o tsv)"
+          if [[ "$STATE" != Running ]]; then
+            echo "::error::Data Protection preflight: the app must be Running to validate its active certificate and key ring."
+            exit 1
+          fi
+          READY_FILE="$(mktemp)"
+          trap 'rm -f "$READY_FILE"' EXIT
+          READY_STATUS="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output "$READY_FILE" --write-out '%{http_code}' "$PUBLIC_URL/health/ready")"
+          READY_BODY="$(cat "$READY_FILE")"
+          python3 scripts/azure_deployment_preflight.py \
+            --state "$STATE" --readiness-status "$READY_STATUS" --readiness-body "$READY_BODY"
 
       - name: Load masked database credentials
         run: |
@@ -201,15 +221,10 @@ jobs:
       - name: Apply migrations once
         env:
           ASPNETCORE_ENVIRONMENT: Production
-          Storage__Provider: AzureBlob
-          Storage__EnsureContainerOnStartup: "false"
           Database__MigrateOnStartup: "false"
           Logging__LogLevel__Default: Warning
         run: |
           set -euo pipefail
-          export Storage__AzureBlob__ServiceUri="https://$STORAGE.blob.core.windows.net"
-          export Storage__AzureBlob__ContainerName=mentorpath
-          export App__PublicBaseUrl="$PUBLIC_URL"
           cd "$RUNNER_TEMP/mentorpath-admin"
           dotnet MentorPath.Web.dll migrate
 

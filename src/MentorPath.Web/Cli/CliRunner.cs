@@ -1,10 +1,13 @@
+using System.Security.Cryptography;
 using MentorPath.Application.Workspaces.Contracts;
 using MentorPath.Data;
 using MentorPath.Data.Enums;
 using MentorPath.Web.Composition;
 using MentorPath.Web.Mcp;
+using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorPath.Web.Cli;
 
@@ -24,6 +27,8 @@ public static class CliRunner
             Console.WriteLine(McpTokens.GenerateKey());
             return 0;
         }
+        if (command == "migrate") return await RunMigrationsAsync(args);
+
         var options = ParseOptions(args.Skip(1).ToArray());
         var builder = WebApplication.CreateBuilder(args.Skip(1).Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('=')).ToArray());
         builder.Configuration["Storage:EnsureContainerOnStartup"] = "false";
@@ -33,7 +38,7 @@ public static class CliRunner
             builder.AddMentorPathWeb();
             app = builder.Build();
         }
-        catch (InvalidOperationException ex) // configuration errors (missing connection string, weak Mcp:SigningKey, ...): a message, not a stack trace
+        catch (Exception ex) when (ex is InvalidOperationException or CryptographicException or IOException) // configuration errors: a message, not a stack trace
         {
             Console.Error.WriteLine($"Configuration error: {ex.Message}");
             return 2;
@@ -145,6 +150,45 @@ public static class CliRunner
             return 1;
         }
         return 2;
+    }
+
+    private static async Task<int> RunMigrationsAsync(string[] args)
+    {
+        var builder = Host.CreateApplicationBuilder(args.Skip(1)
+            .Where(a => !a.StartsWith("--", StringComparison.Ordinal) || a.Contains('='))
+            .ToArray());
+        builder.Logging.ClearProviders();
+
+        IHost host;
+        try
+        {
+            builder.Services.AddMentorPathMigrationServices(builder.Configuration);
+            host = builder.Build();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine($"Configuration error: {ex.Message}");
+            return 2;
+        }
+
+        using (host)
+        {
+            await using var scope = host.Services.CreateAsyncScope();
+            try
+            {
+                var db = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+                await using var context = await db.CreateDbContextAsync();
+                await context.Database.MigrateAsync();
+                await WebComposition.EnsureRolesAsync(scope.ServiceProvider);
+                Console.WriteLine("Migrations applied.");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Command 'migrate' failed ({ex.GetType().Name}). Check database connectivity, permissions, and migration state.");
+                return 1;
+            }
+        }
     }
 
     internal static Dictionary<string, string> ParseOptions(string[] args)
