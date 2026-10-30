@@ -185,7 +185,8 @@ public sealed class StorageHostingTests
 
     [Theory]
     [InlineData(null, "https://account.blob.core.windows.net/identity-keys/keyring.xml", "Data Protection certificate configuration is missing.")]
-    [InlineData("certificate.pfx", null, "Data Protection key-ring configuration is missing or invalid.")]
+    [InlineData("certificate.pfx", "http://account.blob.core.windows.net/identity-keys/keyring.xml", "Data Protection key-ring configuration is missing or invalid.")]
+    [InlineData("certificate.pfx", "https://account.blob.core.windows.net/identity-keys/keyring.xml?sig=not-allowed", "Data Protection key-ring configuration is missing or invalid.")]
     public async Task Production_readiness_rejects_missing_or_invalid_certificate_and_ring_configuration(
         string? certificatePath,
         string? blobUri,
@@ -231,6 +232,40 @@ public sealed class StorageHostingTests
             builder.AddMentorPathWeb();
             builder.Services.Configure<KeyManagementOptions>(options =>
                 options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keysPath), NullLoggerFactory.Instance));
+            using var app = builder.Build();
+
+            var report = await app.Services.GetRequiredService<HealthCheckService>()
+                .CheckHealthAsync(check => check.Name == "data-protection");
+            report.Status.ShouldBe(HealthStatus.Healthy);
+
+            var keyFile = Directory.GetFiles(keysPath, "key-*.xml").ShouldHaveSingleItem();
+            XDocument.Load(keyFile).Descendants().Where(node => node.Name.LocalName == "encryptedSecret")
+                .ShouldHaveSingleItem().Attribute("decryptorType")!.Value.ShouldBe(typeof(EncryptedXmlDecryptor).AssemblyQualifiedName);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Production_data_protection_readiness_check_supports_the_filesystem_key_ring()
+    {
+        var directory = Directory.CreateTempSubdirectory("mentorpath-dp-filesystem-ready-");
+        try
+        {
+            using var rsa = RSA.Create(2048);
+            var request = new CertificateRequest("CN=MentorPath test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var now = TimeProvider.System.GetUtcNow();
+            using var certificate = request.CreateSelfSigned(now.AddDays(-1), now.AddDays(1));
+            var certificatePath = Path.Combine(directory.FullName, "certificate.pfx");
+            File.WriteAllBytes(certificatePath, certificate.Export(X509ContentType.Pfx));
+            var keysPath = Path.Combine(directory.FullName, "keys");
+
+            var builder = Builder();
+            builder.Configuration["DataProtection:KeysPath"] = keysPath;
+            builder.Configuration["DataProtection:CertificatePath"] = certificatePath;
+            builder.AddMentorPathWeb();
             using var app = builder.Build();
 
             var report = await app.Services.GetRequiredService<HealthCheckService>()

@@ -21,9 +21,10 @@ public sealed class DataProtectionKeyRingHealthCheck(
                 return Task.FromResult(HealthCheckResult.Unhealthy("Data Protection certificate configuration is missing."));
 
             var blobUri = configuration["DataProtection:BlobUri"];
-            if (!Uri.TryCreate(blobUri, UriKind.Absolute, out var uri)
-                || uri.Scheme != Uri.UriSchemeHttps
-                || !string.IsNullOrEmpty(uri.Query))
+            if (!string.IsNullOrWhiteSpace(blobUri)
+                && (!Uri.TryCreate(blobUri, UriKind.Absolute, out var uri)
+                    || uri.Scheme != Uri.UriSchemeHttps
+                    || !string.IsNullOrEmpty(uri.Query)))
                 return Task.FromResult(HealthCheckResult.Unhealthy("Data Protection key-ring configuration is missing or invalid."));
         }
 
