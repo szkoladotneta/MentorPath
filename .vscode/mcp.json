@@ -1,0 +1,23 @@
+{
+  "servers": {
+    "mentorpath": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": ["${workspaceFolder}/src/MentorPath.Web/bin/Release/net10.0/MentorPath.Web.dll", "mcp-stdio", "--actor", "mentor.a@mentorpath.local"],
+      "env": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    },
+    "mentorpath-live": {
+      "type": "http",
+      "url": "https://mentorpath-kd261022.azurewebsites.net/mcp",
+      "headers": { "Authorization": "Bearer ${input:mentorpath-token}" }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "mentorpath-token",
+      "description": "MentorPath MCP bearer token (dotnet MentorPath.Web.dll mcp-token --email <mentor e-mail>)",
+      "password": true
+    }
+  ]
+}

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace MentorPath.IntegrationTests.Infrastructure;
 
-public sealed partial class WebAppFactory(PostgresFixture db) : WebApplicationFactory<Program>
+public sealed partial class WebAppFactory(PostgresFixture db, IDictionary<string, string?>? settings = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -17,6 +17,7 @@ public sealed partial class WebAppFactory(PostgresFixture db) : WebApplicationFa
         builder.UseSetting("Storage:Provider", "InMemory");
         builder.UseSetting("Storage:EnsureContainerOnStartup", "false");
         builder.UseSetting("Ai:Provider", "Fake");
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>()) builder.UseSetting(key, value);
     }
 
     public HttpClient Client() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

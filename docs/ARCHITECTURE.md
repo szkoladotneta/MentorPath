@@ -59,8 +59,9 @@ MentorPath/
 │  └─ MentorPath.Web/
 │     ├─ Program.cs                 # A1
 │     ├─ Composition/               # A1: auth, cookies, rate limiting, health, headers, AddMentorPathModules()
-│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs); N04: export-user, anonymize-user (PrivacyCommands.cs); N03: list-feedback (FeedbackCommands.cs)
+│     ├─ Cli/                       # A1: migrate, create-mentor; A5: seed-demo (DemoSeed.cs); N04: export-user, anonymize-user (PrivacyCommands.cs); N03: list-feedback (FeedbackCommands.cs); D-64: mcp-stdio (McpStdioCommand.cs), mcp-token
 │     ├─ Endpoints/                 # A1: Account (jeśli potrzebne); A3: AttachmentEndpoints.cs, PracticalSubmissionEndpoints.cs
+│     ├─ Mcp/                       # D-64: serwer MCP (/mcp, bearer JWT; stdio przez CLI) — Tools/, Resources/, Prompts/, IActorContext, McpResults, McpComposition
 │     └─ Components/
 │        ├─ App.razor, Routes.razor, _Imports.razor     # A1
 │        ├─ Layout/ (MainLayout, MentorNav, MenteeNav)  # A1 — nawigacja dla WSZYSTKICH tras z MVP_SPEC §7
@@ -175,6 +176,8 @@ Propagacja `WorkspaceId` (D-08):
 
 `actorUserId` pobiera warstwa Web z `AuthenticationState` (claim `NameIdentifier`) — helper `CurrentUser` w `Components/Shared` (A1).
 
+Agent MCP (D-64) jest kolejnym klientem tych samych serwisów: narzędzia w `Mcp/` biorą `actorUserId` z `IActorContext` (HTTP: `sub` tokena bearer → `NameIdentifier`; stdio: mentor z `--actor`) i wołają wyłącznie interfejsy z `Contracts/`. Lista narzędzi jest powierzchnią uprawnień agenta — publikacja, feedback i zaproszenia nie są wystawione.
+
 ---
 
 ## 6. Upload i download (B12)
@@ -235,6 +238,9 @@ Lokalnie: `docker compose up -d` (postgres, Azurite, mailpit) + `dotnet run --pr
 - `export-user (--email | --user-id) --out <plik>` — eksport danych osobowych mentee do pliku JSON (D-42).
 - `anonymize-user (--email | --user-id) [--confirm]` — anonimizacja mentee; bez `--confirm` tylko podgląd (D-42). Procedura: `docs/DATA_RETENTION.md`.
 - `list-feedback [--limit <1-500>]` — uwagi do produktu od najnowszych, z identyfikatorem autora (N03, D-56). Drukuje treść uwag, więc uruchamiaj w terminalu, nie w potoku logów.
+- `mcp-stdio --actor <e-mail>` — serwer MCP przez stdio dla lokalnych agentów (Claude Code, VS Code), tylko `Development`; logi na stderr (D-64). Konfiguracja klientów: `.mcp.json`, `.vscode/mcp.json`.
+- `mcp-token --email <e-mail> [--days 1-90]` — token bearer (JWT HS256, `Mcp:SigningKey`) dla endpointu `/mcp` tej instancji; na produkcji uruchamiany w kontenerze aplikacji (D-64).
+- `mcp-key` — wypisuje nowy klucz `Mcp:SigningKey` (`mpk1:` + 32 losowe bajty w Base64); bez bazy i hosta (D-64).
 
 ---
 

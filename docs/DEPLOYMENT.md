@@ -43,6 +43,8 @@ Sekrety wyłącznie przez zmienne środowiskowe / secret store. W repozytorium n
 | `Ai__BaseUrl`, `Ai__Model`, `Ai__ApiKey` | gdy `OpenAiCompatible` | Endpoint zgodny z OpenAI Chat Completions + structured output |
 | `Ai__TimeoutSeconds`, `Ai__MaxOutputTokens`, `Ai__MonthlyGenerationLimitPerWorkspace` | opcjonalne | 60 / 3000 / 50 |
 | `Database__MigrateOnStartup` | opcjonalne | Nie zalecane w produkcji — używaj kroku `migrate` |
+| `Mcp__SigningKey` | opcjonalne | Klucz HS256 tokenów agentów MCP, wygenerowany komendą `dotnet MentorPath.Web.dll mcp-key` (format `mpk1:<Base64 32 losowych bajtów>`; każda inna wartość, w tym hasło, zatrzymuje start aplikacji i komendy CLI). Bez klucza endpoint `/mcp` nie jest mapowany. Rotacja klucza unieważnia wszystkie tokeny. Token: `dotnet MentorPath.Web.dll mcp-token --email <mentor> [--days 1-90]` w kontenerze aplikacji; token niesie security stamp konta, więc reset hasła mentora go unieważnia (D-64) |
+| `Mcp__Audience` | opcjonalne | `aud` tokenów MCP; domyślnie `App__PublicBaseUrl`, dzięki czemu token z innej instancji jest odrzucany |
 
 W Production certyfikat Data Protection jest wymagany także bez jawnego `KeysPath`/`BlobUri`; skonfigurowany certyfikat szyfruje klucze również w magazynie wybranym przez framework. Nie zastępuje to konfiguracji trwałego magazynu współdzielonego przez web i CLI.
 
