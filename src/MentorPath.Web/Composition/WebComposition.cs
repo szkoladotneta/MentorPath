@@ -61,7 +61,9 @@ public static class WebComposition
         AddKeyRing(services, configuration, builder.Environment);
 
         services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
-        services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
+        services.AddHealthChecks()
+            .AddDbContextCheck<AppDbContext>("database", tags: ["ready"])
+            .AddCheck<DataProtectionKeyRingHealthCheck>("data-protection", tags: ["ready"]);
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -249,7 +251,10 @@ public static class WebComposition
         var roles = sp.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         foreach (var role in AppRoles.All)
         {
-            if (!await roles.RoleExistsAsync(role)) await roles.CreateAsync(new IdentityRole<Guid>(role));
+            if (await roles.RoleExistsAsync(role)) continue;
+            var result = await roles.CreateAsync(new IdentityRole<Guid>(role));
+            if (!result.Succeeded)
+                throw new InvalidOperationException($"Could not create Identity role '{role}': {string.Join("; ", result.Errors.Select(error => error.Description))}");
         }
     }
 }
