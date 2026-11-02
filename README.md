@@ -77,6 +77,8 @@ claude mcp add --transport http mentorpath https://<host>/mcp --header "Authoriz
 
 `scripts/demo-reset.sh` odtwarza stan demo (świeża baza, `seed-demo`, build Release).
 
+Konfiguracja klientów (Claude Code, Claude Desktop, VS Code z Copilotem, Copilot CLI i coding agent), token dla pilota na Azure i checklista próby generalnej: [`docs/MCP_CLIENTS.md`](docs/MCP_CLIENTS.md).
+
 ## Testy
 
 ```bash
