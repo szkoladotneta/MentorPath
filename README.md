@@ -79,6 +79,8 @@ claude mcp add --transport http mentorpath https://<host>/mcp --header "Authoriz
 
 Zalogowany mentor może też utworzyć token dla własnego konta na stronie **Konto → Token MCP**. Token jest wyświetlany tylko w odpowiedzi po utworzeniu i nie jest zapisywany. Komenda `mcp-token` pozostaje dostępna; reset hasła unieważnia wszystkie tokeny mentora.
 
+Konfiguracja klientów (Claude Code, Claude Desktop, VS Code z Copilotem, Copilot CLI i coding agent), token dla pilota na Azure i checklista próby generalnej: [`docs/MCP_CLIENTS.md`](docs/MCP_CLIENTS.md).
+
 ## Testy
 
 ```bash
