@@ -171,7 +171,7 @@ internal sealed class McpReviewDraftService(
         if (acc is not { Role: AccessRole.WorkspaceOwner }) return Errors.NotFound("review");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var mentorship = await McpReviewAccess.LockAsync(db, acc, ct);
+        var mentorship = await McpReviewAccess.LockForReadAsync(db, acc, ct);
         if (mentorship is null || !await McpReviewAccess.Submissions(db, acc)
                 .AnyAsync(s => s.Id == submissionId, ct)) return Errors.NotFound("review");
         var denied = await McpReviewAccess.CheckAsync(db, mentorship, options.CurrentValue, ct);
@@ -199,6 +199,11 @@ internal sealed class McpReviewDraftService(
 
 internal static class McpReviewAccess
 {
+    internal static Task<Mentorship?> LockForReadAsync(AppDbContext db, MentorshipAccess acc, CancellationToken ct) =>
+        db.Mentorships.FromSqlInterpolated(
+                $"""SELECT * FROM "Mentorships" WHERE "Id" = {acc.MentorshipId} AND "WorkspaceId" = {acc.WorkspaceId} FOR SHARE""")
+            .AsNoTracking().SingleOrDefaultAsync(ct);
+
     internal static Task<Mentorship?> LockAsync(AppDbContext db, MentorshipAccess acc, CancellationToken ct) =>
         db.Mentorships.FromSqlInterpolated(
                 $"""SELECT * FROM "Mentorships" WHERE "Id" = {acc.MentorshipId} AND "WorkspaceId" = {acc.WorkspaceId} FOR UPDATE""")

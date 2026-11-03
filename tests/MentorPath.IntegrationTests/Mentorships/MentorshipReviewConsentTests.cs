@@ -156,10 +156,12 @@ public sealed class MentorshipReviewConsentTests(PostgresFixture db) : Integrati
         }
         (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 2), default))
             .ShouldFail(ErrorKind.Conflict, "mentorship.review_consent_version_conflict");
-        (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 1), default)).ShouldSucceed();
+        var revoked = (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 1), default)).ShouldSucceed();
         (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 1), default))
             .ShouldFail(ErrorKind.Conflict, "mentorship.review_consent_version_conflict");
-        (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 2), default)).ShouldSucceed().Version.ShouldBe(3);
+        App.Clock.Advance(TimeSpan.FromMinutes(1));
+        (await Consent.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, 2), default)).ShouldSucceed().ShouldBe(revoked);
+        (await Consent.GetAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed().ShouldBe(revoked);
     }
 
     [Fact]

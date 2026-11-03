@@ -95,6 +95,7 @@ internal sealed class MentorshipReviewConsentService(
         var consent = await db.MentorshipReviewConsents
             .SingleOrDefaultAsync(c => c.MentorshipId == request.MentorshipId && c.WorkspaceId == acc.WorkspaceId, ct);
         if (consent is null || request.ExpectedVersion != consent.Version) return VersionConflict();
+        if (consent.RevokedAtUtc is not null) return ToDto(request.MentorshipId, consent);
         consent.RevokedAtUtc = clock.GetUtcNow().UtcDateTime;
         consent.Version++;
         await db.SaveChangesAsync(ct);

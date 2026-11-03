@@ -13,6 +13,48 @@ namespace MentorPath.IntegrationTests.Reviews;
 public sealed class McpReviewConcurrencyTests(PostgresFixture db) : ReviewFeatureTestBase(db)
 {
     [Fact]
+    public async Task Pure_MCP_reads_share_the_mentorship_lock_while_draft_writes_wait()
+    {
+        var attachment = await PracticalAsync();
+        var item = attachment.Review;
+        var bothEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readers = 0;
+        var storage = new ReadOverrideStorage(App.Storage, async (key, ct) =>
+        {
+            if (Interlocked.Increment(ref readers) == 2) bothEntered.TrySetResult();
+            await release.Task.WaitAsync(ct);
+            return await App.Storage.OpenReadAsync(key, ct);
+        });
+        await using var app = await TestApp.CreateAsync(Database, EnabledSettings,
+            services => services.AddSingleton<IFileStorage>(storage));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var context = app.Get<IMcpReviewContextService>();
+        var first = context.ReadAttachmentAsync(item.Mentor.UserId, item.Mentee.MentorshipId,
+            item.SubmissionId, attachment.Attachment.AttachmentId, 0, 100, timeout.Token);
+        var second = context.ReadAttachmentAsync(item.Mentor.UserId, item.Mentee.MentorshipId,
+            item.SubmissionId, attachment.Attachment.AttachmentId, 100, 100, timeout.Token);
+        Task<Result<ReviewDraftDto>> saving;
+        try
+        {
+            await bothEntered.Task.WaitAsync(timeout.Token);
+            (await context.GetAsync(item.Mentor.UserId, item.Mentee.MentorshipId, item.SubmissionId, timeout.Token))
+                .ShouldSucceed();
+            (await context.GetHistoryAsync(item.Mentor.UserId, item.Mentee.MentorshipId,
+                item.Assignment.AssignmentId, null, 20, timeout.Token)).ShouldSucceed();
+            (await app.Get<IMcpReviewDraftService>().GetAsync(item.Mentor.UserId, item.Mentee.MentorshipId,
+                item.SubmissionId, timeout.Token)).ShouldSucceed().ShouldBeNull();
+            saving = app.Get<IMcpReviewDraftService>().SaveAsync(item.Mentor.UserId, item.Mentee.MentorshipId,
+                new(item.SubmissionId, Complete(item), null), timeout.Token);
+            saving.IsCompleted.ShouldBeFalse();
+        }
+        finally { release.TrySetResult(); }
+        (await first).ShouldSucceed().Content.ShouldBe(attachment.Bytes.Take(100).ToArray());
+        (await second).ShouldSucceed().Content.ShouldBe(attachment.Bytes.Skip(100).Take(100).ToArray());
+        (await saving).ShouldSucceed();
+    }
+
+    [Fact]
     public async Task Revoke_waits_for_in_flight_attachment_read_then_denies_every_later_operation()
     {
         var attachment = await PracticalAsync();

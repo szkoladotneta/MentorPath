@@ -26,7 +26,7 @@ internal sealed class McpReviewContextService(
         if (acc is not { Role: AccessRole.WorkspaceOwner }) return Errors.NotFound("review");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var mentorship = await McpReviewAccess.LockAsync(db, acc, ct);
+        var mentorship = await McpReviewAccess.LockForReadAsync(db, acc, ct);
         if (mentorship is null) return Errors.NotFound("review");
         var selected = await McpReviewAccess.Submissions(db, acc).Where(s => s.Id == submissionId)
             .Select(s => new { s.AssignmentId, s.Assignment!.ExerciseId }).SingleOrDefaultAsync(ct);
@@ -52,7 +52,7 @@ internal sealed class McpReviewContextService(
         if (acc is not { Role: AccessRole.WorkspaceOwner }) return Errors.NotFound("review");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var mentorship = await McpReviewAccess.LockAsync(db, acc, ct);
+        var mentorship = await McpReviewAccess.LockForReadAsync(db, acc, ct);
         if (mentorship is null) return Errors.NotFound("review");
         var assignment = await db.Assignments.AsNoTracking()
             .Where(a => a.Id == assignmentId && a.WorkspaceId == acc.WorkspaceId &&
@@ -80,7 +80,7 @@ internal sealed class McpReviewContextService(
         if (acc is not { Role: AccessRole.WorkspaceOwner }) return Errors.NotFound("review");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var mentorship = await McpReviewAccess.LockAsync(db, acc, ct);
+        var mentorship = await McpReviewAccess.LockForReadAsync(db, acc, ct);
         if (mentorship is null) return Errors.NotFound("review");
         var attachment = await db.SubmissionAttachments.AsNoTracking()
             .Where(a => a.Id == attachmentId && a.WorkspaceId == acc.WorkspaceId && a.SubmissionId == submissionId &&
