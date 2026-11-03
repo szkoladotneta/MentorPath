@@ -598,3 +598,17 @@ Status: Proposed (2026-11-03; confirm in dependent feature planning before enabl
 - The feature must choose and document consent evidence retention, regrant/disclosure-version handling and operator export/redaction rules. The prerequisite stores the latest consent evidence; it does not claim to provide an immutable consent audit log.
 
 Impact: inert persistence and contracts can merge independently; Proposed lifecycle/provider/disclosure decisions are not automatically enabled behavior.
+
+## D-68 — Operator privacy export contracts for consent and unpublished reviews (N56)
+Status: Proposed (2026-11-03; user authorized a separate Contracts-only prerequisite, pending human review)
+
+Context: D-66 introduced consent and private review persistence without fields in the sealed operator export contract. Complete privacy handling is an activation prerequisite, but `Contracts/` changes must merge separately before the feature implementation.
+
+Decision:
+- Append optional typed `ReviewConsents` and `ReviewDrafts` collections to `PersonalDataExport`. Null means the collection was not populated (including legacy exports); omit null collections from JSON to preserve the existing runtime output. An empty collection explicitly means no matching stored records. Existing constructor calls and older JSON remain supported.
+- `MentorshipReviewConsentExport` carries the consent ID, exact mentorship ID, disclosure version, raw grant/revocation UTC timestamps and concurrency version. It represents the latest stored evidence, not effective permission or an immutable grant/revocation history.
+- `ReviewDraftExport` carries draft/submission/mentorship IDs, nullable verdict and all partial Markdown fields, creation/update UTC timestamps, concurrency version and typed criterion scores. `ReviewDraftCriterionScoreExport` includes criterion ID/name/position, score and comment. Keep these records separate from UI/MCP DTOs: unpublished content is available only in the operator export, not normal mentee-facing feedback. No extra identity, workspace IDs, e-mails or mentor-private notes are added.
+- This prerequisite does not populate the collections, change services, register capabilities, alter the database or bump the runtime export schema version (currently 2 on the prerequisite base). The feature must populate both collections, include retained revoked evidence and unpublished drafts, and advance the then-current runtime schema version by one when enabling this data. If a separate feature change has already advanced it to 3, this addition requires 4.
+- Keep `AnonymizationReport` and its historical counters unchanged. The feature must remove consent, drafts and draft scores during anonymization, including repeat runs, and prove that cleanup independently; existing counters must not imply a count of the new records.
+
+Impact: additive operator-only contracts and serialization compatibility tests. No runtime permission, publication or export-completeness change until the dependent feature merges and implements privacy handling.

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MentorPath.Application.Common;
 using MentorPath.Data.Enums;
 
@@ -35,7 +36,11 @@ public sealed record PersonalDataExport(
     IReadOnlyList<MentorshipExport> Mentorships,
     IReadOnlyList<SubmissionExport> Submissions,
     IReadOnlyList<InvitationExport> Invitations,
-    IReadOnlyList<ProductFeedbackExport> ProductFeedback);
+    IReadOnlyList<ProductFeedbackExport> ProductFeedback,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<MentorshipReviewConsentExport>? ReviewConsents = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<ReviewDraftExport>? ReviewDrafts = null);
 
 public sealed record ProfileExport(Guid UserId, string Email, string DisplayName, DateTime CreatedAtUtc, IReadOnlyList<string> Roles);
 
@@ -56,6 +61,19 @@ public sealed record FeedbackExport(
     IReadOnlyList<CriterionScoreExport>? CriterionScores = null);
 
 public sealed record CriterionScoreExport(string CriterionName, int Position, int Score, string CommentMarkdown);
+
+/// <summary>Latest stored evidence, including revocation; not an audit log or a computed permission.</summary>
+public sealed record MentorshipReviewConsentExport(
+    Guid ConsentId, Guid MentorshipId, string DisclosureVersion, DateTime GrantedAtUtc, DateTime? RevokedAtUtc, long Version);
+
+/// <summary>Unpublished subject data for the operator export only; never a mentee-facing review projection.</summary>
+public sealed record ReviewDraftExport(
+    Guid DraftId, Guid SubmissionId, Guid MentorshipId, ReviewVerdict? Verdict,
+    string? StrengthsMarkdown, string? ImprovementsMarkdown, string? ChallengeQuestionMarkdown,
+    DateTime CreatedAtUtc, DateTime UpdatedAtUtc, long Version, IReadOnlyList<ReviewDraftCriterionScoreExport> CriterionScores);
+
+public sealed record ReviewDraftCriterionScoreExport(
+    Guid CriterionId, string CriterionName, int Position, int Score, string CommentMarkdown);
 
 public sealed record ReflectionExport(short ConfidenceAfter, string TakeawayMarkdown, DateTime CreatedAtUtc);
 
