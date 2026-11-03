@@ -54,7 +54,10 @@
                 <a class="menu-item" href="Account/Manage"><Icon Name="user" Size="18" />Konto</a>
                 <a class="menu-item" href="Account/Manage/ChangePassword"><Icon Name="key" Size="18" />Zmień hasło</a>
                 <AuthorizeView Roles="@AppRoles.Mentor">
-                    <Authorized><a class="menu-item" href="@FeedbackHref("mentor")"><Icon Name="inbox" Size="18" />Uwaga do produktu</a></Authorized>
+                    <Authorized>
+                        <a class="menu-item" href="Account/Manage/McpToken"><Icon Name="key" Size="18" />Token MCP</a>
+                        <a class="menu-item" href="@FeedbackHref("mentor")"><Icon Name="inbox" Size="18" />Uwaga do produktu</a>
+                    </Authorized>
                     <NotAuthorized><a class="menu-item" href="@FeedbackHref("app")"><Icon Name="inbox" Size="18" />Uwaga do produktu</a></NotAuthorized>
                 </AuthorizeView>
                 <hr class="menu-sep" />

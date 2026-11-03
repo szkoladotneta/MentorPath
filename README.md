@@ -77,6 +77,8 @@ claude mcp add --transport http mentorpath https://<host>/mcp --header "Authoriz
 
 `scripts/demo-reset.sh` odtwarza stan demo (świeża baza, `seed-demo`, build Release).
 
+Zalogowany mentor może też utworzyć token dla własnego konta na stronie **Konto → Token MCP**. Token jest wyświetlany tylko w odpowiedzi po utworzeniu i nie jest zapisywany. Komenda `mcp-token` pozostaje dostępna; reset hasła unieważnia wszystkie tokeny mentora.
+
 ## Testy
 
 ```bash

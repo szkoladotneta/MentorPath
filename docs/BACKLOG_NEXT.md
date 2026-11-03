@@ -177,6 +177,18 @@ Kryteria akceptacji (wybrane):
 | N53 | Sugestie planu dla nowej osoby (z diagnozy + szablonów), akceptowane przez mentora | C | A3 | — | 12 |
 | N54 | Metryki AI: % sugestii zmienionych przez mentora, czas review z AI i bez AI | M | A4 | — | 6 |
 
+### Wsparcie korzystania z MCP (niezależnie od faz)
+
+| ID | Pozycja | Pr. | Agent | Schemat | h |
+|---|---|---|---|---|---|
+| N55 | **Samoobsługowe tokeny MCP**: zalogowany mentor generuje token bearer dla własnego konta, wybiera ważność 1–90 dni (domyślnie 30), a token jest wyświetlany tylko raz wraz z instrukcją bezpiecznej konfiguracji klienta MCP; bez listy tokenów i indywidualnego unieważniania | S | — | — | — |
+
+Kryteria akceptacji (wybrane):
+- **N55:** tylko mentor może wygenerować token dla konta ustalonego z bieżącej sesji; klient nie może wskazać innego użytkownika.
+- **N55:** niepoprawny okres ważności i brak konfiguracji podpisywania są obsługiwane czytelnym błędem; token respektuje obecne limity ważności, blokadę konta i unieważnienie po resecie hasła.
+- **N55:** surowy token jest pokazany tylko po wygenerowaniu, nie jest zapisywany ani logowany i nie można go ponownie odczytać; aplikacja wyjaśnia, że token jest poufny i ma uprawnienia mentora.
+- **N55:** nie powstaje lista tokenów ani indywidualna funkcja unieważniania; istniejący endpoint MCP nadal używa bearer tokenu, bez obietnicy logowania OAuth.
+
 ### Tor techniczny T (równolegle, wg potrzeb faz)
 
 | ID | Pozycja | Kiedy | Agent | h |

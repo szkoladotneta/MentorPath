@@ -239,7 +239,7 @@ Lokalnie: `docker compose up -d` (postgres, Azurite, mailpit) + `dotnet run --pr
 - `anonymize-user (--email | --user-id) [--confirm]` — anonimizacja mentee; bez `--confirm` tylko podgląd (D-42). Procedura: `docs/DATA_RETENTION.md`.
 - `list-feedback [--limit <1-500>]` — uwagi do produktu od najnowszych, z identyfikatorem autora (N03, D-56). Drukuje treść uwag, więc uruchamiaj w terminalu, nie w potoku logów.
 - `mcp-stdio --actor <e-mail>` — serwer MCP przez stdio dla lokalnych agentów (Claude Code, VS Code), tylko `Development`; logi na stderr (D-64). Konfiguracja klientów: `.mcp.json`, `.vscode/mcp.json`.
-- `mcp-token --email <e-mail> [--days 1-90]` — token bearer (JWT HS256, `Mcp:SigningKey`) dla endpointu `/mcp` tej instancji; na produkcji uruchamiany w kontenerze aplikacji (D-64).
+- `mcp-token --email <e-mail> [--days 1-90]` — token bearer (JWT HS256, `Mcp:SigningKey`) dla endpointu `/mcp` tej instancji; na produkcji uruchamiany w kontenerze aplikacji (D-64). Mentor może też wygenerować token dla własnego konta na `/Account/Manage/McpToken`; sekret jest wyświetlany tylko w odpowiedzi po utworzeniu i nie jest przechowywany. Komenda CLI pozostaje dostępna.
 - `mcp-key` — wypisuje nowy klucz `Mcp:SigningKey` (`mpk1:` + 32 losowe bajty w Base64); bez bazy i hosta (D-64).
 
 ---
