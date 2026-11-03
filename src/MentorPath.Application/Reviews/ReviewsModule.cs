@@ -9,6 +9,9 @@ public static class ReviewsModule
     {
         services.AddScoped<IReviewService, ReviewService>();
         services.AddScoped<IReflectionService, ReflectionService>();
+        services.AddScoped<IReviewDraftService, ReviewDraftService>();
+        services.AddScoped<IMcpReviewDraftService, McpReviewDraftService>();
+        services.AddScoped<IMcpReviewContextService, McpReviewContextService>();
         return services;
     }
 }

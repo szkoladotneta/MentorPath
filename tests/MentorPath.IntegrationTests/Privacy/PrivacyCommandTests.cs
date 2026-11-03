@@ -39,7 +39,7 @@ public sealed class PrivacyCommandTests(PostgresFixture db) : IntegrationTestBas
             stdout.ShouldNotContain(s.A.Email, Case.Insensitive);
             stdout.ShouldNotContain("sekret");
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(path));
-            json.RootElement.GetProperty("schemaVersion").GetInt32().ShouldBe(2);
+            json.RootElement.GetProperty("schemaVersion").GetInt32().ShouldBe(3);
             json.RootElement.GetProperty("profile").GetProperty("email").GetString().ShouldBe(s.A.Email);
             json.RootElement.GetProperty("submissions")[2].GetProperty("status").GetString().ShouldBe("PendingReview");
             json.RootElement.GetProperty("generatedAtUtc").GetString().ShouldEndWith("Z");

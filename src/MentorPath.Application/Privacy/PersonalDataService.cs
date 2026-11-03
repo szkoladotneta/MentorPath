@@ -22,7 +22,7 @@ internal sealed class PersonalDataService(
     ILogger<PersonalDataService> logger) : IPersonalDataService
 {
     private const string Module = "privacy";
-    internal const int ExportSchemaVersion = 2;
+    internal const int ExportSchemaVersion = 3;
 
     public async Task<Result<PersonalDataExport>> ExportAsync(PersonalDataSubject subject, CancellationToken ct)
     {
@@ -83,6 +83,25 @@ internal sealed class PersonalDataService(
         }
 
         var normalizedEmail = user.NormalizedEmail ?? "";
+        var reviewConsents = await read.MentorshipReviewConsents.AsNoTracking()
+            .Where(c => c.Mentorship!.MenteeUserId == user.Id)
+            .OrderBy(c => c.GrantedAtUtc).ThenBy(c => c.Id)
+            .Select(c => new MentorshipReviewConsentExport(c.Id, c.MentorshipId, c.DisclosureVersion,
+                c.GrantedAtUtc, c.RevokedAtUtc, c.Version))
+            .ToListAsync(ct);
+
+        var reviewDrafts = await read.ReviewDrafts.AsNoTracking()
+            .Where(d => d.Submission!.MenteeUserId == user.Id)
+            .OrderBy(d => d.CreatedAtUtc).ThenBy(d => d.Id)
+            .Select(d => new ReviewDraftExport(d.Id, d.SubmissionId,
+                d.Submission!.Assignment!.RoadmapItem!.Roadmap!.MentorshipId, d.Verdict,
+                d.StrengthsMarkdown, d.ImprovementsMarkdown, d.ChallengeQuestionMarkdown,
+                d.CreatedAtUtc, d.UpdatedAtUtc, d.Version,
+                d.CriterionScores.OrderBy(s => s.Criterion!.Position).ThenBy(s => s.CriterionId)
+                    .Select(s => new ReviewDraftCriterionScoreExport(s.CriterionId, s.Criterion!.Name,
+                        s.Criterion.Position, s.Score, s.CommentMarkdown)).ToList()))
+            .ToListAsync(ct);
+
         var invitations = await read.Invitations.AsNoTracking()
             .Where(i => i.NormalizedEmail == normalizedEmail)
             .OrderBy(i => i.CreatedAtUtc).ThenBy(i => i.Id)
@@ -99,7 +118,7 @@ internal sealed class PersonalDataService(
             ExportSchemaVersion,
             clock.GetUtcNow().UtcDateTime,
             new ProfileExport(user.Id, user.Email ?? "", user.DisplayName, user.CreatedAtUtc, roles),
-            mentorships, submissions, invitations, productFeedback);
+            mentorships, submissions, invitations, productFeedback, reviewConsents, reviewDrafts);
     }
 
     public async Task<Result<AnonymizationReport>> AnonymizeAsync(PersonalDataSubject subject, bool apply, CancellationToken ct)
@@ -148,6 +167,21 @@ internal sealed class PersonalDataService(
         var placeholderNormalized = userManager.NormalizeEmail(placeholderEmail);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        // Share the MCP lock order: mentorships first, then submissions/drafts.
+        var mentorships = await db.Mentorships.FromSqlInterpolated(
+                $"""SELECT * FROM "Mentorships" WHERE "MenteeUserId" = {userId} ORDER BY "Id" FOR UPDATE""")
+            .AsNoTracking().ToListAsync(ct);
+        var mentorshipIds = mentorships.Select(m => m.Id).ToList();
+        await db.ReviewDraftCriterionScores
+            .Where(s => s.Draft!.Submission!.MenteeUserId == userId)
+            .ExecuteDeleteAsync(ct);
+        await db.ReviewDrafts
+            .Where(d => d.Submission!.MenteeUserId == userId)
+            .ExecuteDeleteAsync(ct);
+        await db.MentorshipReviewConsents
+            .Where(c => mentorshipIds.Contains(c.MentorshipId))
+            .ExecuteDeleteAsync(ct);
 
         await db.Mentorships
             .Where(m => m.MenteeUserId == userId && m.Status != MentorshipStatus.Closed)

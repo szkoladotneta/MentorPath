@@ -3,7 +3,10 @@
 @rendermode InteractiveServer
 @inherits AppComponentBase
 @using MentorPath.Application.Mentorships.Contracts
+@using Microsoft.Extensions.Options
 @inject IMentorshipService Mentorships
+@inject IMentorshipReviewConsentService ReviewConsent
+@inject IOptionsMonitor<McpReviewOptions> McpOptions
 
 <PageTitle>Profil mentoringu — MentorPath</PageTitle>
 
@@ -11,18 +14,19 @@
     <PageHeader Title="Profil mentoringu" Subtitle="Twoje cele pomagają mentorowi dopasować ścieżkę. Każdy mentoring ma osobny profil."
                 Crumbs="Crumbs" />
 
-    <PageState Loading="Loading" NotFound="false">
-        @if (items.Count == 0)
+    <PageState Loading="Loading" NotFound="NotFound">
+        <ErrorAlert Error="Error" ShowFieldList="false" />
+        @if (items.Count == 0 && Error is null)
         {
             <EmptyState Icon="users" Title="Nie masz aktywnych mentoringów">Poproś mentora o zaproszenie.</EmptyState>
         }
-        else
+        else if (selected != Guid.Empty && profileLoaded)
         {
             @if (items.Count > 1)
             {
                 <div class="field-medium">
-                    <label class="form-label">Mentoring</label>
-                    <select class="form-select" value="@selected" @onchange="OnSelectAsync">
+                    <label class="form-label" for="profile-mentorship">Mentoring</label>
+                    <select id="profile-mentorship" class="form-select" value="@selected" @onchange="OnSelectAsync" disabled="@(Working || !RendererInfo.IsInteractive)">
                         @foreach (var m in items)
                         {
                             <option value="@m.MentorshipId">@m.WorkspaceName (@m.MentorDisplayName)</option>
@@ -31,35 +35,84 @@
                 </div>
             }
             <Section>
-                <ErrorAlert Error="Error" ShowFieldList="false" />
                 @if (saved) { <div class="alert alert-success">Zapisano profil.</div> }
                 <div class="mb-3">
-                    <label class="form-label">Cel mentoringu</label>
-                    <InputTextArea class="form-control" rows="3" @bind-Value="form.Goal" />
+                    <label class="form-label" for="profile-goal">Cel mentoringu</label>
+                    <InputTextArea id="profile-goal" class="form-control" rows="3" @bind-Value="form.Goal" disabled="@(Working || !RendererInfo.IsInteractive)" />
                     <FieldError Error="Error" Field="Goal" />
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Poziom doświadczenia</label>
-                    <InputSelect class="form-select" @bind-Value="form.CurrentLevel">
+                    <label class="form-label" for="profile-level">Poziom doświadczenia</label>
+                    <InputSelect id="profile-level" class="form-select" @bind-Value="form.CurrentLevel" disabled="@(Working || !RendererInfo.IsInteractive)">
                         @foreach (var l in Enum.GetValues<ExperienceLevel>())
                         {
                             <option value="@l">@Labels.Of(l)</option>
                         }
                     </InputSelect>
+                    <FieldError Error="Error" Field="CurrentLevel" />
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Największe wyzwania</label>
-                    <InputTextArea class="form-control" rows="3" @bind-Value="form.Challenges" />
+                    <label class="form-label" for="profile-challenges">Największe wyzwania</label>
+                    <InputTextArea id="profile-challenges" class="form-control" rows="3" @bind-Value="form.Challenges" disabled="@(Working || !RendererInfo.IsInteractive)" />
                     <FieldError Error="Error" Field="Challenges" />
                 </div>
                 <div class="mb-3 field-narrow">
-                    <label class="form-label">Dostępne godziny tygodniowo</label>
-                    <InputNumber class="form-control" @bind-Value="form.WeeklyHours" min="1" max="80" />
+                    <label class="form-label" for="profile-hours">Dostępne godziny tygodniowo</label>
+                    <InputNumber id="profile-hours" class="form-control" @bind-Value="form.WeeklyHours" min="1" max="80" disabled="@(Working || !RendererInfo.IsInteractive)" />
                     <FieldError Error="Error" Field="WeeklyHours" />
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@busy">Zapisz</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@(Working || !RendererInfo.IsInteractive)">Zapisz</button>
                     <a class="btn btn-link" href="@($"app/roadmap/{selected}")">Przejdź do roadmapy</a>
+                </div>
+            </Section>
+            <Section Title="Wsparcie AI przy review">
+                <p>Zgoda dotyczy tylko mentoringu: <strong>@SelectedMentorship?.WorkspaceName (@SelectedMentorship?.MentorDisplayName)</strong>.</p>
+                <ErrorAlert Error="consentError" ShowFieldList="false" />
+                @if (consent is not null)
+                {
+                    <Badge Tone="@(ConsentCurrent ? "success" : "neutral")" Label="@ConsentLabel" />
+                }
+                else
+                {
+                    <p>Nie wczytano stanu zgody. Wczytaj go ponownie przed podjęciem decyzji.</p>
+                }
+                @if (!operatorEnabled)
+                {
+                    <p class="alert alert-info">Operator wyłączył wsparcie AI przy review. Nie możesz teraz udzielić zgody. Istniejącą zgodę nadal możesz cofnąć.</p>
+                }
+                else if (string.IsNullOrWhiteSpace(providerNotice))
+                {
+                    <p class="alert alert-info">Operator nie podał informacji o dostawcy AI. Udzielenie zgody jest niedostępne.</p>
+                }
+                <p>Opcjonalna zgoda pozwala mentorowi przekazywać przez MCP Twoje odpowiedzi i rozwiązania, załączniki, wcześniejszy feedback, rubrykę oceny oraz refleksje do zewnętrznego klienta mentora i wskazanego dostawcy AI. Adresy e-mail i prywatne notatki mentora nie są przekazywane.</p>
+                <p>Informacja operatora o kliencie i dostawcy AI:</p>
+                <p id="review-provider-notice" class="text-break">@providerNotice</p>
+                <p>AI pomaga tylko przygotować prywatny szkic. Nie publikuje ocen automatycznie — o publikacji decyduje mentor. Zgoda jest dobrowolna; bez niej nadal otrzymujesz ręczne review.</p>
+                <p>Cofnięcie zgody blokuje przyszły dostęp przez MCP, ale nie może wycofać kopii już wyeksportowanych do zewnętrznego klienta lub dostawcy. Zachowane szkice pozostają dostępne wyłącznie do ręcznej pracy mentora i nadal mogą zostać przez niego opublikowane.</p>
+                @if (!ConsentCurrent)
+                {
+                    <div class="form-check">
+                        <input id="review-consent-confirm" type="checkbox" class="form-check-input" @bind="consentChecked"
+                               disabled="@(!CanGrant)" />
+                        <label class="form-check-label" for="review-consent-confirm">Zapoznałem/am się z powyższą informacją i zgadzam się na wsparcie AI przy review w tym mentoringu.</label>
+                    </div>
+                }
+                <FieldError Error="consentError" Field="DisclosureVersion" />
+                <FieldError Error="consentError" Field="ExpectedVersion" />
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    @if (!ConsentCurrent)
+                    {
+                        <button id="review-consent-grant" type="button" class="btn btn-outline-primary" @onclick="GrantConsentAsync"
+                                disabled="@(!CanGrant || !consentChecked)">Udziel zgody</button>
+                    }
+                    @if (consent is { GrantedAtUtc: not null, RevokedAtUtc: null })
+                    {
+                        <button id="review-consent-revoke" type="button" class="btn btn-outline-danger" @onclick="RevokeConsentAsync"
+                                disabled="@(Working || !RendererInfo.IsInteractive)">Cofnij zgodę</button>
+                    }
+                    <button id="review-consent-reload" type="button" class="btn btn-outline-secondary" @onclick="ReloadConsentAsync"
+                            disabled="@(Working || !RendererInfo.IsInteractive)">Wczytaj stan zgody ponownie</button>
                 </div>
             </Section>
         }
@@ -76,44 +129,196 @@
     private readonly FormModel form = new();
     private bool busy;
     private bool saved;
+    private bool profileLoaded;
+    private bool consentBusy;
+    private bool consentChecked;
+    private bool operatorEnabled;
+    private string providerNotice = "";
+    private string disclosureVersion = "";
+    private MentorshipReviewConsentDto? consent;
+    private AppError? consentError;
+    private int contextRevision;
 
-    protected override async Task OnInitializedAsync()
+    private bool Working => busy || consentBusy || Loading;
+    private MenteeMentorshipListItem? SelectedMentorship => items.FirstOrDefault(i => i.MentorshipId == selected);
+    private bool ConsentCurrent => consent is { GrantedAtUtc: not null, RevokedAtUtc: null }
+        && consent.DisclosureVersion == disclosureVersion;
+    private bool CanGrant => RendererInfo.IsInteractive && !Working && consent is not null && operatorEnabled
+        && !string.IsNullOrWhiteSpace(providerNotice) && !ConsentCurrent;
+    private string ConsentLabel => consent?.RevokedAtUtc is not null ? "Zgoda cofnięta"
+        : consent?.GrantedAtUtc is null ? "Brak zgody"
+        : ConsentCurrent ? "Zgoda aktualna" : "Zgoda nieaktualna — wymaga ponownego potwierdzenia";
+
+    protected override async Task OnParametersSetAsync()
     {
-        var result = await Mentorships.ListForMenteeAsync(await GetUserIdAsync(), Ct);
-        if (result.IsSuccess) items = result.Value!.ToList();
-        selected = items.Any(i => i.MentorshipId == MentorshipId) ? MentorshipId!.Value : items.FirstOrDefault()?.MentorshipId ?? Guid.Empty;
-        if (selected != Guid.Empty) await LoadAsync();
-        Loading = false;
+        var revision = ResetContext();
+        items = [];
+        selected = Guid.Empty;
+        try
+        {
+            var result = await Mentorships.ListForMenteeAsync(await GetUserIdAsync(), Ct);
+            if (revision != contextRevision || !Handle(result)) return;
+            items = result.Value!.ToList();
+            if (MentorshipId is { } requested && !items.Any(i => i.MentorshipId == requested))
+            {
+                Handle(Result.Fail(Errors.NotFound("mentorship")));
+                return;
+            }
+            selected = MentorshipId ?? items.FirstOrDefault()?.MentorshipId ?? Guid.Empty;
+            if (selected != Guid.Empty) await LoadAsync(selected, revision);
+        }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) Error = Unavailable(); }
+        finally { if (revision == contextRevision) Loading = false; }
     }
 
     private async Task OnSelectAsync(ChangeEventArgs e)
     {
-        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        if (Working || !RendererInfo.IsInteractive || !Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        var revision = ResetContext();
+        selected = id;
+        if (!items.Any(i => i.MentorshipId == id))
         {
-            selected = id;
-            saved = false;
-            await LoadAsync();
+            Handle(Result.Fail(Errors.NotFound("mentorship")));
+            Loading = false;
+            return;
         }
+        try { await LoadAsync(id, revision); }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) Error = Unavailable(); }
+        finally { if (revision == contextRevision) Loading = false; }
     }
 
-    private async Task LoadAsync()
+    private int ResetContext()
     {
-        var result = await Mentorships.GetOnboardingAsync(await GetUserIdAsync(), selected, Ct);
-        if (!result.IsSuccess) return;
+        contextRevision++;
+        Loading = true;
+        NotFound = false;
+        Error = null;
+        saved = busy = consentBusy = profileLoaded = false;
+        form.Goal = form.Challenges = "";
+        form.CurrentLevel = ExperienceLevel.Mid;
+        form.WeeklyHours = 5;
+        ResetConsent();
+        return contextRevision;
+    }
+
+    private void ResetConsent()
+    {
+        consent = null;
+        consentError = null;
+        consentChecked = false;
+        var options = McpOptions.CurrentValue;
+        operatorEnabled = options.Enabled;
+        providerNotice = options.ProviderNotice;
+        disclosureVersion = options.DisclosureVersion;
+    }
+
+    private async Task LoadAsync(Guid mentorshipId, int revision)
+    {
+        var actor = await GetUserIdAsync();
+        var result = await Mentorships.GetOnboardingAsync(actor, mentorshipId, Ct);
+        if (revision != contextRevision || !Handle(result)) return;
         var o = result.Value!;
         form.Goal = o.Goal ?? "";
         form.Challenges = o.Challenges ?? "";
         form.CurrentLevel = o.CurrentLevel ?? ExperienceLevel.Mid;
         form.WeeklyHours = o.WeeklyHours ?? 5;
+        profileLoaded = true;
+        await LoadConsentAsync(actor, mentorshipId, revision);
+    }
+
+    private async Task LoadConsentAsync(Guid actor, Guid mentorshipId, int revision)
+    {
+        var result = await ReviewConsent.GetAsync(actor, mentorshipId, Ct);
+        if (revision != contextRevision) return;
+        ApplyConsentResult(result, mentorshipId);
+    }
+
+    private void ApplyConsentResult(Result<MentorshipReviewConsentDto> result, Guid mentorshipId)
+    {
+        consentChecked = false;
+        consentError = result.Error;
+        if (result.Error?.Kind == ErrorKind.NotFound) NotFound = true;
+        if (!result.IsSuccess) return;
+        if (result.Value?.MentorshipId != mentorshipId)
+        {
+            consent = null;
+            consentError = Unavailable();
+            return;
+        }
+        consent = result.Value;
     }
 
     private async Task SaveAsync()
     {
+        if (Working || !RendererInfo.IsInteractive || !profileLoaded) return;
+        var revision = contextRevision;
+        var mentorshipId = selected;
+        var request = new SaveOnboardingRequest(form.Goal, form.CurrentLevel, form.Challenges, form.WeeklyHours);
         busy = true;
-        saved = Handle(await Mentorships.SaveOnboardingAsync(await GetUserIdAsync(), selected,
-            new SaveOnboardingRequest(form.Goal, form.CurrentLevel, form.Challenges, form.WeeklyHours), Ct));
-        busy = false;
+        saved = false;
+        try
+        {
+            var actor = await GetUserIdAsync();
+            if (revision != contextRevision) return;
+            var result = await Mentorships.SaveOnboardingAsync(actor, mentorshipId, request, Ct);
+            if (revision == contextRevision) saved = Handle(result);
+        }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) Error = Unavailable(); }
+        finally { if (revision == contextRevision) busy = false; }
     }
+
+    private Task GrantConsentAsync() => ChangeConsentAsync(grant: true);
+    private Task RevokeConsentAsync() => ChangeConsentAsync(grant: false);
+
+    private async Task ChangeConsentAsync(bool grant)
+    {
+        if (Working || !RendererInfo.IsInteractive || consent is null) return;
+        if (grant ? !CanGrant || !consentChecked : consent.GrantedAtUtc is null || consent.RevokedAtUtc is not null || consent.Version is null) return;
+        var revision = contextRevision;
+        var mentorshipId = selected;
+        var version = consent.Version;
+        var disclosedVersion = disclosureVersion;
+        consentBusy = true;
+        consentError = null;
+        try
+        {
+            var actor = await GetUserIdAsync();
+            if (revision != contextRevision) return;
+            var result = grant
+                ? await ReviewConsent.GrantAsync(actor, new(mentorshipId, disclosedVersion, version), Ct)
+                : await ReviewConsent.RevokeAsync(actor, new(mentorshipId, version!.Value), Ct);
+            if (revision == contextRevision) ApplyConsentResult(result, mentorshipId);
+        }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) consentError = Unavailable(); }
+        finally
+        {
+            if (revision == contextRevision)
+            {
+                consentChecked = false;
+                consentBusy = false;
+            }
+        }
+    }
+
+    private async Task ReloadConsentAsync()
+    {
+        if (Working || !RendererInfo.IsInteractive || selected == Guid.Empty) return;
+        var revision = contextRevision;
+        var mentorshipId = selected;
+        ResetConsent();
+        consentBusy = true;
+        try { await LoadConsentAsync(await GetUserIdAsync(), mentorshipId, revision); }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) consentError = Unavailable(); }
+        finally { if (revision == contextRevision) consentBusy = false; }
+    }
+
+    private static AppError Unavailable() => new(ErrorKind.Unavailable, "mentorship.unavailable",
+        "Nie udało się wykonać operacji. Spróbuj ponownie.");
 
     private sealed class FormModel
     {

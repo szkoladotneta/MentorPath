@@ -14,13 +14,13 @@ namespace MentorPath.IntegrationTests.Database;
 public sealed class ReviewPreparationSchemaTests(PostgresFixture db) : IntegrationTestBase(db)
 {
     [Fact]
-    public async Task Schema_contracts_are_not_registered_as_unfinished_services()
+    public async Task Feature_contracts_are_registered_after_the_schema_prerequisite()
     {
         await using var scope = App.CreateScope();
-        scope.ServiceProvider.GetService<IMentorshipReviewConsentService>().ShouldBeNull();
-        scope.ServiceProvider.GetService<IMcpReviewContextService>().ShouldBeNull();
-        scope.ServiceProvider.GetService<IMcpReviewDraftService>().ShouldBeNull();
-        scope.ServiceProvider.GetService<IReviewDraftService>().ShouldBeNull();
+        scope.ServiceProvider.GetRequiredService<IMentorshipReviewConsentService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IMcpReviewContextService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IMcpReviewDraftService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IReviewDraftService>().ShouldNotBeNull();
         scope.ServiceProvider.GetRequiredService<IReviewService>().ShouldNotBeNull();
     }
 

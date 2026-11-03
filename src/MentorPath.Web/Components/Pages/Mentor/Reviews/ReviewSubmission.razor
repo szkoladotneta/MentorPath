@@ -5,11 +5,16 @@
 @using MentorPath.Application.Reviews.Contracts
 @using MentorPath.Web.Components.Modules.Submissions
 @inject IReviewService Reviews
+@inject IReviewDraftService Drafts
 
 <PageTitle>Ocena rozwiązania — MentorPath</PageTitle>
 
 <Page>
     <PageState Loading="Loading" NotFound="NotFound">
+        @if (detail is null)
+        {
+            <ErrorAlert Error="Error" />
+        }
         @if (detail is not null)
         {
             var ex = detail.Exercise.Content;
@@ -37,6 +42,13 @@
                     {
                         <Section Title="Feedback">
                             <ErrorAlert Error="Error" ShowFieldList="false" />
+                            <Badge Tone="neutral" Label="Szkic prywatny" />
+                            <p class="form-text">Szkic nie jest widoczny dla mentee. Dopiero jawna publikacja przez mentora udostępnia feedback. Zapis i publikacja ręcznego review działają także bez zgody na AI i po jej cofnięciu.</p>
+                            @if (draftSaved) { <div class="alert alert-success" role="status">Zapisano prywatny szkic.</div> }
+                            @if (draftConflict)
+                            {
+                                <div class="alert alert-warning" role="alert">Wersja szkicu lub stan rozwiązania uległy zmianie. Twoja niezapisana treść pozostaje w formularzu. Skopiuj ją przed ponownym wczytaniem. Ponowne wczytanie odrzuci lokalne zmiany.</div>
+                            }
                             @if (detail.Criteria is { Count: > 0 } criteria)
                             {
                                 <div class="section-title">Kryteria procesu decyzyjnego</div>
@@ -46,6 +58,7 @@
                                     var index = i;
                                     var c = criteria[index];
                                     var selected = scores.GetValueOrDefault(c.CriterionId);
+                                    var scoreIndex = criteria.Take(index).Count(criterion => scores.ContainsKey(criterion.CriterionId));
                                     <div class="mp-criterion">
                                         <div class="fw-semibold">@c.Name</div>
                                         <div class="btn-group btn-group-sm my-1" role="group" aria-label="@($"Ocena: {c.Name}")">
@@ -53,38 +66,50 @@
                                             {
                                                 var value = level;
                                                 <button type="button" class="btn @(selected == value ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(selected == value)"
-                                                        @onclick="() => scores[c.CriterionId] = value" disabled="@busy">@value</button>
+                                                        @onclick="() => scores[c.CriterionId] = value" disabled="@(!CanEdit)">@value</button>
                                             }
                                         </div>
                                         <div class="small text-secondary">
                                             @if (selected > 0) { @c.LevelDescriptions[selected - 1] } else { <span>Wybierz poziom 1–5.</span> }
                                         </div>
-                                        <FieldError Error="Error" Field="@($"Scores[{index}].Score")" />
-                                        <textarea class="form-control form-control-sm mt-1" rows="2" placeholder="Komentarz do kryterium (opcjonalnie, widoczny dla mentee)"
-                                                  value="@comments.GetValueOrDefault(c.CriterionId)" @onchange="e => comments[c.CriterionId] = e.Value?.ToString() ?? string.Empty"></textarea>
-                                        <FieldError Error="Error" Field="@($"Scores[{index}].CommentMarkdown")" />
+                                        @if (selected > 0) { <FieldError Error="Error" Field="@($"Scores[{scoreIndex}].Score")" /> }
+                                        <label class="form-label" for="@($"fb-criterion-{c.CriterionId}")">Komentarz do kryterium (opcjonalnie, widoczny po publikacji)</label>
+                                        <textarea id="@($"fb-criterion-{c.CriterionId}")" class="form-control form-control-sm mt-1" rows="2" disabled="@(!CanEdit || selected == 0)"
+                                                  value="@comments.GetValueOrDefault(c.CriterionId)" @oninput="e => comments[c.CriterionId] = e.Value?.ToString() ?? string.Empty"></textarea>
+                                        @if (selected > 0) { <FieldError Error="Error" Field="@($"Scores[{scoreIndex}].CommentMarkdown")" /> }
                                     </div>
                                 }
                             }
                             <label class="form-label" for="fb-strengths">Mocne strony</label>
-                            <textarea id="fb-strengths" class="form-control mb-1" rows="3" @bind="strengths"></textarea>
+                            <textarea id="fb-strengths" class="form-control mb-1" rows="3" @bind="strengths" @bind:event="oninput" disabled="@(!CanEdit)"></textarea>
                             <FieldError Error="Error" Field="StrengthsMarkdown" />
                             <label class="form-label mt-2" for="fb-improvements">Do poprawy</label>
-                            <textarea id="fb-improvements" class="form-control mb-1" rows="3" @bind="improvements"></textarea>
+                            <textarea id="fb-improvements" class="form-control mb-1" rows="3" @bind="improvements" @bind:event="oninput" disabled="@(!CanEdit)"></textarea>
                             <FieldError Error="Error" Field="ImprovementsMarkdown" />
                             <label class="form-label mt-2" for="fb-challenge">Pytanie pogłębiające</label>
-                            <textarea id="fb-challenge" class="form-control mb-1" rows="2" @bind="challenge"></textarea>
+                            <textarea id="fb-challenge" class="form-control mb-1" rows="2" @bind="challenge" @bind:event="oninput" disabled="@(!CanEdit)"></textarea>
                             <FieldError Error="Error" Field="ChallengeQuestionMarkdown" />
+                            <label class="form-label mt-2" for="fb-verdict">Proponowany werdykt</label>
+                            <select id="fb-verdict" class="form-select" @bind="verdict" disabled="@(!CanEdit)">
+                                <option value="">Bez werdyktu</option>
+                                <option value="@ReviewVerdict.Accepted">Zaakceptowane</option>
+                                <option value="@ReviewVerdict.NeedsRevision">Wymaga poprawy</option>
+                            </select>
+                            <FieldError Error="Error" Field="Verdict" />
                             <div class="d-flex flex-wrap gap-2 mt-3">
-                                <button class="btn btn-success" @onclick="() => SubmitAsync(ReviewVerdict.Accepted)" disabled="@(busy || !AllScored)">Accepted</button>
-                                <button class="btn btn-warning" @onclick="() => SubmitAsync(ReviewVerdict.NeedsRevision)" disabled="@(busy || !AllScored)">Needs revision</button>
+                                <button id="review-publish" type="button" class="btn btn-primary" @onclick="PublishAsync" disabled="@(!CanEdit || draftConflict || !Complete)">Opublikuj feedback</button>
+                                <button id="review-save-draft" type="button" class="btn btn-outline-primary" @onclick="SaveDraftAsync" disabled="@(!CanEdit || draftConflict)">Zapisz szkic</button>
+                                <button id="review-reload-draft" type="button" class="btn btn-outline-secondary" @onclick="ReloadDraftAsync" disabled="@(busy || !RendererInfo.IsInteractive)">Wczytaj ponownie — odrzuć zmiany</button>
                             </div>
-                            @if (!AllScored) { <div class="form-text">Oceń wszystkie kryteria, aby zapisać feedback.</div> }
+                            <div class="form-text">Szkic można zapisać częściowo, bez werdyktu i kompletu ocen. Aby opublikować, uzupełnij wszystkie pola feedbacku, wybierz werdykt i oceń każde kryterium. Ponowne wczytanie zastępuje cały formularz zapisanym szkicem.</div>
                         </Section>
                     }
                     else
                     {
-                        <div class="alert alert-success mb-0">Ta próba została już oceniona. Feedback jest widoczny w historii.</div>
+                        <Section Title="Opublikowany feedback">
+                            <Badge Tone="success" Label="Opublikowany" />
+                            <p>Ta próba została już oceniona. Feedback jest widoczny dla mentee w historii.</p>
+                        </Section>
                     }
                     <Section Title="Kryteria oceny">
                         <Markdown Value="@(ex.RubricMarkdown ?? "Brak zdefiniowanych kryteriów.")" />
@@ -108,45 +133,130 @@
     private string improvements = "";
     private string challenge = "";
     private bool busy;
+    private bool draftLoaded;
+    private bool draftSaved;
+    private bool draftConflict;
+    private long? draftVersion;
+    private ReviewVerdict? verdict;
+    private int contextRevision;
     private readonly Dictionary<Guid, int> scores = [];
     private readonly Dictionary<Guid, string> comments = [];
 
     private bool AllScored => detail?.Criteria is not { } criteria || criteria.All(c => scores.ContainsKey(c.CriterionId));
+    private bool CanEdit => RendererInfo.IsInteractive && !busy && draftLoaded && !Loading;
+    private bool Complete => AllScored && verdict is not null && !string.IsNullOrWhiteSpace(strengths)
+        && !string.IsNullOrWhiteSpace(improvements) && !string.IsNullOrWhiteSpace(challenge);
 
     private Guid? loadedSubmissionId;
 
     protected override async Task OnParametersSetAsync()
     {
-        // Blazor reuses this instance across route changes; drop the previous review's input.
-        if (loadedSubmissionId != SubmissionId)
-        {
-            loadedSubmissionId = SubmissionId;
-            detail = null;
-            strengths = improvements = challenge = "";
-            scores.Clear();
-            comments.Clear();
-            Loading = true;
-        }
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync()
-    {
-        var result = await Reviews.GetReviewDetailAsync(await GetUserIdAsync(), SubmissionId, Ct);
-        if (Handle(result)) detail = result.Value;
-        Loading = false;
-    }
-
-    private async Task SubmitAsync(ReviewVerdict verdict)
-    {
-        busy = true;
-        var inputs = (detail?.Criteria ?? [])
-            .Select(c => new CriterionScoreInput(c.CriterionId, scores.GetValueOrDefault(c.CriterionId), comments.GetValueOrDefault(c.CriterionId) ?? string.Empty))
-            .ToList();
-        var result = await Reviews.SubmitFeedbackAsync(await GetUserIdAsync(),
-            new SubmitFeedbackRequest(SubmissionId, strengths, improvements, challenge, verdict, inputs), Ct);
-        if (Handle(result)) await LoadAsync();
-        else if (result.Error?.Kind == ErrorKind.Conflict) await LoadAsync();
+        if (loadedSubmissionId == SubmissionId) return;
+        loadedSubmissionId = SubmissionId;
+        var revision = ++contextRevision;
+        detail = null;
+        ResetDraft();
         busy = false;
+        NotFound = false;
+        Error = null;
+        Loading = true;
+        try { await LoadAsync(SubmissionId, revision, hydrateDraft: true); }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) SetUnavailable(); }
+        finally { if (revision == contextRevision) Loading = false; }
     }
+
+    private void ResetDraft()
+    {
+        strengths = improvements = challenge = "";
+        scores.Clear();
+        comments.Clear();
+        verdict = null;
+        draftVersion = null;
+        draftLoaded = draftSaved = draftConflict = false;
+    }
+
+    private async Task LoadAsync(Guid submissionId, int revision, bool hydrateDraft)
+    {
+        var actor = await GetUserIdAsync();
+        var result = await Reviews.GetReviewDetailAsync(actor, submissionId, Ct);
+        if (revision != contextRevision || !Handle(result)) return;
+        detail = result.Value;
+        if (!hydrateDraft || detail?.Status != SubmissionStatus.PendingReview) return;
+        var draftResult = await Drafts.GetAsync(actor, submissionId, Ct);
+        if (revision != contextRevision || !Handle(draftResult)) return;
+        var draft = draftResult.Value;
+        if (draft is not null && draft.SubmissionId != submissionId) { SetUnavailable(); return; }
+        ResetDraft();
+        draftVersion = draft?.Version;
+        if (draft is not null)
+        {
+            strengths = draft.Content.StrengthsMarkdown ?? "";
+            improvements = draft.Content.ImprovementsMarkdown ?? "";
+            challenge = draft.Content.ChallengeQuestionMarkdown ?? "";
+            verdict = draft.Content.Verdict;
+            foreach (var score in draft.Content.Scores)
+            {
+                scores[score.CriterionId] = score.Score;
+                comments[score.CriterionId] = score.CommentMarkdown ?? "";
+            }
+        }
+        draftLoaded = true;
+    }
+
+    private ReviewDraftContent LocalContent() => new(strengths, improvements, challenge, verdict,
+        (detail?.Criteria ?? []).Where(c => scores.ContainsKey(c.CriterionId))
+            .Select(c => new CriterionScoreInput(c.CriterionId, scores[c.CriterionId],
+                comments.GetValueOrDefault(c.CriterionId) ?? "")).ToList());
+
+    private Task SaveDraftAsync() => PersistAsync(publish: false);
+    private Task PublishAsync() => PersistAsync(publish: true);
+
+    private async Task PersistAsync(bool publish)
+    {
+        if (!CanEdit || draftConflict || (publish && !Complete)) return;
+        var submissionId = SubmissionId;
+        var revision = contextRevision;
+        var request = new SaveReviewDraftRequest(submissionId, LocalContent(), draftVersion);
+        busy = true;
+        draftSaved = false;
+        Error = null;
+        try
+        {
+            var actor = await GetUserIdAsync();
+            if (revision != contextRevision) return;
+            var savedResult = await Drafts.SaveAsync(actor, request, Ct);
+            if (revision != contextRevision) return;
+            if (!Handle(savedResult))
+            {
+                draftConflict = savedResult.Error?.Kind == ErrorKind.Conflict;
+                return;
+            }
+            draftVersion = savedResult.Value!.Version;
+            draftSaved = true;
+            if (!publish) return;
+            var published = await Drafts.PublishAsync(actor, submissionId, draftVersion.Value, Ct);
+            if (revision != contextRevision) return;
+            if (Handle(published)) await LoadAsync(submissionId, revision, hydrateDraft: false);
+            else draftConflict = published.Error?.Kind == ErrorKind.Conflict;
+        }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) SetUnavailable(); }
+        finally { if (revision == contextRevision) busy = false; }
+    }
+
+    private async Task ReloadDraftAsync()
+    {
+        if (busy || !RendererInfo.IsInteractive) return;
+        var revision = contextRevision;
+        var submissionId = SubmissionId;
+        busy = true;
+        try { await LoadAsync(submissionId, revision, hydrateDraft: true); }
+        catch (OperationCanceledException) when (Ct.IsCancellationRequested) { }
+        catch (Exception) { if (revision == contextRevision) SetUnavailable(); }
+        finally { if (revision == contextRevision) busy = false; }
+    }
+
+    private void SetUnavailable() => Error = new(ErrorKind.Unavailable, "review.unavailable",
+        "Nie udało się wykonać operacji. Treść formularza została zachowana. Spróbuj ponownie.");
 }

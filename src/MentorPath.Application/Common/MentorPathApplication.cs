@@ -38,7 +38,7 @@ public static class MentorPathApplication
         services.AddScoped<IOrphanedBlobCleanup, OrphanedBlobCleanup>();
 
         services.AddWorkspacesModule();
-        services.AddMentorshipsModule();
+        services.AddMentorshipsModule(configuration);
         services.AddInvitationsModule();
         services.AddCatalogModule();
         services.AddAiAuthoringModule(configuration);
