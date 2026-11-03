@@ -182,12 +182,17 @@ Kryteria akceptacji (wybrane):
 | ID | Pozycja | Pr. | Agent | Schemat | h |
 |---|---|---|---|---|---|
 | N55 | **Samoobsługowe tokeny MCP**: zalogowany mentor generuje token bearer dla własnego konta, wybiera ważność 1–90 dni (domyślnie 30), a token jest wyświetlany tylko raz wraz z instrukcją bezpiecznej konfiguracji klienta MCP; bez listy tokenów i indywidualnego unieważniania | S | — | — | — |
+| N56 | **MCP mentorship reviews**: explicit per-mentorship mentee consent; read roadmap/topic/exercise context, answers, attachments and previous reviews; save a private persistent draft, then human-only UI publication. Schema/contracts prerequisite [#99](https://github.com/szkoladotneta/MentorPath/issues/99); implementation after human merge and D-40 privacy prerequisites (D-66/D-67) | S | — | tak | — |
 
 Kryteria akceptacji (wybrane):
 - **N55:** tylko mentor może wygenerować token dla konta ustalonego z bieżącej sesji; klient nie może wskazać innego użytkownika.
 - **N55:** niepoprawny okres ważności i brak konfiguracji podpisywania są obsługiwane czytelnym błędem; token respektuje obecne limity ważności, blokadę konta i unieważnienie po resecie hasła.
 - **N55:** surowy token jest pokazany tylko po wygenerowaniu, nie jest zapisywany ani logowany i nie można go ponownie odczytać; aplikacja wyjaśnia, że token jest poufny i ma uprawnienia mentora.
 - **N55:** nie powstaje lista tokenów ani indywidualna funkcja unieważniania; istniejący endpoint MCP nadal używa bearer tokenu, bez obietnicy logowania OAuth.
+- **N56:** existing mentorships start without consent; grants/revocation bind to the exact relationship. Every new MCP disclosure/draft operation requires the owning mentor and current consent, including stdio.
+- **N56:** the mentor can traverse all assigned context and attempt/review history, including inactive assignments, with bounded authenticated attachment reads and no automatic external-link fetches.
+- **N56:** saving partial drafts does not publish feedback, alter submission status/progress or expose drafts to mentees. Human publication validates the current rubric and atomically consumes the version-checked draft.
+- **N56:** foreign mentor/mentee/unknown actors and mixed resource IDs return `NotFound`; explicit consent and privacy/concurrency tests precede activation. The prerequisite leaves existing MCP discovery and implemented services unchanged. Lifecycle/provider/disclosure details are not inferred from scope approval (D-67).
 
 ### Tor techniczny T (równolegle, wg potrzeb faz)
 

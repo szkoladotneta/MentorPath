@@ -11,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 {
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<Mentorship> Mentorships => Set<Mentorship>();
+    public DbSet<MentorshipReviewConsent> MentorshipReviewConsents => Set<MentorshipReviewConsent>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Topic> Topics => Set<Topic>();
     public DbSet<CompetencyPrerequisite> CompetencyPrerequisites => Set<CompetencyPrerequisite>();
@@ -24,6 +25,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionAttachment> SubmissionAttachments => Set<SubmissionAttachment>();
     public DbSet<MentorFeedback> MentorFeedback => Set<MentorFeedback>();
+    public DbSet<ReviewDraft> ReviewDrafts => Set<ReviewDraft>();
+    public DbSet<ReviewDraftCriterionScore> ReviewDraftCriterionScores => Set<ReviewDraftCriterionScore>();
     public DbSet<ProductFeedback> ProductFeedback => Set<ProductFeedback>();
     public DbSet<RubricCriterion> RubricCriteria => Set<RubricCriterion>();
     public DbSet<ExerciseCriterion> ExerciseCriteria => Set<ExerciseCriterion>();

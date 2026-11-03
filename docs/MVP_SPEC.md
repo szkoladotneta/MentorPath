@@ -334,9 +334,20 @@ Jeżeli dostawca AI nie odpowiada, mentor widzi czytelny błąd i może kontynuo
 - Logować status i zużycie tokenów, jeśli dostępne.
 - Nie logować pełnych promptów z potencjalnymi danymi osobowymi.
 
+Post-MVP exception N56 (D-66): mentor-controlled MCP review may disclose answers,
+attachments, previous review history and learning reflections only with explicit mentee consent for the
+exact mentorship and the D-40 provider/privacy prerequisites. Scope approval alone
+does not enable disclosure. Mentee email and mentor-private notes stay excluded.
+The schema/contracts prerequisite exposes no new capabilities.
+
 **AI-06 — Scope**
 
 W MVP AI generuje szkice ćwiczeń, nie całe roadmapy i nie feedback.
+
+N56 prepares private review drafts saved by the mentor's external MCP agent, not
+platform-generated N50 suggestions or automatic feedback. The human mentor must
+inspect/edit and explicitly publish in MentorPath; MCP must never publish a review
+or change submission/progress state (D-66).
 
 ## 3.6. Roadmaps
 

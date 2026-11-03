@@ -49,6 +49,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 |---|---|
 | Workspaces | unique `OwnerUserId` |
 | Mentorships | unique `(WorkspaceId, MenteeUserId)`; AK `(WorkspaceId, Id)` |
+| MentorshipReviewConsents | unique `MentorshipId`; FK `(WorkspaceId, MentorshipId)` → Mentorships AK and FK `WorkspaceId` → Workspaces (Restrict); index `WorkspaceId`; nonblank disclosure version ≤ 100; CHECK `Version > 0`, revocation timestamp ≥ grant; application-managed concurrency version; absence means no grant (D-66) |
 | Invitations | unique `TokenHash`; index `(WorkspaceId, NormalizedEmail)` |
 | Topics | unique `(WorkspaceId, Slug)`; AK `(WorkspaceId, Id)`; nullable `ParentTopicId` — FK `(WorkspaceId, ParentTopicId)` → Topics AK (Restrict); check `ParentTopicId <> Id`; index `(WorkspaceId, ParentTopicId)`; cykle i głębokość ≤ 3 pilnuje serwis (D-45) |
 | CompetencyPrerequisites | PK `(WorkspaceId, TopicId, PrerequisiteTopicId)`; FKs `(WorkspaceId, TopicId)` and `(WorkspaceId, PrerequisiteTopicId)` → Topics AK (Restrict); check `TopicId <> PrerequisiteTopicId`; index `WorkspaceId`, `(WorkspaceId, PrerequisiteTopicId)`; cykle wielokrokowe pilnuje serwis |
@@ -62,6 +63,8 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 | Submissions | unique `(AssignmentId, AttemptNumber)`; unique `(MenteeUserId, ClientRequestId)`; **partial unique `(AssignmentId) WHERE "Status" = 'PendingReview'`**; CHECK `ConfidenceBefore BETWEEN 1 AND 5`, `AttemptNumber > 0` |
 | SubmissionAttachments | unique `SubmissionId`, unique `ObjectKey` |
 | MentorFeedback | unique `SubmissionId`; AK `(WorkspaceId, Id)` |
+| ReviewDrafts | unique `SubmissionId`; AK `(WorkspaceId, Id)`; FK `(WorkspaceId, SubmissionId)` → Submissions AK and FK `WorkspaceId` → Workspaces (Restrict); index `WorkspaceId`; optional Markdown fields ≤ 20,000 and optional `Accepted`/`NeedsRevision` verdict; CHECK `Version > 0`, update timestamp ≥ creation; application-managed concurrency version (D-66) |
+| ReviewDraftCriterionScores | PK `(DraftId, CriterionId)`; FK `(WorkspaceId, DraftId)` → ReviewDrafts AK and FK `(WorkspaceId, CriterionId)` → RubricCriteria AK (Restrict); FK `WorkspaceId` → Workspaces (Restrict); indexes `WorkspaceId`, `(WorkspaceId, CriterionId)`; CHECK `Score BETWEEN 1 AND 5`; comment Markdown ≤ 20,000 |
 | ProductFeedback | global (not workspace-scoped); FK `AuthorUserId` → AspNetUsers (Restrict); `MessageText` required, max 2000 (empty stored value is reserved for anonymization); optional `PageContext` max 2000; indexes `(AuthorUserId, CreatedAtUtc)` and `CreatedAtUtc` |
 | RubricCriteria | unique `(WorkspaceId, Name)`; AK `(WorkspaceId, Id)`; CHECK `Position >= 0` |
 | ExerciseCriteria | PK `(ExerciseId, CriterionId)`; FK `(WorkspaceId, ExerciseId)` → Exercises AK Cascade; FK `(WorkspaceId, CriterionId)` → RubricCriteria AK |
@@ -72,7 +75,7 @@ Jedyny punkt decyzji o dostępie: `IWorkspaceAccessService` (`src/MentorPath.App
 
 - Pozostałe FK: **Restrict**. Żadnych kaskad na Submissions/Feedback/Reflections/Attachments.
 - Indeks po `WorkspaceId` na każdej tabeli `IWorkspaceScoped`.
-- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions (RoadmapItem dodatkowo bez historii statusu kompetencji), `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-52), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42).
+- Dozwolone twarde usuwanie: `Exercise` w statusie `Draft` (+ QuizOptions kaskadowo), `RoadmapItem`/`Assignment` bez submissions (RoadmapItem dodatkowo bez historii statusu kompetencji), `TopicResources` przez właściciela tematu przy zastąpieniu listy (D-52), oraz `SubmissionAttachments` wyłącznie przy anonimizacji użytkownika (D-42). D-66 permits removal of draft scores before replacing/consuming their draft, and removal of consent/drafts/scores during anonymization.
 - Enumy zapisywane jako string. Role Identity: `Mentor`, `Mentee`, `PlatformOperator`.
 
 ## 4. `DecisionAnswerJson` (schemat v2)
@@ -96,16 +99,16 @@ Moduł zapisuje tylko do tabel, które posiada. Odczyt dowolnej tabeli jest dozw
 | Moduł | Może zapisywać do |
 |---|---|
 | Workspaces | Workspaces |
-| Mentorships | Mentorships |
+| Mentorships | Mentorships, MentorshipReviewConsents |
 | Invitations | Invitations, Mentorships |
 | Catalog | Topics, CompetencyPrerequisites, TopicResources, Exercises, QuizOptions, RubricCriteria, ExerciseCriteria |
 | AiAuthoring | AiGenerationRequests |
 | Roadmaps | Roadmaps, RoadmapItems, CompetencyStatusHistory, Assignments |
 | Submissions | Submissions (insert), SubmissionAttachments, ActivityEvents (`assignment_opened`) |
-| Reviews | MentorFeedback, FeedbackCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
+| Reviews | MentorFeedback, FeedbackCriterionScores, ReviewDrafts, ReviewDraftCriterionScores, SubmissionReflections, Submissions (tylko `PendingReview → Accepted/NeedsRevision`), ActivityEvents (`review_opened`, `review_submitted`) |
 | Feedback | ProductFeedback (insert submissions) |
 | Progress | nic (ActivityEvents są tylko odczytywane; metryki są wyliczane) |
-| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), ProductFeedback (wyczyszczenie `MessageText`), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
+| Privacy | Mentorships (czyszczenie PII, `Status = Closed`), MentorshipReviewConsents, ReviewDrafts i ReviewDraftCriterionScores (usuwanie), Submissions (czyszczenie PII), SubmissionAttachments (usuwanie), MentorFeedback, FeedbackCriterionScores i SubmissionReflections (czyszczenie tekstów), ProductFeedback (wyczyszczenie `MessageText`), Invitations (czyszczenie e-maila) — wyłącznie anonimizacja z CLI (D-42) |
 
 Tabele Identity (AspNetUsers/Roles) obsługują Identity i moduły Invitations/CLI przy tworzeniu kont oraz moduł Privacy przy anonimizacji (AspNetUsers, AspNetUserRoles, AspNetUserLogins, AspNetUserClaims, AspNetUserTokens — wyłącznie przez `UserManager`, D-42).
 
@@ -154,6 +157,12 @@ Wysłanie nowej próby jest dozwolone ⇔ mentee jest autorem relacji **i** `Men
 - Resource input requires a title, absolute HTTPS URL without user credentials, valid Article/Video kind and optional plain-text description, within the limits above. URL validity beyond length and Kind membership are application validations, not database constraints.
 - Resources do not grant catalog access, alter assignment eligibility or contribute to progress. Existing submission restrictions remain unchanged.
 - The schema prerequisite declares contracts only. Access checks, validation, serialized replacement and UI behavior are implemented and isolation-tested in the subsequent feature PR.
+
+## 8.2. MCP review prerequisite (D-66/D-67)
+
+The schema declares consent and private drafts only; no service implementations or MCP registrations are enabled. Existing read/publish behavior is unchanged. The feature must authorize every resource through `IWorkspaceAccessService`, return `NotFound` for foreign mentors, every mentee and unknown actors at mentor-only boundaries, and check the exact supplied resource relationships even within one workspace. Consent state is visible to the owner and participating mentee; only that mentee can grant/revoke. Missing drafts are an explicit empty result only after authorization.
+
+MCP-specific context/draft interfaces require current per-mentorship consent; human draft/publication interfaces deliberately do not grant MCP publication. Consent does not change existing UI assignment/submission access. Save only while `PendingReview`; no feedback/activity/progress effects. Publication must fully validate text/verdict/current rubric scores and consume the version-checked draft atomically with the existing final feedback transaction. Privacy cleanup and all NotFound/consent/revocation/race tests are activation prerequisites. Lifecycle and response limits remain Proposed in D-67.
 
 ## 9. Scenariusz wypuszczenia MVP
 
