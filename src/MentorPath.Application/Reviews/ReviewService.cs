@@ -88,7 +88,7 @@ internal sealed class ReviewService(
     }
 
     // Criteria a review must score: those selected for the exercise that are still active.
-    private static Task<List<RubricCriterion>> LoadReviewCriteriaAsync(AppDbContext db, Guid workspaceId, Guid exerciseId, CancellationToken ct) =>
+    internal static Task<List<RubricCriterion>> LoadReviewCriteriaAsync(AppDbContext db, Guid workspaceId, Guid exerciseId, CancellationToken ct) =>
         db.ExerciseCriteria.AsNoTracking()
             .Where(x => x.ExerciseId == exerciseId && x.WorkspaceId == workspaceId && x.Criterion!.IsActive)
             .Select(x => x.Criterion!)
@@ -100,35 +100,48 @@ internal sealed class ReviewService(
         var ws = await access.GetOwnedWorkspaceIdAsync(actorUserId, ct);
         if (ws is null) return Errors.NotFound(Module);
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var mentorship = await ReviewDraftService.LockMentorshipAsync(db, ws.Value, request.SubmissionId, ct);
+        if (mentorship is null) return Errors.NotFound(Module);
+        var submission = await ReviewDraftService.LockSubmissionAsync(db, ws.Value, request.SubmissionId, ct);
+        if (submission is null) return Errors.NotFound(Module);
+        var result = await PublishAsync(db, ws.Value, actorUserId, submission, request, clock, ct);
+        if (result.IsSuccess) await tx.CommitAsync(ct);
+        return result;
+    }
+
+    internal static async Task<Result<Guid>> PublishAsync(AppDbContext db, Guid workspaceId, Guid actorUserId,
+        Submission submission, SubmitFeedbackRequest request, TimeProvider clock, CancellationToken ct)
+    {
+        if (submission.Status != SubmissionStatus.PendingReview)
+            return Errors.Conflict("review.not_pending", "Ta próba została już oceniona lub nie wymaga oceny.");
+
         var errors = new FieldErrors();
         errors.Required(nameof(request.StrengthsMarkdown), request.StrengthsMarkdown, InputLimits.Markdown, "Mocne strony");
         errors.Required(nameof(request.ImprovementsMarkdown), request.ImprovementsMarkdown, InputLimits.Markdown, "Do poprawy");
         errors.Required(nameof(request.ChallengeQuestionMarkdown), request.ChallengeQuestionMarkdown, InputLimits.Markdown, "Pytanie pogłębiające");
         if (!Enum.IsDefined(request.Verdict)) errors.Add(nameof(request.Verdict), "Wybierz werdykt.");
 
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var submission = await db.Submissions.AsNoTracking()
-            .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws)
-            .Select(s => new { s.AssignmentId, s.MenteeUserId, s.Assignment!.ExerciseId })
-            .FirstOrDefaultAsync(ct);
-        if (submission is null) return Errors.NotFound(Module);
-
-        var required = await LoadReviewCriteriaAsync(db, ws.Value, submission.ExerciseId, ct);
+        var exerciseId = await db.Assignments.AsNoTracking()
+            .Where(a => a.Id == submission.AssignmentId && a.WorkspaceId == workspaceId)
+            .Select(a => a.ExerciseId).SingleAsync(ct);
+        var required = await LoadReviewCriteriaAsync(db, workspaceId, exerciseId, ct);
         var scores = request.Scores ?? [];
-        var workspaceCriterionIds = await db.RubricCriteria.AsNoTracking().Where(c => c.WorkspaceId == ws).Select(c => c.Id).ToListAsync(ct);
+        var scoreIds = scores.Select(s => s.CriterionId).Distinct().ToList();
+        var workspaceCriterionIds = await db.RubricCriteria.AsNoTracking()
+            .Where(c => c.WorkspaceId == workspaceId && scoreIds.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
         if (scores.Any(x => !workspaceCriterionIds.Contains(x.CriterionId))) return Errors.NotFound(Module);
         ValidateScores(errors, scores, required);
         if (errors.HasErrors) return errors.ToError("review.invalid");
 
         var newStatus = request.Verdict == ReviewVerdict.Accepted ? SubmissionStatus.Accepted : SubmissionStatus.NeedsRevision;
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var rows = await db.Submissions
-            .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == ws && s.Status == SubmissionStatus.PendingReview)
+            .Where(s => s.Id == request.SubmissionId && s.WorkspaceId == workspaceId && s.Status == SubmissionStatus.PendingReview)
             .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, newStatus), ct);
         if (rows != 1)
         {
-            await tx.RollbackAsync(CancellationToken.None);
-            var exists = await db.Submissions.AnyAsync(s => s.Id == request.SubmissionId && s.WorkspaceId == ws, ct);
+            var exists = await db.Submissions.AnyAsync(s => s.Id == request.SubmissionId && s.WorkspaceId == workspaceId, ct);
             return exists
                 ? Errors.Conflict("review.not_pending", "Ta próba została już oceniona lub nie wymaga oceny.")
                 : Errors.NotFound(Module);
@@ -137,7 +150,7 @@ internal sealed class ReviewService(
         var feedback = new MentorFeedback
         {
             Id = Guid.CreateVersion7(),
-            WorkspaceId = ws.Value,
+            WorkspaceId = workspaceId,
             SubmissionId = request.SubmissionId,
             MentorUserId = actorUserId,
             Verdict = request.Verdict,
@@ -147,7 +160,7 @@ internal sealed class ReviewService(
             CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
         };
         var openedAt = await db.ActivityEvents.AsNoTracking()
-            .Where(e => e.WorkspaceId == ws && e.SubmissionId == request.SubmissionId && e.EventType == ActivityEventType.ReviewOpened)
+            .Where(e => e.WorkspaceId == workspaceId && e.SubmissionId == request.SubmissionId && e.EventType == ActivityEventType.ReviewOpened)
             .Select(e => (DateTime?)e.OccurredAtUtc)
             .SingleOrDefaultAsync(ct);
         if (openedAt is null)
@@ -156,7 +169,7 @@ internal sealed class ReviewService(
             db.ActivityEvents.Add(new ActivityEvent
             {
                 Id = Guid.CreateVersion7(),
-                WorkspaceId = ws.Value,
+                WorkspaceId = workspaceId,
                 AssignmentId = submission.AssignmentId,
                 SubmissionId = request.SubmissionId,
                 MenteeUserId = submission.MenteeUserId,
@@ -168,13 +181,12 @@ internal sealed class ReviewService(
         var reviewDuration = feedback.CreatedAtUtc - openedAt.Value;
         if (reviewDuration < TimeSpan.Zero)
         {
-            await tx.RollbackAsync(CancellationToken.None);
             return Errors.Conflict("review.clock_error", "Nie można zapisać pomiaru czasu review. Spróbuj ponownie.");
         }
         db.ActivityEvents.Add(new ActivityEvent
         {
             Id = Guid.CreateVersion7(),
-            WorkspaceId = ws.Value,
+            WorkspaceId = workspaceId,
             AssignmentId = submission.AssignmentId,
             SubmissionId = request.SubmissionId,
             MenteeUserId = submission.MenteeUserId,
@@ -188,7 +200,7 @@ internal sealed class ReviewService(
         foreach (var score in scores)
             db.FeedbackCriterionScores.Add(new FeedbackCriterionScore
             {
-                WorkspaceId = ws.Value,
+                WorkspaceId = workspaceId,
                 FeedbackId = feedback.Id,
                 CriterionId = score.CriterionId,
                 Score = (short)score.Score,
@@ -196,12 +208,15 @@ internal sealed class ReviewService(
             });
         try
         {
+            await db.ReviewDraftCriterionScores
+                .Where(s => s.WorkspaceId == workspaceId && s.Draft!.SubmissionId == request.SubmissionId)
+                .ExecuteDeleteAsync(ct);
+            await db.ReviewDrafts.Where(d => d.WorkspaceId == workspaceId && d.SubmissionId == request.SubmissionId)
+                .ExecuteDeleteAsync(ct);
             await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
         }
         catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
         {
-            await tx.RollbackAsync(CancellationToken.None);
             if (DbErrors.ConstraintName(ex) == "IX_ActivityEvents_WorkspaceId_SubmissionId_EventType")
                 return Errors.Conflict("review.open_event_race", "Nie udało się zapisać początku pomiaru review. Spróbuj ponownie.");
             return Errors.Conflict("review.already_reviewed", "Ta próba ma już feedback.");
@@ -209,7 +224,8 @@ internal sealed class ReviewService(
         return feedback.Id;
     }
 
-    private static void ValidateScores(FieldErrors errors, IReadOnlyList<CriterionScoreInput> scores, IReadOnlyList<RubricCriterion> required)
+    internal static void ValidateScores(FieldErrors errors, IReadOnlyList<CriterionScoreInput> scores,
+        IReadOnlyList<RubricCriterion> required, bool requireAll = true)
     {
         const string Field = nameof(SubmitFeedbackRequest.Scores);
         var requiredIds = required.Select(c => c.Id).ToHashSet();
@@ -217,7 +233,7 @@ internal sealed class ReviewService(
             errors.Add(Field, "Każde kryterium może mieć tylko jedną ocenę.");
         if (scores.Any(x => !requiredIds.Contains(x.CriterionId)))
             errors.Add(Field, "Oceniono kryterium, które nie dotyczy tego ćwiczenia.");
-        foreach (var c in required.Where(c => scores.All(x => x.CriterionId != c.Id)))
+        foreach (var c in required.Where(c => requireAll && scores.All(x => x.CriterionId != c.Id)))
             errors.Add(Field, $"Brak oceny dla kryterium „{c.Name}”.");
         for (var i = 0; i < scores.Count; i++)
         {

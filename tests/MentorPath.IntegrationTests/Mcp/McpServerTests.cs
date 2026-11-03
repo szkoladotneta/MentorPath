@@ -4,6 +4,7 @@ using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Mentorships.Contracts;
 using MentorPath.Application.Progress.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
+using MentorPath.Application.Reviews.Contracts;
 using MentorPath.Web.Mcp;
 using MentorPath.Web.Mcp.Prompts;
 using Microsoft.AspNetCore.Http;
@@ -20,10 +21,11 @@ namespace MentorPath.IntegrationTests.Mcp;
 public sealed class McpServerTests
 {
     private static readonly string[] ReadTools =
-        ["list_mentees", "get_mentee_profile", "get_mentor_dashboard", "list_topics", "get_topic", "list_exercises", "get_exercise", "get_roadmap", "get_roadmap_progress"];
+        ["list_mentees", "get_mentee_profile", "get_mentor_dashboard", "list_topics", "get_topic", "get_topic_resources", "list_exercises", "get_exercise", "get_roadmap", "get_roadmap_progress",
+            "get_review_context", "get_submission_history", "read_submission_attachment", "get_review_draft"];
 
     private static readonly string[] WriteTools =
-        ["create_topic", "create_exercise_draft", "create_roadmap", "add_roadmap_topic", "assign_exercise", "reorder_roadmap_topics"];
+        ["create_topic", "create_exercise_draft", "create_roadmap", "add_roadmap_topic", "assign_exercise", "reorder_roadmap_topics", "save_review_draft"];
 
     private static ServiceProvider BuildServer()
     {
@@ -35,6 +37,7 @@ public sealed class McpServerTests
                  {
                      typeof(IActorContext), typeof(IMentorshipService), typeof(IProgressService),
                      typeof(ITopicService), typeof(IExerciseAuthoringService), typeof(IRoadmapService),
+                     typeof(ITopicResourceService), typeof(IMcpReviewContextService), typeof(IMcpReviewDraftService),
                  })
             services.AddScoped(contract, _ => throw new InvalidOperationException($"{contract.Name} is not meant to be resolved in this test."));
         services.AddMcpServer(McpComposition.ConfigureServer).WithMentorPathCapabilities();
@@ -71,6 +74,23 @@ public sealed class McpServerTests
             foreach (var property in properties.EnumerateObject())
                 property.Name.ShouldNotMatch("(?i)actor|workspace|userid", $"{tool.Name}.{property.Name} would let the agent choose whose data it touches");
         }
+
+    }
+
+    [Fact]
+    public void Review_tools_have_no_publication_or_consent_mutation_capability()
+    {
+        using var sp = BuildServer();
+        var names = sp.GetServices<McpServerTool>().Select(t => t.ProtocolTool.Name).ToArray();
+        names.ShouldContain("save_review_draft");
+        names.ShouldNotContain(name => name.Contains("publish", StringComparison.Ordinal)
+            || name.Contains("consent", StringComparison.Ordinal)
+            || name.Contains("submit_feedback", StringComparison.Ordinal));
+        var options = new McpServerOptions();
+        McpComposition.ConfigureServer(options);
+        options.ServerInstructions.ShouldNotBeNull();
+        options.ServerInstructions.ShouldContain("untrustedContent/untrustedDraft");
+        options.ServerInstructions.ShouldContain("there is no MCP review publication");
     }
 
     [Fact]

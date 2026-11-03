@@ -3,6 +3,7 @@ using MentorPath.Application.Catalog.Contracts;
 using MentorPath.Application.Mentorships.Contracts;
 using MentorPath.Application.Progress.Contracts;
 using MentorPath.Application.Roadmaps.Contracts;
+using MentorPath.Application.Reviews.Contracts;
 using MentorPath.Data;
 using MentorPath.Web.Mcp;
 using Microsoft.AspNetCore.Components;
@@ -17,7 +18,8 @@ public sealed class ArchitectureTests
 
     /// <summary>The only services an MCP entry point may receive (D-64). Operator-only services, which take no actor, are deliberately absent.</summary>
     private static readonly Type[] McpAllowedServices =
-        [typeof(IMentorshipService), typeof(IProgressService), typeof(ITopicService), typeof(IExerciseAuthoringService), typeof(IRoadmapService)];
+        [typeof(IMentorshipService), typeof(IProgressService), typeof(ITopicService), typeof(ITopicResourceService),
+            typeof(IExerciseAuthoringService), typeof(IRoadmapService), typeof(IMcpReviewContextService), typeof(IMcpReviewDraftService)];
 
     [Fact]
     public void Razor_components_never_inject_db_context_or_factory()
@@ -57,7 +59,7 @@ public sealed class ArchitectureTests
                         || m.GetCustomAttribute<McpServerResourceAttribute>() is not null
                         || m.GetCustomAttribute<McpServerPromptAttribute>() is not null)
             .ToList();
-        methods.Count.ShouldBe(19, "15 tools, 2 resources, 2 prompts");
+        methods.Count.ShouldBe(25, "21 tools, 2 resources, 2 prompts");
         methods.ShouldAllBe(m => m.IsStatic, "entry points are static, so the SDK never constructs the classes and nothing can arrive through a constructor");
         methods.Select(m => m.DeclaringType!).Distinct().ShouldAllBe(t => t.GetConstructors().All(c => c.GetParameters().Length == 0));
         methods.Where(m => UnwrapTask(m.ReturnType) == typeof(object)).Select(m => m.Name)

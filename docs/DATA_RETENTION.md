@@ -11,6 +11,7 @@ Dokument opisuje, jak długo przechowujemy dane osobowe i jak operator obsługuj
 | Konto, relacja mentoringowa i jej treści (onboarding, próby, pliki, feedback, refleksje) — relacja `Active`/`Paused` | przez czas trwania relacji | — |
 | Jak wyżej, wszystkie relacje mentee `Closed` | 12 miesięcy od zamknięcia ostatniej relacji | `anonymize-user --confirm` |
 | Uwagi do produktu (`ProductFeedback`, N03) | jak konto osoby | `anonymize-user --confirm` czyści treść uwagi, ale zostawia wiersz z identyfikatorem autora, ścieżką strony i datą (D-56, D-57); eksport zawiera uwagi osoby |
+| Zgoda na MCP review i szkice review (N56) | ostatnie dowody zgody do anonimizacji; szkice do publikacji przez mentora lub anonimizacji | cofnięcie zgody blokuje MCP, ale zachowuje szkice dla mentora; anonimizacja usuwa zgody, szkice i ich oceny kryteriów (D-67/D-68) |
 | Zaproszenia zaakceptowane | jak konto osoby | e-mail zastępuje `anonymize-user` |
 | Zaproszenia niezaakceptowane, wygasłe | 30 dni po `ExpiresAtUtc` | usunięcie przez operatora (SQL poniżej; nie ma konta, więc nie ma czego anonimizować w CLI) |
 | Kopie bazy (`pg_dump`) | 14 dziennych + 8 tygodniowych (`DEPLOYMENT.md` §5); Azure PITR: 14 dni | kopie wygasają rotacyjnie; nie edytujemy kopii |
@@ -39,7 +40,8 @@ docker run --rm --env-file prod.env -v /secure/exports:/exports registry.example
 ```
 
 - JSON trafia **tylko do pliku** (`--out` wymagane); istniejący plik nie jest nadpisywany; uprawnienia `0600`. Na stdout jest tylko id użytkownika i liczniki — stdout jest strumieniem logów.
-- Zawartość (`schemaVersion: 2`, daty UTC ISO-8601, stała kolejność): profil (id, e-mail, nazwa, data utworzenia, role), relacje jako mentee (workspace, cel, poziom, godziny, wyzwania, status, daty), wszystkie próby (ćwiczenie, temat, numer próby, status, wybrana odpowiedź quizu, odpowiedź ADR, uzasadnienie, link, confidence, data), metadane załączników (klucz obiektu, nazwa, typ, rozmiar — **bez treści plików**), feedback mentora (werdykt, trzy pola, data), refleksje, zaproszenia na e-mail osoby i uwagi do produktu wraz ze ścieżką strony.
+- Zawartość (`schemaVersion: 3`, daty UTC ISO-8601, stała kolejność): profil (id, e-mail, nazwa, data utworzenia, role), relacje jako mentee (workspace, cel, poziom, godziny, wyzwania, status, daty), wszystkie próby (ćwiczenie, temat, numer próby, status, wybrana odpowiedź quizu, odpowiedź ADR, uzasadnienie, link, confidence, data), metadane załączników (klucz obiektu, nazwa, typ, rozmiar — **bez treści plików**), feedback mentora (werdykt, trzy pola, data), refleksje, zaproszenia na e-mail osoby i uwagi do produktu wraz ze ścieżką strony.
+- `reviewConsents` zawiera ostatnie dowody zgód (także cofniętych), wersję ujawnienia, daty i wersję zapisu. `reviewDrafts` zawiera nieopublikowane, także częściowe szkice dotyczące osoby oraz oceny kryteriów z nazwami, pozycjami i komentarzami. Obie kolekcje są zawsze wypełnione, także jako `[]`; `null`/brak pola oznacza starszy, nieuzupełniony eksport. To wyłącznie eksport operatora — zwykły widok mentee nie ujawnia szkiców.
 - Nie zawiera: haseł, tokenów i sekretów Identity, prywatnych notatek mentora (`MentorPrivateNotes`), przewodników mentora i poprawnych odpowiedzi quizów, danych innych osób (w tym e-maila mentora).
 - Pliki załączników operator może dołączyć osobno, pobierając obiekty po kluczach z eksportu.
 - Przekaż plik osobie bezpiecznym kanałem i usuń go z wolumenu po przekazaniu.
@@ -64,6 +66,7 @@ Kolejność: najpierw usuwane są pliki z magazynu, potem w jednej transakcji zm
 | Próby | odpowiedź ADR, uzasadnienie i link wyczyszczone |
 | Załączniki | obiekty usunięte z magazynu, wiersze `SubmissionAttachments` usunięte |
 | Feedback mentora | trzy pola tekstowe wyczyszczone |
+| Zgody MCP review, szkice i oceny kryteriów szkiców | wiersze usunięte, także przy ponownej anonimizacji; historyczne liczniki raportu nie liczą tych wierszy |
 | Refleksje | wniosek wyczyszczony |
 | Zaproszenia na e-mail osoby | e-mail zastąpiony identyfikatorem zastępczym |
 | Uwagi do produktu | treść wyczyszczona; autor id, ścieżka strony i data zachowane (D-56, D-57) |

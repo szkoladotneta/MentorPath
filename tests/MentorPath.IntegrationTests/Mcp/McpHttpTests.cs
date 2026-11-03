@@ -5,6 +5,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using MentorPath.Data;
 using MentorPath.Data.Enums;
+using MentorPath.Application.Common;
+using MentorPath.Application.Mentorships.Contracts;
+using MentorPath.Application.Reviews.Contracts;
 using MentorPath.IntegrationTests.Infrastructure;
 using MentorPath.Web.Mcp;
 using Microsoft.AspNetCore.Identity;
@@ -131,6 +134,84 @@ public sealed class McpHttpTests(PostgresFixture db) : IntegrationTestBase(db)
         result.ShouldContain(menteeA.MentorshipId.ToString());
         result.ShouldNotContain(menteeB.MentorshipId.ToString());
         result.ShouldNotContain(menteeA.Email);
+    }
+
+    [Fact]
+    public async Task Review_tools_are_discoverable_but_refuse_calls_when_the_operator_gate_is_off()
+    {
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        using var client = _withKey.Client();
+        var token = await TokenAsync(mentor.UserId);
+        using var listed = await client.SendAsync(JsonRpc("tools/list", new { }, token));
+        listed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tools = (await ReadResponseAsync(listed)).GetProperty("result").GetProperty("tools");
+        tools.EnumerateArray().Select(t => t.GetProperty("name").GetString()).ShouldContain("get_review_context");
+        using var call = await client.SendAsync(JsonRpc("tools/call",
+            new { name = "get_review_context", arguments = new { mentorshipId = mentee.MentorshipId, submissionId = submission.SubmissionId } }, token));
+        call.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var result = (await ReadResponseAsync(call)).GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+        result.ToString().ShouldNotContain("Modularny monolit");
+    }
+
+    [Fact]
+    public async Task HTTP_review_context_and_draft_require_current_consent_and_cannot_publish()
+    {
+        const string notice = "Synthetic approved HTTP test client.";
+        var enabledSettings = new Dictionary<string, string?>
+        {
+            ["Mcp:SigningKey"] = McpTokensTests.Key,
+            ["Mcp:Reviews:Enabled"] = "true", ["Mcp:Reviews:ProviderNotice"] = notice,
+        };
+        await using var enabledApp = await TestApp.CreateAsync(Database, enabledSettings);
+        var mentor = await Data.MentorAsync();
+        var mentee = await Data.MenteeAsync(mentor);
+        var assignment = await Data.PublishedAssignmentAsync(mentor, mentee, ExerciseType.ArchitecturalDecision);
+        var submission = await Data.DecisionSubmissionAsync(mentee, assignment.AssignmentId);
+        var consentService = enabledApp.Get<IMentorshipReviewConsentService>();
+        (await consentService.GrantAsync(mentee.UserId,
+            new(mentee.MentorshipId, new McpReviewOptions { ProviderNotice = notice }.DisclosureVersion, null), default)).ShouldSucceed();
+        await using var server = new WebAppFactory(Database, enabledSettings);
+        using var client = server.Client();
+        var token = await TokenAsync(mentor.UserId);
+        using var context = await client.SendAsync(JsonRpc("tools/call", new
+        {
+            name = "get_review_context",
+            arguments = new { mentorshipId = mentee.MentorshipId, submissionId = submission.SubmissionId },
+        }, token));
+        context.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var read = (await ReadResponseAsync(context)).GetProperty("result");
+        read.TryGetProperty("isError", out var readError);
+        (readError.ValueKind == JsonValueKind.True).ShouldBeFalse(read.ToString());
+        read.ToString().ShouldContain("Modularny monolit");
+        read.ToString().ShouldNotContain(mentee.Email);
+        using var save = await client.SendAsync(JsonRpc("tools/call", new
+        {
+            name = "save_review_draft",
+            arguments = new { mentorshipId = mentee.MentorshipId, submissionId = submission.SubmissionId, strengthsMarkdown = "Synthetic HTTP draft" },
+        }, token));
+        var saved = (await ReadResponseAsync(save)).GetProperty("result");
+        saved.TryGetProperty("isError", out var saveError);
+        (saveError.ValueKind == JsonValueKind.True).ShouldBeFalse(saved.ToString());
+        saved.ToString().ShouldContain("not published");
+        (await enabledApp.Get<IReviewDraftService>().GetAsync(mentor.UserId, submission.SubmissionId, default)).ShouldSucceed()!
+            .Content.StrengthsMarkdown.ShouldBe("Synthetic HTTP draft");
+        var consent = (await consentService.GetAsync(mentee.UserId, mentee.MentorshipId, default)).ShouldSucceed();
+        (await consentService.RevokeAsync(mentee.UserId, new(mentee.MentorshipId, consent.Version!.Value), default)).ShouldSucceed();
+        using var revoked = await client.SendAsync(JsonRpc("tools/call", new
+        {
+            name = "get_review_draft",
+            arguments = new { mentorshipId = mentee.MentorshipId, submissionId = submission.SubmissionId },
+        }, token));
+        (await ReadResponseAsync(revoked)).GetProperty("result").GetProperty("isError").GetBoolean().ShouldBeTrue();
+        using var deniedPublication = await client.SendAsync(JsonRpc("tools/call",
+            new { name = "publish_review", arguments = new { submissionId = submission.SubmissionId } }, token));
+        var notATool = await ReadResponseAsync(deniedPublication);
+        (notATool.TryGetProperty("error", out _) ||
+            (notATool.GetProperty("result").TryGetProperty("isError", out var publishError) && publishError.GetBoolean())).ShouldBeTrue();
     }
 
     private async Task<string> TokenAsync(Guid userId, TimeSpan? lifetime = null, string? key = null, string? audience = null, TimeProvider? clock = null)

@@ -176,7 +176,7 @@ Propagacja `WorkspaceId` (D-08):
 
 `actorUserId` pobiera warstwa Web z `AuthenticationState` (claim `NameIdentifier`) — helper `CurrentUser` w `Components/Shared` (A1).
 
-Agent MCP (D-64) jest kolejnym klientem tych samych serwisów: narzędzia w `Mcp/` biorą `actorUserId` z `IActorContext` (HTTP: `sub` tokena bearer → `NameIdentifier`; stdio: mentor z `--actor`) i wołają wyłącznie interfejsy z `Contracts/`. Lista narzędzi jest powierzchnią uprawnień agenta — publikacja, feedback i zaproszenia nie są wystawione.
+Agent MCP (D-64) jest kolejnym klientem tych samych serwisów: narzędzia w `Mcp/` biorą `actorUserId` z `IActorContext` (HTTP: `sub` tokena bearer → `NameIdentifier`; stdio: mentor z `--actor`) i wołają wyłącznie interfejsy z `Contracts/`. Lista narzędzi jest powierzchnią uprawnień agenta — publikacja, finalny feedback i zaproszenia nie są wystawione. N56 dodaje odczyt kontekstu/historii/załączników i prywatne szkice review przez osobne `IMcpReviewContextService`/`IMcpReviewDraftService`, z domyślnie wyłączoną bramką operatora i aktualną zgodą mentee per mentoring (D-66/D-67). Ludzka publikacja używa osobnego `IReviewDraftService`; ten interfejs nie jest dopuszczony do wejść MCP. Zapis draftu nie zmienia statusu ani postępu.
 
 ---
 

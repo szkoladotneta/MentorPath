@@ -51,6 +51,16 @@ async function expectText(page, text, timeout = 10000) {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout });
 }
 
+async function checkReviewWidths(page, name) {
+  for (const width of [360, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    if (overflow) throw new Error(`${name} overflows at ${width}px`);
+    await page.screenshot({ path: `${SHOTS}/${name}-${width}.png`, fullPage: true, animations: 'disabled' });
+  }
+}
+
 (async () => {
   const browser = await chromium.launch();
   let current;
@@ -101,6 +111,21 @@ async function expectText(page, text, timeout = 10000) {
     await mentee.locator('input[type=number]').fill('6');
     await mentee.click('button:has-text("Zapisz")');
     await expectText(mentee, 'Zapisano profil');
+    const consent = mentee.locator('#review-consent-confirm');
+    if (await consent.isChecked()) throw new Error('Review consent must not be preselected');
+    if (process.env.MCP_REVIEWS_ENABLED === 'true') {
+      await consent.check();
+      await mentee.click('#review-consent-grant');
+      await expectText(mentee, 'Zgoda aktualna');
+      await mentee.click('#review-consent-revoke');
+      await expectText(mentee, 'Zgoda cofnięta');
+      await consent.check();
+      await mentee.click('#review-consent-grant');
+      await expectText(mentee, 'Zgoda aktualna');
+    } else if (await mentee.locator('#review-consent-grant').isEnabled()) {
+      throw new Error('Default-off review gate must disable consent grant');
+    }
+    await checkReviewWidths(mentee, 'review-consent');
     await mentee.locator('summary[aria-label^="Menu użytkownika"]').click();
     await expectText(mentee, 'Uwaga do produktu');
     if (!(await mentee.locator('a.menu-item[href^="app/feedback"]').count()))
@@ -321,8 +346,38 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.waitForURL(/\/mentor\/reviews\/[0-9a-f-]+$/);
     await settle(mentor);
     await expectText(mentor, 'Mentor guide');
+    await mentor.fill('#fb-strengths', 'Private partial draft');
+    await mentor.click('#review-save-draft');
+    await expectText(mentor, 'Zapisano prywatny szkic.');
+    await go(mentor, new URL(mentor.url()).pathname);
+    if (await mentor.inputValue('#fb-strengths') !== 'Private partial draft')
+      throw new Error('Saved partial draft did not survive reload');
+    if (await mentor.locator('#review-publish').isEnabled())
+      throw new Error('Incomplete draft must not be publishable');
+    await go(mentee, new URL(decisionUrl).pathname + '/history');
+    if ((await mentee.locator('body').innerText()).includes('Private partial draft'))
+      throw new Error('Mentee can see an unpublished draft');
+    const concurrent = await mentor.context().newPage();
+    await go(concurrent, new URL(mentor.url()).pathname);
+    await concurrent.fill('#fb-strengths', 'Other tab draft');
+    await concurrent.click('#review-save-draft');
+    await expectText(concurrent, 'Zapisano prywatny szkic.');
+    await mentor.fill('#fb-strengths', 'Unsaved local draft');
+    await mentor.click('#review-save-draft');
+    await expectText(mentor, 'Twoja niezapisana treść pozostaje w formularzu');
+    if (await mentor.inputValue('#fb-strengths') !== 'Unsaved local draft')
+      throw new Error('Draft conflict discarded local edits');
+    await mentor.click('#review-reload-draft');
+    await expectText(mentor, 'Szkic prywatny');
+    await mentor.locator('#review-save-draft:enabled').waitFor();
+    if (await mentor.inputValue('#fb-strengths') !== 'Other tab draft')
+      throw new Error('Explicit reload did not load the current draft');
+    await concurrent.close();
+    await checkReviewWidths(mentor, 'review-draft');
+    log('Consent and private draft save/reload/conflict/visibility flows verified');
     await fillFeedback(mentor, 'Dobra analiza alternatyw.', 'Brakuje opisu ryzyk operacyjnych.', 'Co się stanie przy 10x ruchu?', 3);
-    await mentor.click('button:has-text("Needs revision")');
+    await mentor.selectOption('#fb-verdict', 'NeedsRevision');
+    await mentor.click('#review-publish');
     await expectText(mentor, 'została już oceniona');
     log('Mentor sent the ADR back for revision');
 
@@ -354,7 +409,8 @@ async function expectText(page, text, timeout = 10000) {
     await mentor.waitForURL(/\/mentor\/reviews\/[0-9a-f-]+$/);
     await settle(mentor);
     await fillFeedback(mentor, 'Kompletne.', 'Drobne poprawki.', 'Kiedy wrócisz do decyzji?', 5);
-    await mentor.click('button:has-text("Accepted")');
+    await mentor.selectOption('#fb-verdict', 'Accepted');
+    await mentor.click('#review-publish');
     await expectText(mentor, 'została już oceniona');
     log('Mentor accepted attempt #2');
 
@@ -381,7 +437,8 @@ async function expectText(page, text, timeout = 10000) {
         await mentor.click('a:has-text("Idempotentny endpoint płatności")');
         await settle(mentor);
         await fillFeedback(mentor, 'OK', 'Dodaj testy', 'Retencja kluczy?');
-        await mentor.click('button:has-text("Needs revision")');
+        await mentor.selectOption('#fb-verdict', 'NeedsRevision');
+        await mentor.click('#review-publish');
         await expectText(mentor, 'została już oceniona');
         current = ola;
         await ola.reload(); await settle(ola);

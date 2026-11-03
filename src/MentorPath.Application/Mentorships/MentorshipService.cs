@@ -109,9 +109,22 @@ internal sealed class MentorshipService(
         if (!Enum.IsDefined(status)) return Errors.Validation("mentorship.invalid_status", "Nieprawidłowy status.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var mentorship = await db.Mentorships.FromSqlInterpolated(
+                $"""SELECT * FROM "Mentorships" WHERE "Id" = {mentorshipId} AND "WorkspaceId" = {acc.WorkspaceId} FOR UPDATE""")
+            .SingleOrDefaultAsync(ct);
+        if (mentorship is null) return Errors.NotFound(Module);
         var now = clock.GetUtcNow().UtcDateTime;
-        await db.Mentorships.Where(m => m.Id == mentorshipId && m.WorkspaceId == acc.WorkspaceId)
-            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, status).SetProperty(m => m.UpdatedAtUtc, now), ct);
+        mentorship.Status = status;
+        mentorship.UpdatedAtUtc = now;
+        if (status == MentorshipStatus.Closed)
+        {
+            await db.MentorshipReviewConsents
+                .Where(c => c.MentorshipId == mentorshipId && c.WorkspaceId == acc.WorkspaceId && c.RevokedAtUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.RevokedAtUtc, now).SetProperty(c => c.Version, c => c.Version + 1), ct);
+        }
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return Result.Success();
     }
 }
