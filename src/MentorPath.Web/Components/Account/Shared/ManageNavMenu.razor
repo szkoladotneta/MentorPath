@@ -6,5 +6,10 @@
         <li class="nav-item">
             <NavLink class="nav-link" href="Account/Manage/ChangePassword">Hasło</NavLink>
         </li>
+        <AuthorizeView Roles="@AppRoles.Mentor">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="Account/Manage/McpToken">Token MCP</NavLink>
+            </li>
+        </AuthorizeView>
     </ul>
 </nav>

@@ -3,10 +3,14 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 
 namespace MentorPath.IntegrationTests.Infrastructure;
 
-public sealed partial class WebAppFactory(PostgresFixture db, IDictionary<string, string?>? settings = null) : WebApplicationFactory<Program>
+public sealed partial class WebAppFactory(
+    PostgresFixture db,
+    IDictionary<string, string?>? settings = null,
+    ILoggerProvider? loggerProvider = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -18,6 +22,7 @@ public sealed partial class WebAppFactory(PostgresFixture db, IDictionary<string
         builder.UseSetting("Storage:EnsureContainerOnStartup", "false");
         builder.UseSetting("Ai:Provider", "Fake");
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>()) builder.UseSetting(key, value);
+        if (loggerProvider is not null) builder.ConfigureLogging(logging => logging.AddProvider(loggerProvider));
     }
 
     public HttpClient Client() => CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

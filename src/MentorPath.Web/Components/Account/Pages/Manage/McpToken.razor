@@ -1,0 +1,102 @@
+@page "/Account/Manage/McpToken"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = AppRoles.Mentor)]
+@using System.ComponentModel.DataAnnotations
+@using MentorPath.Application.Common
+@using Microsoft.AspNetCore.Identity
+@using MentorPath.Data
+@using MentorPath.Web.Mcp
+@inject UserManager<AppUser> UserManager
+@inject IConfiguration Configuration
+@inject TimeProvider Clock
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Token MCP — MentorPath</PageTitle>
+
+<Section Title="Token MCP">
+    <p>Utwórz token dostępu dla swojego konta mentora. Daje on dostęp do narzędzi MCP w zakresie uprawnień tego konta. Reset hasła unieważnia wszystkie Twoje tokeny MCP, a blokada konta wstrzymuje ich użycie.</p>
+    <p>Token jest poufny i daje pełne uprawnienia mentora w MCP. Udostępniaj go wyłącznie zaufanemu klientowi.</p>
+    <p>Po utworzeniu token zostanie pokazany tylko w tej odpowiedzi. Skopiuj go do prywatnej konfiguracji klienta MCP jako wartość nagłówka <code>Authorization</code>, poprzedzając token słowem <code>Bearer</code>. Nie zapisuj sekretu w repozytorium ani w pliku współdzielonym.</p>
+    <p>Tokenów nie można wyświetlić ponownie ani unieważnić pojedynczo. Możesz utworzyć kolejny token, a istniejące tokeny będą działać do wygaśnięcia, resetu hasła lub blokady konta.</p>
+
+    <ErrorAlert Error="error" ShowFieldList="false" />
+
+    @if (issuedToken is not null)
+    {
+        <div class="alert alert-warning" role="status">
+            Token został utworzony. Skopiuj go teraz — po opuszczeniu tej strony nie będzie można go odzyskać.
+        </div>
+        <div class="mb-3">
+            <label for="issued-token" class="form-label">Poufny token dostępu</label>
+            <textarea id="issued-token" class="form-control field-medium" rows="5" readonly>@issuedToken</textarea>
+        </div>
+    }
+
+    <EditForm Model="Input" FormName="mcp-token" OnValidSubmit="GenerateAsync" method="post">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger small" role="alert" />
+        <div class="mb-3">
+            <label for="Input.LifetimeDays" class="form-label">Ważność tokenu (dni)</label>
+            <InputNumber @bind-Value="Input.LifetimeDays" id="Input.LifetimeDays" class="form-control field-narrow" min="1" max="90" />
+            <ValidationMessage For="() => Input.LifetimeDays" class="text-danger small" />
+        </div>
+        <button type="submit" class="btn btn-primary">Utwórz token</button>
+    </EditForm>
+</Section>
+
+@code {
+    private string? issuedToken;
+    private AppError? error;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task GenerateAsync()
+    {
+        issuedToken = null;
+        error = null;
+
+        var user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null || !await UserManager.IsInRoleAsync(user, AppRoles.Mentor))
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var signingKey = Configuration[McpComposition.SigningKeySetting];
+        if (string.IsNullOrWhiteSpace(signingKey))
+        {
+            error = new AppError(ErrorKind.Unavailable, "mcp.signing_key_missing", "Wydawanie tokenów MCP nie jest skonfigurowane. Skontaktuj się z administratorem.");
+            return;
+        }
+
+        try
+        {
+            McpTokens.SecurityKey(signingKey);
+        }
+        catch (InvalidOperationException)
+        {
+            error = new AppError(ErrorKind.Unavailable, "mcp.signing_key_invalid", "Konfiguracja podpisywania tokenów MCP jest nieprawidłowa. Skontaktuj się z administratorem.");
+            return;
+        }
+
+        issuedToken = McpTokens.Create(
+            user.Id,
+            await UserManager.GetSecurityStampAsync(user),
+            McpTokens.ResolveAudience(Configuration),
+            TimeSpan.FromDays(Input.LifetimeDays),
+            signingKey,
+            Clock);
+        HttpContext.Response.Headers["Cache-Control"] = "no-store";
+    }
+
+    private sealed class InputModel
+    {
+        [Range(1, 90, ErrorMessage = "Ważność tokenu musi wynosić od 1 do 90 dni.")]
+        public int LifetimeDays { get; set; } = 30;
+    }
+}
