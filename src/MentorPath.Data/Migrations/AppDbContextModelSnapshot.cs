@@ -17,7 +17,7 @@ namespace MentorPath.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -592,6 +592,51 @@ namespace MentorPath.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.MentorshipReviewConsent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DisclosureVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MentorshipId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MentorshipId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "MentorshipId");
+
+                    b.ToTable("MentorshipReviewConsents", t =>
+                        {
+                            t.HasCheckConstraint("CK_MentorshipReviewConsents_DisclosureVersion", "length(btrim(\"DisclosureVersion\")) > 0");
+
+                            t.HasCheckConstraint("CK_MentorshipReviewConsents_RevokedAtUtc", "\"RevokedAtUtc\" IS NULL OR \"RevokedAtUtc\" >= \"GrantedAtUtc\"");
+
+                            t.HasCheckConstraint("CK_MentorshipReviewConsents_Version", "\"Version\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
                 {
                     b.Property<Guid>("Id")
@@ -653,6 +698,95 @@ namespace MentorPath.Data.Migrations
                     b.HasIndex("ExerciseId", "Position");
 
                     b.ToTable("QuizOptions");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ReviewDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChallengeQuestionMarkdown")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImprovementsMarkdown")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<string>("StrengthsMarkdown")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Verdict")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "SubmissionId");
+
+                    b.ToTable("ReviewDrafts", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReviewDrafts_UpdatedAtUtc", "\"UpdatedAtUtc\" >= \"CreatedAtUtc\"");
+
+                            t.HasCheckConstraint("CK_ReviewDrafts_Verdict", "\"Verdict\" IS NULL OR \"Verdict\" IN ('Accepted', 'NeedsRevision')");
+
+                            t.HasCheckConstraint("CK_ReviewDrafts_Version", "\"Version\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ReviewDraftCriterionScore", b =>
+                {
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommentMarkdown")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<short>("Score")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("DraftId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "CriterionId");
+
+                    b.HasIndex("WorkspaceId", "DraftId");
+
+                    b.ToTable("ReviewDraftCriterionScores", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReviewDraftCriterionScores_Score", "\"Score\" BETWEEN 1 AND 5");
+                        });
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Roadmap", b =>
@@ -1469,6 +1603,24 @@ namespace MentorPath.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("MentorPath.Data.Entities.MentorshipReviewConsent", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Mentorship", "Mentorship")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "MentorshipId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Mentorship");
+                });
+
             modelBuilder.Entity("MentorPath.Data.Entities.ProductFeedback", b =>
                 {
                     b.HasOne("MentorPath.Data.AppUser", "Author")
@@ -1487,6 +1639,51 @@ namespace MentorPath.Data.Migrations
                         .HasForeignKey("ExerciseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ReviewDraft", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.Submission", "Submission")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "SubmissionId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Submission");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ReviewDraftCriterionScore", b =>
+                {
+                    b.HasOne("MentorPath.Data.Entities.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.RubricCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "CriterionId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MentorPath.Data.Entities.ReviewDraft", "Draft")
+                        .WithMany("CriterionScores")
+                        .HasForeignKey("WorkspaceId", "DraftId")
+                        .HasPrincipalKey("WorkspaceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Criterion");
+
+                    b.Navigation("Draft");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Roadmap", b =>
@@ -1718,6 +1915,11 @@ namespace MentorPath.Data.Migrations
             modelBuilder.Entity("MentorPath.Data.Entities.Mentorship", b =>
                 {
                     b.Navigation("Roadmap");
+                });
+
+            modelBuilder.Entity("MentorPath.Data.Entities.ReviewDraft", b =>
+                {
+                    b.Navigation("CriterionScores");
                 });
 
             modelBuilder.Entity("MentorPath.Data.Entities.Roadmap", b =>

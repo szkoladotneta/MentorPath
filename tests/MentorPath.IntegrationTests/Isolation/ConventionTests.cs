@@ -49,16 +49,16 @@ public sealed class ConventionTests
     private static readonly Dictionary<string, string[]> WriteOwnership = new()
     {
         ["Workspaces"] = ["Workspaces"],
-        ["Mentorships"] = ["Mentorships"],
+        ["Mentorships"] = ["Mentorships", "MentorshipReviewConsents"],
         ["Invitations"] = ["Invitations", "Mentorships"],
         ["Catalog"] = ["Topics", "CompetencyPrerequisites", "TopicResources", "Exercises", "QuizOptions", "RubricCriteria", "ExerciseCriteria"],
         ["AiAuthoring"] = ["AiGenerationRequests"],
         ["Roadmaps"] = ["Roadmaps", "RoadmapItems", "CompetencyStatusHistory", "Assignments"],
         ["Submissions"] = ["Submissions", "SubmissionAttachments", "ActivityEvents"],
-        ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
+        ["Reviews"] = ["MentorFeedback", "FeedbackCriterionScores", "ReviewDrafts", "ReviewDraftCriterionScores", "SubmissionReflections", "Submissions", "ActivityEvents"],
         ["Feedback"] = ["ProductFeedback"],
         ["Progress"] = [],
-        ["Privacy"] = ["Mentorships", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "SubmissionReflections", "ProductFeedback", "Invitations"],
+        ["Privacy"] = ["Mentorships", "MentorshipReviewConsents", "Submissions", "SubmissionAttachments", "MentorFeedback", "FeedbackCriterionScores", "ReviewDrafts", "ReviewDraftCriterionScores", "SubmissionReflections", "ProductFeedback", "Invitations"],
     };
 
     // Service methods not yet covered by a NotFound isolation test. Shrink this list, never grow it.

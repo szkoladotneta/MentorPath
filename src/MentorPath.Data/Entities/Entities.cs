@@ -50,6 +50,19 @@ public sealed class Invitation : IWorkspaceScoped
     public Workspace? Workspace { get; set; }
 }
 
+public sealed class MentorshipReviewConsent : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid MentorshipId { get; set; }
+    public string DisclosureVersion { get; set; } = "";
+    public DateTime GrantedAtUtc { get; set; }
+    public DateTime? RevokedAtUtc { get; set; }
+    public long Version { get; set; }
+
+    public Mentorship? Mentorship { get; set; }
+}
+
 public sealed class Topic : IWorkspaceScoped
 {
     public Guid Id { get; set; }
@@ -247,6 +260,35 @@ public sealed class ProductFeedback
     public DateTime CreatedAtUtc { get; set; }
 
     public AppUser? Author { get; set; }
+}
+
+public sealed class ReviewDraft : IWorkspaceScoped
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid SubmissionId { get; set; }
+    public ReviewVerdict? Verdict { get; set; }
+    public string? StrengthsMarkdown { get; set; }
+    public string? ImprovementsMarkdown { get; set; }
+    public string? ChallengeQuestionMarkdown { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+    public long Version { get; set; }
+
+    public Submission? Submission { get; set; }
+    public List<ReviewDraftCriterionScore> CriterionScores { get; set; } = [];
+}
+
+public sealed class ReviewDraftCriterionScore : IWorkspaceScoped
+{
+    public Guid WorkspaceId { get; set; }
+    public Guid DraftId { get; set; }
+    public Guid CriterionId { get; set; }
+    public short Score { get; set; }
+    public string CommentMarkdown { get; set; } = "";
+
+    public ReviewDraft? Draft { get; set; }
+    public RubricCriterion? Criterion { get; set; }
 }
 
 public sealed class RubricCriterion : IWorkspaceScoped
