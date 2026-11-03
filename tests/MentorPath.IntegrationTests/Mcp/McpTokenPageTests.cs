@@ -6,11 +6,11 @@ using System.Text.RegularExpressions;
 using MentorPath.Data;
 using MentorPath.IntegrationTests.Infrastructure;
 using MentorPath.Web.Cli;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace MentorPath.IntegrationTests.Mcp;
@@ -57,6 +57,7 @@ public sealed partial class McpTokenPageTests(PostgresFixture db) : IntegrationT
         var token = ExtractToken(html);
         var jwt = new JsonWebTokenHandler().ReadJsonWebToken(token);
         jwt.Subject.ShouldBe(mentor.UserId.ToString());
+        jwt.Subject.ShouldNotBe(otherMentor.UserId.ToString());
         jwt.ValidTo.ShouldBeInRange(now.AddDays(30).AddMinutes(-1), now.AddDays(30).AddMinutes(1));
 
         using var mcpResponse = await client.SendAsync(InitializeRequest(token));
@@ -130,11 +131,15 @@ public sealed partial class McpTokenPageTests(PostgresFixture db) : IntegrationT
     }
 
     [Fact]
-    public async Task Only_mentors_can_open_the_token_page()
+    public async Task Only_mentors_can_open_the_token_page_or_issue_a_token()
     {
         using var anonymousClient = _withKey.Client();
         var anonymousResponse = await anonymousClient.GetAsync(PagePath);
         anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        var anonymousPostResponse = await PostUnauthorizedTokenPageAsync(anonymousClient);
+        anonymousPostResponse.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        anonymousPostResponse.Headers.Location!.ToString().ShouldContain("/Account/Login");
+        (await anonymousPostResponse.Content.ReadAsStringAsync()).ShouldNotContain("issued-token");
 
         var mentor = await Data.MentorAsync();
         var mentee = await Data.MenteeAsync(mentor);
@@ -144,6 +149,10 @@ public sealed partial class McpTokenPageTests(PostgresFixture db) : IntegrationT
         var menteeResponse = await menteeClient.GetAsync(PagePath);
         menteeResponse.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         menteeResponse.Headers.Location!.ToString().ShouldContain("/Account/AccessDenied");
+        var menteePostResponse = await PostUnauthorizedTokenPageAsync(menteeClient);
+        menteePostResponse.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        menteePostResponse.Headers.Location!.ToString().ShouldContain("/Account/AccessDenied");
+        (await menteePostResponse.Content.ReadAsStringAsync()).ShouldNotContain("issued-token");
     }
 
     [Fact]
@@ -171,7 +180,6 @@ public sealed partial class McpTokenPageTests(PostgresFixture db) : IntegrationT
     private async Task<HttpResponseMessage> PostTokenPageAsync(HttpClient client, string? lifetimeDays, string? forgedUserId = null)
     {
         var html = await client.GetStringAsync(PagePath);
-        var formNameIndex = html.IndexOf("mcp-token", StringComparison.Ordinal);
         var antiforgeryToken = WebUtility.HtmlDecode(AntiforgeryInput().Match(html).Groups[1].Value);
         var fields = new Dictionary<string, string>
         {
@@ -182,6 +190,13 @@ public sealed partial class McpTokenPageTests(PostgresFixture db) : IntegrationT
         if (forgedUserId is not null) fields["Input.UserId"] = forgedUserId;
         return await client.PostAsync(PagePath, new FormUrlEncodedContent(fields));
     }
+
+    private static Task<HttpResponseMessage> PostUnauthorizedTokenPageAsync(HttpClient client) =>
+        client.PostAsync(PagePath, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["_handler"] = "mcp-token",
+            ["Input.LifetimeDays"] = "30",
+        }));
 
     private static string ExtractToken(string html)
     {

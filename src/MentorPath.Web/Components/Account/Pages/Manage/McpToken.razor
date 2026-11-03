@@ -1,6 +1,7 @@
 @page "/Account/Manage/McpToken"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = AppRoles.Mentor)]
 @using System.ComponentModel.DataAnnotations
+@using MentorPath.Application.Common
 @using Microsoft.AspNetCore.Identity
 @using MentorPath.Data
 @using MentorPath.Web.Mcp
@@ -17,10 +18,7 @@
     <p>Po utworzeniu token zostanie pokazany tylko w tej odpowiedzi. Skopiuj go do prywatnej konfiguracji klienta MCP jako wartość nagłówka <code>Authorization</code>, poprzedzając token słowem <code>Bearer</code>. Nie zapisuj sekretu w repozytorium ani w pliku współdzielonym.</p>
     <p>Tokenów nie można wyświetlić ponownie ani unieważnić pojedynczo. Możesz utworzyć kolejny token, a istniejące tokeny będą działać do wygaśnięcia, resetu hasła lub blokady konta.</p>
 
-    @if (message is not null)
-    {
-        <div class="alert alert-danger" role="alert">@message</div>
-    }
+    <ErrorAlert Error="error" ShowFieldList="false" />
 
     @if (issuedToken is not null)
     {
@@ -47,7 +45,7 @@
 
 @code {
     private string? issuedToken;
-    private string? message;
+    private AppError? error;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -60,7 +58,7 @@
     private async Task GenerateAsync()
     {
         issuedToken = null;
-        message = null;
+        error = null;
 
         var user = await UserManager.GetUserAsync(HttpContext.User);
         if (user is null || !await UserManager.IsInRoleAsync(user, AppRoles.Mentor))
@@ -72,7 +70,7 @@
         var signingKey = Configuration[McpComposition.SigningKeySetting];
         if (string.IsNullOrWhiteSpace(signingKey))
         {
-            message = "Wydawanie tokenów MCP nie jest skonfigurowane. Skontaktuj się z administratorem.";
+            error = new AppError(ErrorKind.Unavailable, "mcp.signing_key_missing", "Wydawanie tokenów MCP nie jest skonfigurowane. Skontaktuj się z administratorem.");
             return;
         }
 
@@ -82,7 +80,7 @@
         }
         catch (InvalidOperationException)
         {
-            message = "Konfiguracja podpisywania tokenów MCP jest nieprawidłowa. Skontaktuj się z administratorem.";
+            error = new AppError(ErrorKind.Unavailable, "mcp.signing_key_invalid", "Konfiguracja podpisywania tokenów MCP jest nieprawidłowa. Skontaktuj się z administratorem.");
             return;
         }
 
