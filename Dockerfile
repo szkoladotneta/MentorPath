@@ -11,7 +11,7 @@ COPY src/ src/
 # assets package (blazor.web.js) only when it sees Razor components.
 RUN dotnet publish src/MentorPath.Web/MentorPath.Web.csproj -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 \
     DataProtection__KeysPath=/keys \
